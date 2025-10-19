@@ -2,6 +2,7 @@
   "name": "Campus Wireless Network",
   "difficulty": "medium",
   "timeLimit": 900,
+  "score": 80,
   "devices": [
     {
       "id": "6",

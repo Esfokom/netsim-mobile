@@ -2,6 +2,7 @@
   "name": "Advanced Routing",
   "difficulty": "hard",
   "timeLimit": 1200,
+  "score": 70,
   "devices": [{
     "id": "2",
     "type": "switch",

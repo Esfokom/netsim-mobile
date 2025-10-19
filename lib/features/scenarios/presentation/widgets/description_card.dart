@@ -27,7 +27,7 @@ class DescriptionCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Description',
-                  style: theme.textTheme.h4?.copyWith(
+                  style: theme.textTheme.h4.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),

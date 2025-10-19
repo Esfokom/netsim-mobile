@@ -10,6 +10,7 @@ class PersistentScenarios {
 
   static Future<File> _file() async {
     final dir = await getApplicationDocumentsDirectory();
+    print("PersistentScenarios directory: ${dir.path}");
     
     return File('${dir.path}/$_fileName');
   }
@@ -44,8 +45,8 @@ class PersistentScenarios {
     }
   }
 
-  /// Delete the persistent scenarios file. Returns true if deletion succeeded
-  /// or the file did not exist.
+  // Delete the persistent scenarios file. Returns true if deletion succeeded
+  // or the file did not exist.
   static Future<bool> delete() async {
     try {
       final f = await _file();

@@ -7,6 +7,7 @@ class Scenario {
   final String name;
   final String difficulty;
   final int timeLimit;
+  final int score;
   final List<Device> devices;
   final Metadata metadata;
 
@@ -14,6 +15,7 @@ class Scenario {
     required this.name,
     required this.difficulty,
     required this.timeLimit,
+    required this.score,
     required this.devices,
     required this.metadata,
   });
@@ -22,6 +24,7 @@ class Scenario {
     name: json['name'] as String,
     difficulty: json['difficulty'] as String,
     timeLimit: (json['timeLimit'] as num).toInt(),
+    score: (json['score'] as num? ?? 0).toInt(),
     devices: (json['devices'] as List<dynamic>? ?? [])
         .map((e) => Device.fromJson(e as Map<String, dynamic>))
         .toList(),
@@ -32,6 +35,7 @@ class Scenario {
     'name': name,
     'difficulty': difficulty,
     'timeLimit': timeLimit,
+    'score': score,
     'devices': devices.map((d) => d.toJson()).toList(),
     'metadata': metadata.toJson(),
   };
@@ -47,12 +51,14 @@ class Scenario {
     String? name,
     String? difficulty,
     int? timeLimit,
+    int? score,
     List<Device>? devices,
     Metadata? metadata,
   }) => Scenario(
     name: name ?? this.name,
     difficulty: difficulty ?? this.difficulty,
     timeLimit: timeLimit ?? this.timeLimit,
+    score: score ?? this.score,
     devices: devices ?? this.devices,
     metadata: metadata ?? this.metadata,
   );

@@ -11,6 +11,7 @@ class MockScenarios {
       name: "Basic Networking",
       difficulty: "easy",
       timeLimit: 600,
+      score: 200,
       devices: [
         Device(
           id: "1",
@@ -55,6 +56,7 @@ class MockScenarios {
       name: "Advanced Routing",
       difficulty: "hard",
       timeLimit: 1200,
+      score: 250,
       devices: [
         Device(
           id: "3",
@@ -115,6 +117,7 @@ class MockScenarios {
       name: "Campus Wireless Network",
       difficulty: "medium",
       timeLimit: 900,
+      score: 150,
       devices: [
         Device(
           id: "6",
@@ -170,6 +173,96 @@ class MockScenarios {
         createdAt: DateTime.now(),
         description:
             "Scenario simulating a wireless network environment across campus buildings.",
+      ),
+    ),
+    Scenario(
+      name: "Data Center Outage",
+      difficulty: "hard",
+      timeLimit: 1500,
+      score: 300,
+      devices: [
+        Device(
+          id: "8",
+          type: "Router",
+          position: Position(x: 0, y: 0),
+          parameters: Parameters(
+            pingInterval: 30,
+            latencyThreshold: 100,
+            failureProbability: 0.1,
+            trafficLoad: 10,
+          ),
+          status: Status(
+            online: true,
+            latency: 20,
+            lastChecked: DateTime.now(),
+          ),
+        ),
+         Device(
+          id: "9",
+          type: "Sever",
+          position: Position(x: 5, y: 5),
+          parameters: Parameters(
+            pingInterval: 20,
+            latencyThreshold: 100,
+            failureProbability: 0.1,
+            trafficLoad: 10,
+          ),
+          status: Status(
+            online: true,
+            latency: 20,
+            lastChecked: DateTime.now(),
+          ),
+        ),
+      ],
+      metadata: Metadata(
+        createdBy: "admin",
+        createdAt: DateTime.now(),
+        description: "Scenario simulating a data center outage.",
+      ),
+    ),
+    Scenario(
+      name: "Small Office Setup",
+      difficulty: "easy",
+      timeLimit: 400,
+      score: 80,
+      devices: [
+        Device(
+          id: "10",
+          type: "Router",
+          position: Position(x: 0, y: 0),
+          parameters: Parameters(
+            pingInterval: 30,
+            latencyThreshold: 100,
+            failureProbability: 0.1,
+            trafficLoad: 10,
+          ),
+          status: Status(
+            online: true,
+            latency: 20,
+            lastChecked: DateTime.now(),
+          ),
+        ),
+         Device(
+          id: "11",
+          type: "Sever",
+          position: Position(x: 5, y: 5),
+          parameters: Parameters(
+            pingInterval: 20,
+            latencyThreshold: 100,
+            failureProbability: 0.1,
+            trafficLoad: 10,
+          ),
+          status: Status(
+            online: true,
+            latency: 20,
+            lastChecked: DateTime.now(),
+          ),
+        ),
+      ],
+      metadata: Metadata(
+        createdBy: "trainer",
+        createdAt: DateTime.now(),
+        description: "Setup for a small office network.",
       ),
     ),
   ];

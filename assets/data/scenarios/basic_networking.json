@@ -2,6 +2,7 @@
   "name": "Basic Networking",
   "difficulty": "easy",
   "timeLimit": 600,
+  "score": 65,
   "devices": [
     {
       "id": "1",

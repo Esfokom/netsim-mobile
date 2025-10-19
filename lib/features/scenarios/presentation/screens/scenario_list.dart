@@ -7,6 +7,7 @@ import '../providers/scenario_provider.dart';
 import '../widgets/difficulty_tag.dart';
 import 'scenario_view.dart';
 
+
 class ScenarioListScreen extends ConsumerWidget {
   const ScenarioListScreen({super.key});
 
