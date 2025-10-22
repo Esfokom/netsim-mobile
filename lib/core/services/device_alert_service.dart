@@ -37,19 +37,23 @@ class DeviceAlertService {
     Device newDevice,
     BuildContext context,
   ) async {
-    debugPrint(
-      '🔍 [DeviceAlertService] Starting analysis for device: ${newDevice.type} (ID: ${newDevice.id})',
-    );
-    debugPrint('🔍 [DeviceAlertService] Context mounted: ${context.mounted}');
+    if (!context.mounted) return;
 
     _alertQueue.clear();
-    debugPrint('🔍 [DeviceAlertService] Alert queue cleared');
 
-    // 1. Check online/offline status
+    _checkOnlineStatus(oldDevice, newDevice);
+    _checkLatencyThreshold(oldDevice, newDevice);
+    _checkPingInterval(oldDevice, newDevice);
+    _checkFailureProbability(oldDevice, newDevice);
+    _checkTrafficLoad(oldDevice, newDevice);
+
+    if (_alertQueue.isNotEmpty && !_isProcessingQueue) {
+      _processAlertQueue(context);
+    }
+  }
+
+  void _checkOnlineStatus(Device oldDevice, Device newDevice) {
     if (oldDevice.status.online != newDevice.status.online) {
-      debugPrint(
-        '✅ [DeviceAlertService] Online status changed: ${oldDevice.status.online} -> ${newDevice.status.online}',
-      );
       _alertQueue.add(
         DeviceAlert(
           deviceType: newDevice.type,
@@ -63,18 +67,15 @@ class DeviceAlertService {
         ),
       );
     }
+  }
 
-    // 2. Check latency threshold
+  void _checkLatencyThreshold(Device oldDevice, Device newDevice) {
     if (oldDevice.parameters.latencyThreshold !=
         newDevice.parameters.latencyThreshold) {
       final oldValue = oldDevice.parameters.latencyThreshold;
       final newValue = newDevice.parameters.latencyThreshold;
       final change = newValue - oldValue;
       final percentChange = ((change / oldValue) * 100).abs();
-
-      debugPrint(
-        '✅ [DeviceAlertService] Latency threshold changed: $oldValue -> $newValue (${percentChange.toStringAsFixed(1)}%)',
-      );
 
       _alertQueue.add(
         DeviceAlert(
@@ -88,18 +89,15 @@ class DeviceAlertService {
         ),
       );
     }
+  }
 
-    // 3. Check ping interval
+  void _checkPingInterval(Device oldDevice, Device newDevice) {
     if (oldDevice.parameters.pingInterval !=
         newDevice.parameters.pingInterval) {
       final oldValue = oldDevice.parameters.pingInterval;
       final newValue = newDevice.parameters.pingInterval;
       final change = newValue - oldValue;
       final percentChange = ((change / oldValue) * 100).abs();
-
-      debugPrint(
-        '✅ [DeviceAlertService] Ping interval changed: $oldValue -> $newValue (${percentChange.toStringAsFixed(1)}%)',
-      );
 
       _alertQueue.add(
         DeviceAlert(
@@ -113,8 +111,9 @@ class DeviceAlertService {
         ),
       );
     }
+  }
 
-    // 4. Check failure probability
+  void _checkFailureProbability(Device oldDevice, Device newDevice) {
     if (oldDevice.parameters.failureProbability !=
         newDevice.parameters.failureProbability) {
       final oldValue = oldDevice.parameters.failureProbability;
@@ -123,10 +122,6 @@ class DeviceAlertService {
       final percentChange = oldValue > 0
           ? ((change / oldValue) * 100).abs()
           : 0.0;
-
-      debugPrint(
-        '✅ [DeviceAlertService] Failure probability changed: $oldValue -> $newValue (${percentChange.toStringAsFixed(1)}%)',
-      );
 
       _alertQueue.add(
         DeviceAlert(
@@ -140,8 +135,9 @@ class DeviceAlertService {
         ),
       );
     }
+  }
 
-    // 5. Check traffic load
+  void _checkTrafficLoad(Device oldDevice, Device newDevice) {
     if (oldDevice.parameters.trafficLoad != newDevice.parameters.trafficLoad) {
       final oldValue = oldDevice.parameters.trafficLoad;
       final newValue = newDevice.parameters.trafficLoad;
@@ -149,10 +145,6 @@ class DeviceAlertService {
       final percentChange = oldValue > 0
           ? ((change / oldValue) * 100).abs()
           : 0.0;
-
-      debugPrint(
-        '✅ [DeviceAlertService] Traffic load changed: $oldValue -> $newValue (${percentChange.toStringAsFixed(1)}%)',
-      );
 
       _alertQueue.add(
         DeviceAlert(
@@ -166,58 +158,17 @@ class DeviceAlertService {
         ),
       );
     }
-
-    debugPrint(
-      '📊 [DeviceAlertService] Total alerts in queue: ${_alertQueue.length}',
-    );
-
-    // Start processing the queue
-    if (_alertQueue.isNotEmpty && !_isProcessingQueue) {
-      debugPrint('🚀 [DeviceAlertService] Starting to process alert queue');
-      _processAlertQueue(context);
-    } else if (_alertQueue.isEmpty) {
-      debugPrint('⚠️ [DeviceAlertService] No changes detected, queue is empty');
-    } else if (_isProcessingQueue) {
-      debugPrint('⚠️ [DeviceAlertService] Queue is already being processed');
-    }
   }
 
   Future<void> _processAlertQueue(BuildContext context) async {
-    debugPrint('🎬 [DeviceAlertService] processAlertQueue started');
-    debugPrint('🎬 [DeviceAlertService] Context mounted: ${context.mounted}');
-
-    if (!context.mounted) {
-      debugPrint('❌ [DeviceAlertService] Context not mounted, aborting');
-      return;
-    }
+    if (!context.mounted) return;
 
     _isProcessingQueue = true;
-    debugPrint('🎬 [DeviceAlertService] Processing flag set to true');
 
-    int alertNumber = 0;
     while (_alertQueue.isNotEmpty) {
-      alertNumber++;
       final alert = _alertQueue.removeAt(0);
 
-      debugPrint(
-        '📢 [DeviceAlertService] Processing alert $alertNumber of ${alertNumber + _alertQueue.length}',
-      );
-      debugPrint(
-        '📢 [DeviceAlertService] Alert details: ${alert.deviceType} (${alert.deviceId}) - ${alert.message}',
-      );
-      debugPrint(
-        '📢 [DeviceAlertService] Alert type: ${alert.type == AlertType.positive ? "POSITIVE" : "NEGATIVE"}',
-      );
-
-      // Play sound
-      debugPrint('🔊 [DeviceAlertService] Playing sound...');
       await _playSound(alert.type);
-      debugPrint('🔊 [DeviceAlertService] Sound played');
-
-      // Show snackbar using RootScaffold's device alert method
-      debugPrint('📱 [DeviceAlertService] Attempting to show snackbar...');
-      debugPrint('📱 [DeviceAlertService] Context is: ${context.runtimeType}');
-      debugPrint('📱 [DeviceAlertService] Context mounted: ${context.mounted}');
 
       RootScaffold.showDeviceAlert(
         context: context,
@@ -228,40 +179,26 @@ class DeviceAlertService {
         percentageChange: alert.percentageChange,
       );
 
-      debugPrint('✅ [DeviceAlertService] showDeviceAlert called');
-
-      // Wait for 5 seconds before showing the next alert
-      debugPrint(
-        '⏳ [DeviceAlertService] Waiting 5 seconds before next alert...',
-      );
       await Future.delayed(const Duration(seconds: 5));
-      debugPrint('⏳ [DeviceAlertService] Wait complete');
     }
 
     _isProcessingQueue = false;
-    debugPrint('🏁 [DeviceAlertService] Alert queue processing complete');
   }
 
   Future<void> _playSound(AlertType type) async {
     try {
       final soundPath = type == AlertType.positive
-          ? 'assets/sounds/positive.wav'
-          : 'assets/sounds/negative.wav';
-
-      debugPrint('🔊 [DeviceAlertService] Sound path: $soundPath');
+          ? 'sounds/positive.wav'
+          : 'sounds/negative.wav';
 
       await _audioPlayer.stop();
-      await _audioPlayer.play(
-        AssetSource(soundPath.replaceFirst('assets/', '')),
-      );
-      debugPrint('🔊 [DeviceAlertService] Sound played successfully');
+      await _audioPlayer.play(AssetSource(soundPath));
     } catch (e) {
-      debugPrint('❌ [DeviceAlertService] Error playing sound: $e');
+      debugPrint('Error playing sound: $e');
     }
   }
 
   void dispose() {
-    debugPrint('🗑️ [DeviceAlertService] Disposing service');
     _audioPlayer.dispose();
     _alertQueue.clear();
   }

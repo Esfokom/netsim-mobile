@@ -62,15 +62,6 @@ class RootScaffold extends StatelessWidget {
     double? percentageChange,
     Duration duration = const Duration(seconds: 5),
   }) {
-    debugPrint(
-      '🎯 [RootScaffold.showDeviceAlert] Called with device: $deviceType ($deviceId)',
-    );
-    debugPrint('🎯 [RootScaffold.showDeviceAlert] Message: $message');
-    debugPrint('🎯 [RootScaffold.showDeviceAlert] IsPositive: $isPositive');
-    debugPrint(
-      '🎯 [RootScaffold.showDeviceAlert] Context provided: ${context != null}',
-    );
-
     final snackBar = SnackBar(
       duration: duration,
       backgroundColor: isPositive ? Colors.green.shade700 : Colors.red.shade700,
@@ -86,7 +77,7 @@ class RootScaffold extends StatelessWidget {
               Icon(
                 isPositive ? Icons.check_circle : Icons.warning,
                 color: Colors.white,
-                size: 24,
+                size: 20,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -102,50 +93,35 @@ class RootScaffold extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            message +
-                (percentageChange != null
-                    ? ' (${percentageChange.toStringAsFixed(1)}%)'
-                    : ''),
-            style: const TextStyle(fontSize: 14, color: Colors.white),
+
+          Wrap(
+            children: [
+              Text(
+                message +
+                    (percentageChange != null
+                        ? ' (${percentageChange.toStringAsFixed(1)}%) '
+                        : ''),
+                style: const TextStyle(fontSize: 12, color: Colors.white),
+              ),
+              if (percentageChange != null)
+                isPositive
+                    ? Icon(Icons.trending_up)
+                    : Icon(Icons.trending_down),
+            ],
           ),
         ],
       ),
     );
 
-    debugPrint('🎯 [RootScaffold.showDeviceAlert] SnackBar created');
-
     // Try to use context's ScaffoldMessenger first, then fall back to global key
     if (context != null) {
-      debugPrint(
-        '🎯 [RootScaffold.showDeviceAlert] Trying ScaffoldMessenger.maybeOf(context)',
-      );
       final messenger = ScaffoldMessenger.maybeOf(context);
-      debugPrint(
-        '🎯 [RootScaffold.showDeviceAlert] Messenger from context: ${messenger != null ? "FOUND" : "NULL"}',
-      );
-
       if (messenger != null) {
-        debugPrint(
-          '🎯 [RootScaffold.showDeviceAlert] Showing snackbar via context messenger',
-        );
         messenger.showSnackBar(snackBar);
-        debugPrint(
-          '✅ [RootScaffold.showDeviceAlert] SnackBar shown via context messenger',
-        );
         return;
       }
     }
 
-    // Fall back to global key
-    debugPrint('🎯 [RootScaffold.showDeviceAlert] Falling back to global key');
-    debugPrint(
-      '🎯 [RootScaffold.showDeviceAlert] Global key currentState: ${scaffoldMessengerKey.currentState != null ? "AVAILABLE" : "NULL"}',
-    );
-
     scaffoldMessengerKey.currentState?.showSnackBar(snackBar);
-    debugPrint(
-      '✅ [RootScaffold.showDeviceAlert] SnackBar shown via global key',
-    );
   }
 }

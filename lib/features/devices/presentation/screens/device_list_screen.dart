@@ -134,51 +134,19 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       ),
     );
 
-    debugPrint('💾 [DeviceListScreen] Save button pressed');
-    debugPrint(
-      '💾 [DeviceListScreen] Old device: ${device.type} (${device.id})',
-    );
-    debugPrint(
-      '💾 [DeviceListScreen] New device: ${updatedDevice.type} (${updatedDevice.id})',
-    );
-    debugPrint(
-      '💾 [DeviceListScreen] Old online: ${device.status.online}, New: ${updatedDevice.status.online}',
-    );
-    debugPrint(
-      '💾 [DeviceListScreen] Old latencyThreshold: ${device.parameters.latencyThreshold}, New: ${updatedDevice.parameters.latencyThreshold}',
-    );
-    debugPrint(
-      '💾 [DeviceListScreen] Old pingInterval: ${device.parameters.pingInterval}, New: ${updatedDevice.parameters.pingInterval}',
-    );
-    debugPrint(
-      '💾 [DeviceListScreen] Old failureProbability: ${device.parameters.failureProbability}, New: ${updatedDevice.parameters.failureProbability}',
-    );
-    debugPrint(
-      '💾 [DeviceListScreen] Old trafficLoad: ${device.parameters.trafficLoad}, New: ${updatedDevice.parameters.trafficLoad}',
-    );
-
     final updatedDevices = List<Device>.from(widget.scenario!.devices);
     updatedDevices[index] = updatedDevice;
-
     final updatedScenario = widget.scenario!.copyWith(devices: updatedDevices);
 
     try {
-      debugPrint('💾 [DeviceListScreen] Updating scenario...');
       await ref
           .read(scenarioNotifierProvider.notifier)
           .updateScenario(updatedScenario);
-
-      debugPrint('💾 [DeviceListScreen] Scenario updated successfully');
 
       setState(() {
         _editingDeviceIndex = null;
         _editingValues.remove(index);
       });
-
-      // Analyze changes and trigger alerts
-      debugPrint('💾 [DeviceListScreen] Calling analyzeDeviceChanges');
-      debugPrint('💾 [DeviceListScreen] Context type: ${context.runtimeType}');
-      debugPrint('💾 [DeviceListScreen] Context mounted: ${mounted}');
 
       if (mounted) {
         await _alertService.analyzeDeviceChanges(
@@ -186,10 +154,8 @@ class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
           updatedDevice,
           context,
         );
-        debugPrint('💾 [DeviceListScreen] analyzeDeviceChanges completed');
       }
     } catch (e) {
-      debugPrint('❌ [DeviceListScreen] Error updating device: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
