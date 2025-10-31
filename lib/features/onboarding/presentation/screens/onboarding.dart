@@ -18,6 +18,12 @@ class Onboarding extends StatelessWidget {
               children: [
                 ShadButton(
                   width: double.infinity,
+                  leading: Icon(Icons.gamepad),
+                  child: Text("Game View"),
+                  onPressed: () => Navigator.pushNamed(context, "/game"),
+                ),
+                ShadButton(
+                  width: double.infinity,
                   leading: Icon(Icons.add),
                   child: Text("Dashboard"),
                   onPressed: () => Navigator.pushNamed(context, "/dashboard"),

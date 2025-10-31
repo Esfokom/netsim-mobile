@@ -14,7 +14,15 @@ class _GameViewState extends State<GameView> {
     return Scaffold(
       body: Stack(
         children: [
-          Placeholder(),
+          InteractiveViewer(
+            panEnabled: true,
+            child: Column(
+              children: [
+                Container(width: 200, height: 200, color: Colors.blue),
+                Container(width: 200, height: 200, color: Colors.red),
+              ],
+            ),
+          ),
           Align(
             alignment: AlignmentGeometry.bottomCenter,
             child: DashboardSimplified(),
