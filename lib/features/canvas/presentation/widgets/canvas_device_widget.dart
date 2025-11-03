@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/canvas/domain/factories/device_factory.dart';
+import 'package:netsim_mobile/features/canvas/presentation/widgets/device_details_panel.dart';
 
 class CanvasDeviceWidget extends ConsumerStatefulWidget {
   final CanvasDevice device;
@@ -34,8 +36,9 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
             // Complete linking
             canvasNotifier.completeLinking(widget.device.id);
           } else {
-            // Select device
+            // Select device and show details
             canvasNotifier.selectDevice(widget.device.id);
+            _showDeviceMenu(context);
           }
         },
         onLongPress: () {
@@ -114,51 +117,21 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
   }
 
   void _showDeviceMenu(BuildContext context) {
-    final canvasNotifier = ref.read(canvasProvider.notifier);
+    // Convert CanvasDevice to NetworkDevice using the factory
+    final networkDevice = DeviceFactory.fromCanvasDevice(widget.device);
 
+    // Show the new DeviceDetailsPanel with rich device information
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              widget.device.name,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.link),
-              title: const Text('Create Link'),
-              onTap: () {
-                Navigator.pop(context);
-                canvasNotifier.startLinking(widget.device.id);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.power_settings_new,
-                color: widget.device.status.color,
-              ),
-              title: const Text('Toggle Status'),
-              onTap: () {
-                final newStatus = widget.device.status == DeviceStatus.online
-                    ? DeviceStatus.offline
-                    : DeviceStatus.online;
-                canvasNotifier.updateDeviceStatus(widget.device.id, newStatus);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Delete'),
-              onTap: () {
-                canvasNotifier.removeDevice(widget.device.id);
-                Navigator.pop(context);
-              },
-            ),
-          ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.75,
+        child: DeviceDetailsPanel(
+          device: networkDevice,
+          onClose: () {
+            Navigator.pop(context);
+          },
         ),
       ),
     );
