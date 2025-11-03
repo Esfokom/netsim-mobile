@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/dashboard/presentation/widgets/dashboard_simplified.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/widgets/network_canvas.dart';
+import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_palette.dart';
-import 'package:netsim_mobile/features/scenarios/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 
 class GameView extends ConsumerStatefulWidget {
   const GameView({super.key});

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/scenarios/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 
 class DashboardSimplified extends ConsumerWidget {
   const DashboardSimplified({super.key});

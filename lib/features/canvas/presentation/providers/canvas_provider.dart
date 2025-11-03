@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/scenarios/models/canvas_device.dart';
-import 'package:netsim_mobile/features/scenarios/models/device_link.dart';
+import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 
 /// State class for managing canvas devices and links
 class CanvasState {

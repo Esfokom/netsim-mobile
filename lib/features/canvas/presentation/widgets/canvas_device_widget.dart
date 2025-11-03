@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/scenarios/models/canvas_device.dart';
-import 'package:netsim_mobile/features/scenarios/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 
 class CanvasDeviceWidget extends ConsumerStatefulWidget {
   final CanvasDevice device;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:netsim_mobile/features/scenarios/models/canvas_device.dart';
-import 'package:netsim_mobile/features/scenarios/models/device_link.dart';
+import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 
 class LinksPainter extends CustomPainter {
   final List<CanvasDevice> devices;

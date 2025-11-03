@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/scenarios/models/canvas_device.dart';
-import 'package:netsim_mobile/features/scenarios/providers/canvas_provider.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/widgets/canvas_device_widget.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/widgets/links_painter.dart';
+import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_device_widget.dart';
+import 'package:netsim_mobile/features/canvas/presentation/widgets/links_painter.dart';
 
 class NetworkCanvas extends ConsumerStatefulWidget {
   const NetworkCanvas({super.key});
