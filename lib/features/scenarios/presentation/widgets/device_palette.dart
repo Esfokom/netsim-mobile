@@ -1,71 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
-import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 
 class DevicePalette extends ConsumerWidget {
   const DevicePalette({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final canvasState = ref.watch(canvasProvider);
-
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: Theme.of(context).colorScheme.outline,
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Container(
+        height: 100,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
             width: 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          if (canvasState.isLinkingMode)
-            Container(
-              padding: const EdgeInsets.all(8),
-              color: Colors.blue.withValues(alpha: 0.2),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.link, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text(
-                        'Linking Mode: Tap a device to connect',
-                        style: TextStyle(color: Colors.blue),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.blue),
-                    onPressed: () {
-                      ref.read(canvasProvider.notifier).cancelLinking();
-                    },
-                  ),
-                ],
-              ),
-            ),
-          Expanded(
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              children: DeviceType.values.map((type) {
-                return _DevicePaletteItem(deviceType: type);
-              }).toList(),
-            ),
-          ),
-        ],
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          children: DeviceType.values.map((type) {
+            return _DevicePaletteItem(deviceType: type);
+          }).toList(),
+        ),
       ),
     );
   }

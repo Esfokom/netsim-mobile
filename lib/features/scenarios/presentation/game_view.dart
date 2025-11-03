@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/dashboard/presentation/widgets/dashboard_simplified.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_palette.dart';
-import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 
 class GameView extends ConsumerStatefulWidget {
   const GameView({super.key});
@@ -15,44 +14,27 @@ class GameView extends ConsumerStatefulWidget {
 class _GameViewState extends ConsumerState<GameView> {
   @override
   Widget build(BuildContext context) {
-    final canvasState = ref.watch(canvasProvider);
-    final canvasNotifier = ref.read(canvasProvider.notifier);
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Network Simulator'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              canvasNotifier.clearCanvas();
-            },
-            tooltip: 'Clear Canvas',
-          ),
-          IconButton(
-            icon: Icon(
-              canvasState.isLinkingMode ? Icons.link_off : Icons.link,
-              color: canvasState.isLinkingMode ? Colors.blue : null,
-            ),
-            onPressed: () {
-              if (canvasState.isLinkingMode) {
-                canvasNotifier.cancelLinking();
-              }
-            },
-            tooltip: canvasState.isLinkingMode ? 'Cancel Linking' : 'Link Mode',
-          ),
-        ],
-      ),
-      body: Column(
+      body: Stack(
         children: [
-          // Dashboard at the top
-          const DashboardSimplified(),
+          // Canvas (full screen background)
+          const NetworkCanvas(),
 
-          // Canvas in the middle (expandable)
-          const Expanded(child: NetworkCanvas()),
+          // Dashboard at the top (floating)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: DashboardSimplified(),
+          ),
 
-          // Device palette at the bottom
-          const DevicePalette(),
+          // Device palette at the bottom (floating)
+          const Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: DevicePalette(),
+          ),
         ],
       ),
     );
