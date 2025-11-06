@@ -28,6 +28,20 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
     final canvasState = ref.watch(canvasProvider);
     final canvasNotifier = ref.read(canvasProvider.notifier);
 
+    // Get NetworkDevice to access displayName (which respects showIpOnCanvas toggle)
+    NetworkDevice? networkDevice = canvasNotifier.getNetworkDevice(
+      widget.device.id,
+    );
+
+    // If not cached yet, create it
+    if (networkDevice == null) {
+      networkDevice = DeviceFactory.fromCanvasDevice(widget.device);
+      // Cache it after build completes
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        canvasNotifier.setNetworkDevice(widget.device.id, networkDevice!);
+      });
+    }
+
     return Positioned(
       left: widget.device.position.dx,
       top: widget.device.position.dy,
@@ -95,7 +109,8 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
               ),
               const SizedBox(height: 4),
               Text(
-                widget.device.name,
+                networkDevice
+                    .displayName, // Use NetworkDevice displayName instead of widget.device.name
                 style: const TextStyle(fontSize: 10),
                 textAlign: TextAlign.center,
                 maxLines: 1,
