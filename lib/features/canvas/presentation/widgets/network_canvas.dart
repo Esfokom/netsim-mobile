@@ -74,6 +74,19 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
     return devicesOfType + 1;
   }
 
+  /// Constrain position to be within canvas bounds
+  Offset _constrainPosition(Offset position) {
+    const canvasWidth = 2000.0;
+    const canvasHeight = 2000.0;
+    const deviceSize = 80.0; // Device widget is 80x80
+
+    // Ensure device stays within canvas bounds
+    final x = position.dx.clamp(0.0, canvasWidth - deviceSize);
+    final y = position.dy.clamp(0.0, canvasHeight - deviceSize);
+
+    return Offset(x, y);
+  }
+
   @override
   Widget build(BuildContext context) {
     final canvasState = ref.watch(canvasProvider);
@@ -97,6 +110,9 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
           (localPosition.dy - translation.y) / scale - 40,
         );
 
+        // Constrain position to canvas bounds
+        final constrainedPosition = _constrainPosition(adjustedPosition);
+
         // Get the next number for this device type
         final deviceNumber = _getNextDeviceNumber(
           details.data,
@@ -108,7 +124,7 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           name: '${details.data.displayName} $deviceNumber',
           type: details.data,
-          position: adjustedPosition,
+          position: constrainedPosition,
         );
 
         canvasNotifier.addDevice(device);
@@ -129,7 +145,7 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
               transformationController: _transformationController,
               minScale: 0.5,
               maxScale: 3.0,
-              boundaryMargin: const EdgeInsets.all(double.infinity),
+              boundaryMargin: const EdgeInsets.all(200),
               constrained: false,
               child: SizedBox(
                 width: 2000,
@@ -188,6 +204,14 @@ class GridPainter extends CustomPainter {
     for (double i = 0; i < size.height; i += gridSize) {
       canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
     }
+
+    // Draw white border around the grid
+    final borderPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), borderPaint);
   }
 
   @override

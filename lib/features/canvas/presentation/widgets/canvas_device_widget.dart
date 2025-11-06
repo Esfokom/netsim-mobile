@@ -71,7 +71,21 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
               dragStartPosition!.dx + details.localPosition.dx,
               dragStartPosition!.dy + details.localPosition.dy,
             );
-            canvasNotifier.updateDevicePosition(widget.device.id, newPosition);
+
+            // Constrain position to canvas bounds (2000x2000, device is 80x80)
+            const canvasWidth = 2000.0;
+            const canvasHeight = 2000.0;
+            const deviceSize = 80.0;
+
+            final constrainedPosition = Offset(
+              newPosition.dx.clamp(0.0, canvasWidth - deviceSize),
+              newPosition.dy.clamp(0.0, canvasHeight - deviceSize),
+            );
+
+            canvasNotifier.updateDevicePosition(
+              widget.device.id,
+              constrainedPosition,
+            );
           }
         },
         onPanEnd: (details) {
