@@ -35,8 +35,27 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
   @override
   void initState() {
     super.initState();
-    // Make the controller available to other widgets
+    // Initialize the canvas centered on the grid
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Get the screen size
+      final renderBox = context.findRenderObject() as RenderBox?;
+      if (renderBox != null) {
+        final viewportSize = renderBox.size;
+
+        // Canvas is 2000x2000, center it
+        const canvasWidth = 2000.0;
+        const canvasHeight = 2000.0;
+
+        // Calculate offset to center the canvas
+        final offsetX = (viewportSize.width - canvasWidth) / 2;
+        final offsetY = (viewportSize.height - canvasHeight) / 2;
+
+        // Set the transformation to center the canvas
+        _transformationController.value = Matrix4.identity()
+          ..setTranslationRaw(offsetX, offsetY, 0);
+      }
+
+      // Make the controller available to other widgets
       ref
           .read(canvasTransformationControllerProvider.notifier)
           .setController(_transformationController);
