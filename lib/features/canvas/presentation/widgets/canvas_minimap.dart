@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 
 /// Minimap widget that shows an overview of the entire canvas
@@ -82,7 +83,7 @@ class _CanvasMinimapState extends ConsumerState<CanvasMinimap> {
 
 /// Custom painter for the minimap
 class MinimapPainter extends CustomPainter {
-  final List devices;
+  final List<CanvasDevice> devices;
   final Size canvasSize;
   final TransformationController transformationController;
   final Color gridColor;
