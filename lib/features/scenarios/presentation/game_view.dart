@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/dashboard/presentation/widgets/dashboard_simplified.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
+import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_minimap.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_palette.dart';
 
 class GameView extends ConsumerStatefulWidget {
@@ -14,6 +15,10 @@ class GameView extends ConsumerStatefulWidget {
 class _GameViewState extends ConsumerState<GameView> {
   @override
   Widget build(BuildContext context) {
+    final transformationController = ref.watch(
+      canvasTransformationControllerProvider,
+    );
+
     return Scaffold(
       body: SafeArea(
         top: true,
@@ -30,6 +35,17 @@ class _GameViewState extends ConsumerState<GameView> {
               right: 0,
               child: DashboardSimplified(),
             ),
+
+            // Minimap below dashboard at the top-left
+            if (transformationController != null)
+              Positioned(
+                top: 150, // Below the dashboard
+                right: 16,
+                child: CanvasMinimap(
+                  transformationController: transformationController,
+                  canvasSize: const Size(2000, 2000),
+                ),
+              ),
 
             // Device palette at the bottom (floating)
             const Positioned(

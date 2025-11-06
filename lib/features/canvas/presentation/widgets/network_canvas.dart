@@ -5,6 +5,22 @@ import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_prov
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_device_widget.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/links_painter.dart';
 
+/// Notifier for the canvas transformation controller
+class CanvasTransformationNotifier extends Notifier<TransformationController?> {
+  @override
+  TransformationController? build() => null;
+
+  void setController(TransformationController controller) {
+    state = controller;
+  }
+}
+
+/// Provider for the canvas transformation controller
+final canvasTransformationControllerProvider =
+    NotifierProvider<CanvasTransformationNotifier, TransformationController?>(
+      CanvasTransformationNotifier.new,
+    );
+
 class NetworkCanvas extends ConsumerStatefulWidget {
   const NetworkCanvas({super.key});
 
@@ -15,6 +31,17 @@ class NetworkCanvas extends ConsumerStatefulWidget {
 class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
   final TransformationController _transformationController =
       TransformationController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Make the controller available to other widgets
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(canvasTransformationControllerProvider.notifier)
+          .setController(_transformationController);
+    });
+  }
 
   @override
   void dispose() {
