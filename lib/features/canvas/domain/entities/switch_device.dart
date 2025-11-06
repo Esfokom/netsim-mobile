@@ -129,6 +129,7 @@ class SwitchDevice extends NetworkDevice
 
   @override
   List<DeviceProperty> get properties => [
+    StringProperty(id: 'name', label: 'Device Name', value: name),
     StatusProperty(
       id: 'powerState',
       label: 'Power',

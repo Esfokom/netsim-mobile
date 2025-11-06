@@ -5,6 +5,7 @@ import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dar
 import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/router_device.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/firewall_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/switch_device.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_point.dart';
 import 'package:netsim_mobile/features/canvas/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.dart';
@@ -251,6 +252,28 @@ class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
     }
   }
 
+  void _handleNameChange(String newName) {
+    // Handle device name changes
+    if (widget.property.id == 'name') {
+      if (widget.device is RouterDevice) {
+        (widget.device as RouterDevice).name = newName;
+      } else if (widget.device is FirewallDevice) {
+        (widget.device as FirewallDevice).name = newName;
+      } else if (widget.device is SwitchDevice) {
+        (widget.device as SwitchDevice).name = newName;
+      } else if (widget.device is WirelessAccessPoint) {
+        (widget.device as WirelessAccessPoint).name = newName;
+      }
+
+      // Trigger rebuild by refreshing the device
+      ref.read(canvasProvider.notifier).refreshDevice(widget.device.deviceId);
+    } else if (widget.property.id == 'hostname' && widget.device is EndDevice) {
+      // Handle hostname changes for EndDevice (Computer/Server)
+      (widget.device as EndDevice).hostname = newName;
+      ref.read(canvasProvider.notifier).refreshDevice(widget.device.deviceId);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Handle boolean properties specially
@@ -267,6 +290,70 @@ class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
                 });
                 _handleBooleanChange(val);
               },
+        dense: true,
+      );
+    }
+
+    // Handle string properties (like device name)
+    if (widget.property is StringProperty &&
+        (widget.property.id == 'name' || widget.property.id == 'hostname')) {
+      final stringProp = widget.property as StringProperty;
+
+      if (_isEditing) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  decoration: InputDecoration(
+                    labelText: stringProp.label,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.label),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.check, color: Colors.green),
+                onPressed: () {
+                  final newName = _controller.text.trim();
+                  if (newName.isNotEmpty) {
+                    _handleNameChange(newName);
+                    (widget.property as StringProperty).value = newName;
+                  }
+                  setState(() {
+                    _isEditing = false;
+                  });
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.red),
+                onPressed: () {
+                  _controller.text = widget.property.value.toString();
+                  setState(() {
+                    _isEditing = false;
+                  });
+                },
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Display mode with edit button
+      return ListTile(
+        leading: const Icon(Icons.label),
+        title: Text(stringProp.label),
+        subtitle: Text(stringProp.value),
+        trailing: IconButton(
+          icon: const Icon(Icons.edit, size: 20),
+          onPressed: () {
+            setState(() {
+              _isEditing = true;
+            });
+          },
+        ),
         dense: true,
       );
     }

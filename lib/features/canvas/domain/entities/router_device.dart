@@ -230,6 +230,7 @@ class RouterDevice extends NetworkDevice
   @override
   List<DeviceProperty> get properties {
     final List<DeviceProperty> props = [
+      StringProperty(id: 'name', label: 'Device Name', value: name),
       BooleanProperty(
         id: 'showIpOnCanvas',
         label: 'Show IP on Canvas',

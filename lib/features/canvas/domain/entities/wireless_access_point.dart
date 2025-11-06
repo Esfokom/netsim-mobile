@@ -186,6 +186,7 @@ class WirelessAccessPoint extends NetworkDevice
 
   @override
   List<DeviceProperty> get properties => [
+    StringProperty(id: 'name', label: 'Device Name', value: name),
     BooleanProperty(
       id: 'showIpOnCanvas',
       label: 'Show IP on Canvas',
