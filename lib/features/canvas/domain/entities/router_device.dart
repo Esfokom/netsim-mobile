@@ -12,6 +12,7 @@ class RouterDevice extends NetworkDevice
   bool natEnabled;
   bool dhcpServiceEnabled;
   bool firewallEnabled;
+  bool showIpOnCanvas;
 
   RouterDevice({
     required super.deviceId,
@@ -21,6 +22,7 @@ class RouterDevice extends NetworkDevice
     this.natEnabled = false,
     this.dhcpServiceEnabled = false,
     this.firewallEnabled = false,
+    this.showIpOnCanvas = false,
   }) : _isPoweredOn = isPoweredOn,
        interfaces =
            interfaces ??
@@ -69,7 +71,9 @@ class RouterDevice extends NetworkDevice
   Color get color => Colors.blue;
 
   @override
-  String get displayName => deviceId;
+  String get displayName => showIpOnCanvas && interfaces.isNotEmpty
+      ? interfaces.first.ipAddress
+      : deviceId;
 
   @override
   DeviceStatus get status {
@@ -223,6 +227,11 @@ class RouterDevice extends NetworkDevice
   @override
   List<DeviceProperty> get properties {
     final List<DeviceProperty> props = [
+      BooleanProperty(
+        id: 'showIpOnCanvas',
+        label: 'Show IP on Canvas',
+        value: showIpOnCanvas,
+      ),
       StatusProperty(
         id: 'powerState',
         label: 'Power',

@@ -11,6 +11,7 @@ class FirewallDevice extends NetworkDevice
   String _defaultPolicy; // "ALLOW" | "DENY"
   List<FirewallRule> _firewallRules;
   List<String> log;
+  bool showIpOnCanvas;
 
   FirewallDevice({
     required super.deviceId,
@@ -19,6 +20,7 @@ class FirewallDevice extends NetworkDevice
     String defaultPolicy = 'DENY',
     List<FirewallInterface>? interfaces,
     List<FirewallRule>? rules,
+    this.showIpOnCanvas = false,
   }) : _isPoweredOn = isPoweredOn,
        _defaultPolicy = defaultPolicy,
        interfaces =
@@ -41,7 +43,9 @@ class FirewallDevice extends NetworkDevice
   Color get color => Colors.red;
 
   @override
-  String get displayName => deviceId;
+  String get displayName => showIpOnCanvas && interfaces.isNotEmpty
+      ? interfaces.first.ipAddress
+      : deviceId;
 
   @override
   DeviceStatus get status {
@@ -151,6 +155,11 @@ class FirewallDevice extends NetworkDevice
   @override
   List<DeviceProperty> get properties {
     final List<DeviceProperty> props = [
+      BooleanProperty(
+        id: 'showIpOnCanvas',
+        label: 'Show IP on Canvas',
+        value: showIpOnCanvas,
+      ),
       StatusProperty(
         id: 'powerState',
         label: 'Power',

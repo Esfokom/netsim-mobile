@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/router_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/firewall_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_point.dart';
 import 'package:netsim_mobile/features/canvas/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
+import 'package:netsim_mobile/core/utils/ip_validator.dart';
 
 /// Device Details Panel - Shows device properties and available actions
 class DeviceDetailsPanel extends ConsumerWidget {
@@ -214,6 +219,7 @@ class _PropertyWidget extends ConsumerStatefulWidget {
 class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
   bool _isEditing = false;
   late TextEditingController _controller;
+  String? _errorText;
 
   @override
   void initState() {
@@ -227,8 +233,45 @@ class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
     super.dispose();
   }
 
+  void _handleBooleanChange(bool newValue) {
+    // Handle boolean property changes (like showIpOnCanvas toggle)
+    if (widget.property.id == 'showIpOnCanvas') {
+      if (widget.device is EndDevice) {
+        (widget.device as EndDevice).showIpOnCanvas = newValue;
+      } else if (widget.device is RouterDevice) {
+        (widget.device as RouterDevice).showIpOnCanvas = newValue;
+      } else if (widget.device is FirewallDevice) {
+        (widget.device as FirewallDevice).showIpOnCanvas = newValue;
+      } else if (widget.device is WirelessAccessPoint) {
+        (widget.device as WirelessAccessPoint).showIpOnCanvas = newValue;
+      }
+
+      // Trigger rebuild
+      ref.read(canvasProvider.notifier).deselectAllDevices();
+      ref.read(canvasProvider.notifier).selectDevice(widget.device.deviceId);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Handle boolean properties specially
+    if (widget.property is BooleanProperty) {
+      final boolProp = widget.property as BooleanProperty;
+      return SwitchListTile(
+        title: Text(boolProp.label),
+        value: boolProp.value,
+        onChanged: boolProp.isReadOnly
+            ? null
+            : (val) {
+                setState(() {
+                  boolProp.value = val;
+                });
+                _handleBooleanChange(val);
+              },
+        dense: true,
+      );
+    }
+
     // If read-only or not editable, just display
     if (widget.property.isReadOnly ||
         widget.property.buildEditWidget((v) {}) == null) {
@@ -259,54 +302,92 @@ class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
                   hintText: '192.168.1.1',
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.settings_ethernet),
+                  errorText: _errorText,
                 ),
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
+                onChanged: (value) {
+                  // Format and validate input in real-time
+                  final formatted = IpValidator.formatIpInput(value);
+                  if (formatted != value) {
+                    _controller.value = TextEditingValue(
+                      text: formatted,
+                      selection: TextSelection.collapsed(
+                        offset: formatted.length,
+                      ),
+                    );
+                  }
+
+                  // Update error text
+                  setState(() {
+                    _errorText = IpValidator.getValidationError(formatted);
+                  });
+                },
               ),
             ),
             IconButton(
               icon: const Icon(Icons.check, color: Colors.green),
-              onPressed: () {
-                final newValue = _controller.text;
-                if (widget.device is EndDevice) {
-                  final endDevice = widget.device as EndDevice;
+              onPressed: _errorText != null
+                  ? null
+                  : () {
+                      final newValue = _controller.text;
 
-                  // Update based on which property this is
-                  if (widget.property.id == 'currentIp') {
-                    endDevice.setStaticIp(
-                      newValue,
-                      endDevice.currentSubnetMask ?? '255.255.255.0',
-                      endDevice.currentDefaultGateway ?? '192.168.1.1',
-                    );
-                  } else if (widget.property.id == 'currentSubnet') {
-                    endDevice.setStaticIp(
-                      endDevice.currentIpAddress ?? '192.168.1.1',
-                      newValue,
-                      endDevice.currentDefaultGateway ?? '192.168.1.1',
-                    );
-                  } else if (widget.property.id == 'currentGateway') {
-                    endDevice.setStaticIp(
-                      endDevice.currentIpAddress ?? '192.168.1.1',
-                      endDevice.currentSubnetMask ?? '255.255.255.0',
-                      newValue,
-                    );
-                  }
+                      // Final validation before saving
+                      if (!IpValidator.isValidIpv4(newValue)) {
+                        setState(() {
+                          _errorText = IpValidator.getValidationError(newValue);
+                        });
+                        return;
+                      }
 
-                  // Trigger rebuild by deselecting and reselecting
-                  ref.read(canvasProvider.notifier).deselectAllDevices();
-                  ref
-                      .read(canvasProvider.notifier)
-                      .selectDevice(widget.device.deviceId);
-                }
-                setState(() => _isEditing = false);
-              },
+                      if (widget.device is EndDevice) {
+                        final endDevice = widget.device as EndDevice;
+
+                        // Update based on which property this is
+                        if (widget.property.id == 'currentIp') {
+                          endDevice.setStaticIp(
+                            newValue,
+                            endDevice.currentSubnetMask ?? '255.255.255.0',
+                            endDevice.currentDefaultGateway ?? '192.168.1.1',
+                          );
+                        } else if (widget.property.id == 'currentSubnet') {
+                          endDevice.setStaticIp(
+                            endDevice.currentIpAddress ?? '192.168.1.1',
+                            newValue,
+                            endDevice.currentDefaultGateway ?? '192.168.1.1',
+                          );
+                        } else if (widget.property.id == 'currentGateway') {
+                          endDevice.setStaticIp(
+                            endDevice.currentIpAddress ?? '192.168.1.1',
+                            endDevice.currentSubnetMask ?? '255.255.255.0',
+                            newValue,
+                          );
+                        }
+
+                        // Trigger rebuild by deselecting and reselecting
+                        ref.read(canvasProvider.notifier).deselectAllDevices();
+                        ref
+                            .read(canvasProvider.notifier)
+                            .selectDevice(widget.device.deviceId);
+                      }
+                      setState(() {
+                        _isEditing = false;
+                        _errorText = null;
+                      });
+                    },
             ),
             IconButton(
               icon: const Icon(Icons.close, color: Colors.red),
               onPressed: () {
                 _controller.text = widget.property.value.toString();
-                setState(() => _isEditing = false);
+                setState(() {
+                  _isEditing = false;
+                  _errorText = null;
+                });
               },
             ),
           ],

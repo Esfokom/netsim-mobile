@@ -42,6 +42,9 @@ class EndDevice extends NetworkDevice
   List<String> installedTools;
   String statusMessage;
 
+  // Display preference
+  bool showIpOnCanvas;
+
   EndDevice({
     required super.deviceId,
     required super.position,
@@ -55,6 +58,7 @@ class EndDevice extends NetworkDevice
     this.statusMessage = 'Not connected',
     this.currentDnsServers = const [],
     this.arpCache = const [],
+    this.showIpOnCanvas = false,
   }) : _isPoweredOn = isPoweredOn,
        _linkState = linkState,
        super(deviceType: deviceType);
@@ -66,7 +70,8 @@ class EndDevice extends NetworkDevice
   Color get color => Colors.purple;
 
   @override
-  String get displayName => hostname;
+  String get displayName =>
+      showIpOnCanvas && currentIpAddress != null ? currentIpAddress! : hostname;
 
   @override
   DeviceStatus get status {
@@ -177,6 +182,11 @@ class EndDevice extends NetworkDevice
       id: 'macAddress',
       label: 'MAC Address',
       value: macAddress,
+    ),
+    BooleanProperty(
+      id: 'showIpOnCanvas',
+      label: 'Show IP on Canvas',
+      value: showIpOnCanvas,
     ),
     StatusProperty(
       id: 'powerState',

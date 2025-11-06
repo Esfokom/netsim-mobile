@@ -30,6 +30,7 @@ class WirelessAccessPoint extends NetworkDevice
 
   // Connected clients
   List<WirelessClient> connectedClients;
+  bool showIpOnCanvas;
 
   WirelessAccessPoint({
     required super.deviceId,
@@ -43,6 +44,7 @@ class WirelessAccessPoint extends NetworkDevice
     bool broadcastSsid = true,
     String securityMode = 'WPA2',
     String? wpaPassword,
+    this.showIpOnCanvas = false,
   }) : _isPoweredOn = isPoweredOn,
        _radioEnabled = radioEnabled,
        _channel = channel,
@@ -60,7 +62,8 @@ class WirelessAccessPoint extends NetworkDevice
   Color get color => Colors.cyan;
 
   @override
-  String get displayName => deviceId;
+  String get displayName =>
+      showIpOnCanvas && currentIpAddress != null ? currentIpAddress! : deviceId;
 
   @override
   DeviceStatus get status {
@@ -180,6 +183,11 @@ class WirelessAccessPoint extends NetworkDevice
 
   @override
   List<DeviceProperty> get properties => [
+    BooleanProperty(
+      id: 'showIpOnCanvas',
+      label: 'Show IP on Canvas',
+      value: showIpOnCanvas,
+    ),
     StatusProperty(
       id: 'powerState',
       label: 'Power',
