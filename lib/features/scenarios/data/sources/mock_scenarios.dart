@@ -29,7 +29,7 @@ class MockScenarios {
             lastChecked: DateTime.now(),
           ),
         ),
-         Device(
+        Device(
           id: "2",
           type: "Sever",
           position: Position(x: 5, y: 5),
@@ -90,7 +90,7 @@ class MockScenarios {
             lastChecked: DateTime.now(),
           ),
         ),
-         Device(
+        Device(
           id: "5",
           type: "PC",
           position: Position(x: 0, y: 0),
@@ -151,7 +151,7 @@ class MockScenarios {
             lastChecked: DateTime.now(),
           ),
         ),
-         Device(
+        Device(
           id: "8",
           type: "Switch",
           position: Position(x: 0, y: 0),
@@ -197,7 +197,7 @@ class MockScenarios {
             lastChecked: DateTime.now(),
           ),
         ),
-         Device(
+        Device(
           id: "9",
           type: "Sever",
           position: Position(x: 5, y: 5),
@@ -242,7 +242,7 @@ class MockScenarios {
             lastChecked: DateTime.now(),
           ),
         ),
-         Device(
+        Device(
           id: "11",
           type: "Sever",
           position: Position(x: 5, y: 5),

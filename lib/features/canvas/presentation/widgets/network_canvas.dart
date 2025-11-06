@@ -22,6 +22,12 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
     super.dispose();
   }
 
+  /// Get the next number for a device type
+  int _getNextDeviceNumber(DeviceType type, List<CanvasDevice> devices) {
+    final devicesOfType = devices.where((d) => d.type == type).length;
+    return devicesOfType + 1;
+  }
+
   @override
   Widget build(BuildContext context) {
     final canvasState = ref.watch(canvasProvider);
@@ -45,10 +51,16 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
           (localPosition.dy - translation.y) / scale - 40,
         );
 
+        // Get the next number for this device type
+        final deviceNumber = _getNextDeviceNumber(
+          details.data,
+          canvasState.devices,
+        );
+
         // Create and add the device
         final device = CanvasDevice(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: '${details.data.displayName} ${canvasState.devices.length + 1}',
+          name: '${details.data.displayName} $deviceNumber',
           type: details.data,
           position: adjustedPosition,
         );
