@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.
 /// Layer 2 Switch - Connects devices on the same local network
 class SwitchDevice extends NetworkDevice
     implements IPowerable, ISwitchable, IConfigurable {
+  String name;
   bool _isPoweredOn;
   final int portCount;
   List<SwitchPort> ports;
@@ -16,12 +17,14 @@ class SwitchDevice extends NetworkDevice
   SwitchDevice({
     required super.deviceId,
     required super.position,
+    String? name,
     this.portCount = 8,
     bool isPoweredOn = true,
     this.isManaged = false,
     List<SwitchPort>? ports,
     List<VlanConfig>? vlans,
-  }) : _isPoweredOn = isPoweredOn,
+  }) : name = name ?? deviceId,
+       _isPoweredOn = isPoweredOn,
        ports =
            ports ??
            List.generate(
@@ -40,7 +43,7 @@ class SwitchDevice extends NetworkDevice
   Color get color => Colors.green;
 
   @override
-  String get displayName => deviceId;
+  String get displayName => name;
 
   @override
   DeviceStatus get status {

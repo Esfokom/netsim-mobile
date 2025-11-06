@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.
 /// Layer 3 Router - Connects different networks
 class RouterDevice extends NetworkDevice
     implements IPowerable, IRoutable, IConfigurable, IServiceHost {
+  String name;
   bool _isPoweredOn;
   List<RouterInterface> interfaces;
   List<RouteEntry> _routingTable;
@@ -17,13 +18,15 @@ class RouterDevice extends NetworkDevice
   RouterDevice({
     required super.deviceId,
     required super.position,
+    String? name,
     bool isPoweredOn = true,
     List<RouterInterface>? interfaces,
     this.natEnabled = false,
     this.dhcpServiceEnabled = false,
     this.firewallEnabled = false,
     this.showIpOnCanvas = false,
-  }) : _isPoweredOn = isPoweredOn,
+  }) : name = name ?? deviceId,
+       _isPoweredOn = isPoweredOn,
        interfaces =
            interfaces ??
            [
@@ -73,7 +76,7 @@ class RouterDevice extends NetworkDevice
   @override
   String get displayName => showIpOnCanvas && interfaces.isNotEmpty
       ? interfaces.first.ipAddress
-      : deviceId;
+      : name;
 
   @override
   DeviceStatus get status {

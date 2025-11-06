@@ -10,6 +10,7 @@ class WirelessAccessPoint extends NetworkDevice
         IWirelessEnabled,
         INetworkConfigurable,
         IConfigurable {
+  String name;
   bool _isPoweredOn;
   String uplinkLinkState;
 
@@ -35,6 +36,7 @@ class WirelessAccessPoint extends NetworkDevice
   WirelessAccessPoint({
     required super.deviceId,
     required super.position,
+    String? name,
     bool isPoweredOn = true,
     this.uplinkLinkState = 'DOWN',
     this.ipConfigMode = 'DHCP',
@@ -45,7 +47,8 @@ class WirelessAccessPoint extends NetworkDevice
     String securityMode = 'WPA2',
     String? wpaPassword,
     this.showIpOnCanvas = false,
-  }) : _isPoweredOn = isPoweredOn,
+  }) : name = name ?? deviceId,
+       _isPoweredOn = isPoweredOn,
        _radioEnabled = radioEnabled,
        _channel = channel,
        _ssid = ssid,
@@ -63,7 +66,7 @@ class WirelessAccessPoint extends NetworkDevice
 
   @override
   String get displayName =>
-      showIpOnCanvas && currentIpAddress != null ? currentIpAddress! : deviceId;
+      showIpOnCanvas && currentIpAddress != null ? currentIpAddress! : name;
 
   @override
   DeviceStatus get status {

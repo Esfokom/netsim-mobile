@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.
 /// Dedicated Firewall Device - Filters traffic between networks
 class FirewallDevice extends NetworkDevice
     implements IPowerable, IFirewallEnabled, IConfigurable {
+  String name;
   bool _isPoweredOn;
   List<FirewallInterface> interfaces;
   String _defaultPolicy; // "ALLOW" | "DENY"
@@ -16,12 +17,14 @@ class FirewallDevice extends NetworkDevice
   FirewallDevice({
     required super.deviceId,
     required super.position,
+    String? name,
     bool isPoweredOn = true,
     String defaultPolicy = 'DENY',
     List<FirewallInterface>? interfaces,
     List<FirewallRule>? rules,
     this.showIpOnCanvas = false,
-  }) : _isPoweredOn = isPoweredOn,
+  }) : name = name ?? deviceId,
+       _isPoweredOn = isPoweredOn,
        _defaultPolicy = defaultPolicy,
        interfaces =
            interfaces ??
@@ -45,7 +48,7 @@ class FirewallDevice extends NetworkDevice
   @override
   String get displayName => showIpOnCanvas && interfaces.isNotEmpty
       ? interfaces.first.ipAddress
-      : deviceId;
+      : name;
 
   @override
   DeviceStatus get status {

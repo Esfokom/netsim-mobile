@@ -61,6 +61,7 @@ class DeviceFactory {
       case legacy.DeviceType.switch_:
         return SwitchDevice(
           deviceId: canvasDevice.id,
+          name: canvasDevice.name,
           position: canvasDevice.position,
           portCount: 8,
           isManaged: false,
@@ -71,6 +72,7 @@ class DeviceFactory {
         // Router interfaces already have default IPs set in constructor
         return RouterDevice(
           deviceId: canvasDevice.id,
+          name: canvasDevice.name,
           position: canvasDevice.position,
           isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
           natEnabled: false,
@@ -82,6 +84,7 @@ class DeviceFactory {
         // Firewall interfaces already have default IPs set in constructor
         return FirewallDevice(
           deviceId: canvasDevice.id,
+          name: canvasDevice.name,
           position: canvasDevice.position,
           isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
           defaultPolicy: 'DENY',
@@ -91,6 +94,7 @@ class DeviceFactory {
         final wapIP = '192.168.1.${200 + index}';
         final wap = WirelessAccessPoint(
           deviceId: canvasDevice.id,
+          name: canvasDevice.name,
           position: canvasDevice.position,
           isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
           ssid: 'Network-${canvasDevice.id.substring(0, 4)}',
