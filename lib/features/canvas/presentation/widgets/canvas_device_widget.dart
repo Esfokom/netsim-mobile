@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/domain/factories/device_factory.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/device_details_panel.dart';
@@ -117,22 +118,52 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
   }
 
   void _showDeviceMenu(BuildContext context) {
-    // Convert CanvasDevice to NetworkDevice using the factory
-    final networkDevice = DeviceFactory.fromCanvasDevice(widget.device);
-
     // Show the new DeviceDetailsPanel with rich device information
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: DeviceDetailsPanel(
-          device: networkDevice,
-          onClose: () {
-            Navigator.pop(context);
-          },
-        ),
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          // Watch canvas state to rebuild when device changes
+          final canvasState = ref.watch(canvasProvider);
+          final canvasNotifier = ref.read(canvasProvider.notifier);
+
+          // Find the current device from canvas state
+          final canvasDevice = canvasState.devices.firstWhere(
+            (d) => d.id == widget.device.id,
+            orElse: () => widget.device,
+          );
+
+          // Get or create NetworkDevice
+          NetworkDevice networkDevice;
+          final cachedDevice = canvasNotifier.getNetworkDevice(canvasDevice.id);
+
+          if (cachedDevice != null) {
+            // Use cached device to preserve state
+            networkDevice = cachedDevice;
+            // Update position if changed
+            networkDevice.updatePosition(canvasDevice.position);
+          } else {
+            // Create new NetworkDevice and cache it AFTER build completes
+            networkDevice = DeviceFactory.fromCanvasDevice(canvasDevice);
+
+            // Delay the cache update until after the build phase
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              canvasNotifier.setNetworkDevice(canvasDevice.id, networkDevice);
+            });
+          }
+
+          return SizedBox(
+            height: MediaQuery.of(context).size.height * 0.75,
+            child: DeviceDetailsPanel(
+              device: networkDevice,
+              onClose: () {
+                Navigator.pop(context);
+              },
+            ),
+          );
+        },
       ),
     );
   }

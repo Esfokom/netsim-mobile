@@ -246,9 +246,8 @@ class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
         (widget.device as WirelessAccessPoint).showIpOnCanvas = newValue;
       }
 
-      // Trigger rebuild
-      ref.read(canvasProvider.notifier).deselectAllDevices();
-      ref.read(canvasProvider.notifier).selectDevice(widget.device.deviceId);
+      // Trigger rebuild by refreshing the device
+      ref.read(canvasProvider.notifier).refreshDevice(widget.device.deviceId);
     }
   }
 
@@ -354,25 +353,31 @@ class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
                             endDevice.currentSubnetMask ?? '255.255.255.0',
                             endDevice.currentDefaultGateway ?? '192.168.1.1',
                           );
+                          // Update the property value to reflect change
+                          (widget.property as IpAddressProperty).value =
+                              newValue;
                         } else if (widget.property.id == 'currentSubnet') {
                           endDevice.setStaticIp(
                             endDevice.currentIpAddress ?? '192.168.1.1',
                             newValue,
                             endDevice.currentDefaultGateway ?? '192.168.1.1',
                           );
+                          (widget.property as IpAddressProperty).value =
+                              newValue;
                         } else if (widget.property.id == 'currentGateway') {
                           endDevice.setStaticIp(
                             endDevice.currentIpAddress ?? '192.168.1.1',
                             endDevice.currentSubnetMask ?? '255.255.255.0',
                             newValue,
                           );
+                          (widget.property as IpAddressProperty).value =
+                              newValue;
                         }
 
-                        // Trigger rebuild by deselecting and reselecting
-                        ref.read(canvasProvider.notifier).deselectAllDevices();
+                        // Trigger canvas refresh
                         ref
                             .read(canvasProvider.notifier)
-                            .selectDevice(widget.device.deviceId);
+                            .refreshDevice(widget.device.deviceId);
                       }
                       setState(() {
                         _isEditing = false;
