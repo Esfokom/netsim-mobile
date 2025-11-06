@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
 import 'package:netsim_mobile/features/canvas/domain/interfaces/device_capability.dart';
+import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 
 /// Device Details Panel - Shows device properties and available actions
@@ -124,7 +126,8 @@ class DeviceDetailsPanel extends ConsumerWidget {
                       ),
                     ),
                     ...device.properties.map(
-                      (property) => property.buildDisplayWidget(),
+                      (property) =>
+                          _PropertyWidget(property: property, device: device),
                     ),
                   ],
 
@@ -192,6 +195,136 @@ class DeviceDetailsPanel extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Widget for displaying and editing device properties
+class _PropertyWidget extends ConsumerStatefulWidget {
+  final DeviceProperty property;
+  final NetworkDevice device;
+
+  const _PropertyWidget({required this.property, required this.device});
+
+  @override
+  ConsumerState<_PropertyWidget> createState() => _PropertyWidgetState();
+}
+
+class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
+  bool _isEditing = false;
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.property.value.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // If read-only or not editable, just display
+    if (widget.property.isReadOnly ||
+        widget.property.buildEditWidget((v) {}) == null) {
+      return widget.property.buildDisplayWidget();
+    }
+
+    // Check if this is an IP address property for end devices
+    final isEditableIpProperty =
+        widget.property is IpAddressProperty &&
+        widget.device is EndDevice &&
+        (widget.device as EndDevice).canEditIpAddress;
+
+    if (!isEditableIpProperty) {
+      return widget.property.buildDisplayWidget();
+    }
+
+    // Show editable IP address field
+    if (_isEditing) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                decoration: InputDecoration(
+                  labelText: widget.property.label,
+                  hintText: '192.168.1.1',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.settings_ethernet),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.check, color: Colors.green),
+              onPressed: () {
+                final newValue = _controller.text;
+                if (widget.device is EndDevice) {
+                  final endDevice = widget.device as EndDevice;
+
+                  // Update based on which property this is
+                  if (widget.property.id == 'currentIp') {
+                    endDevice.setStaticIp(
+                      newValue,
+                      endDevice.currentSubnetMask ?? '255.255.255.0',
+                      endDevice.currentDefaultGateway ?? '192.168.1.1',
+                    );
+                  } else if (widget.property.id == 'currentSubnet') {
+                    endDevice.setStaticIp(
+                      endDevice.currentIpAddress ?? '192.168.1.1',
+                      newValue,
+                      endDevice.currentDefaultGateway ?? '192.168.1.1',
+                    );
+                  } else if (widget.property.id == 'currentGateway') {
+                    endDevice.setStaticIp(
+                      endDevice.currentIpAddress ?? '192.168.1.1',
+                      endDevice.currentSubnetMask ?? '255.255.255.0',
+                      newValue,
+                    );
+                  }
+
+                  // Trigger rebuild by deselecting and reselecting
+                  ref.read(canvasProvider.notifier).deselectAllDevices();
+                  ref
+                      .read(canvasProvider.notifier)
+                      .selectDevice(widget.device.deviceId);
+                }
+                setState(() => _isEditing = false);
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.red),
+              onPressed: () {
+                _controller.text = widget.property.value.toString();
+                setState(() => _isEditing = false);
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show display with edit button
+    return InkWell(
+      onTap: () => setState(() => _isEditing = true),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          children: [
+            Expanded(child: widget.property.buildDisplayWidget()),
+            Icon(Icons.edit, size: 16, color: Colors.grey[600]),
+          ],
+        ),
       ),
     );
   }

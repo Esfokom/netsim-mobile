@@ -221,37 +221,60 @@ class RouterDevice extends NetworkDevice
   List<DeviceCapability> get capabilities => [this];
 
   @override
-  List<DeviceProperty> get properties => [
-    StatusProperty(
-      id: 'powerState',
-      label: 'Power',
-      value: _isPoweredOn ? 'ON' : 'OFF',
-      color: _isPoweredOn ? Colors.green : Colors.red,
-    ),
-    IntegerProperty(
-      id: 'interfaceCount',
-      label: 'Interfaces',
-      value: interfaces.length,
-      isReadOnly: true,
-    ),
-    IntegerProperty(
-      id: 'routeCount',
-      label: 'Routes',
-      value: _routingTable.length,
-      isReadOnly: true,
-    ),
-    BooleanProperty(id: 'natEnabled', label: 'NAT Enabled', value: natEnabled),
-    BooleanProperty(
-      id: 'dhcpEnabled',
-      label: 'DHCP Service',
-      value: dhcpServiceEnabled,
-    ),
-    BooleanProperty(
-      id: 'firewallEnabled',
-      label: 'Firewall',
-      value: firewallEnabled,
-    ),
-  ];
+  List<DeviceProperty> get properties {
+    final List<DeviceProperty> props = [
+      StatusProperty(
+        id: 'powerState',
+        label: 'Power',
+        value: _isPoweredOn ? 'ON' : 'OFF',
+        color: _isPoweredOn ? Colors.green : Colors.red,
+      ),
+      IntegerProperty(
+        id: 'interfaceCount',
+        label: 'Interfaces',
+        value: interfaces.length,
+        isReadOnly: true,
+      ),
+      IntegerProperty(
+        id: 'routeCount',
+        label: 'Routes',
+        value: _routingTable.length,
+        isReadOnly: true,
+      ),
+    ];
+
+    // Add IP addresses for each interface (read-only)
+    for (var iface in interfaces) {
+      props.add(
+        IpAddressProperty(
+          id: 'ip_${iface.interfaceId}',
+          label: '${iface.interfaceId} IP',
+          value: iface.ipAddress,
+          isReadOnly: true,
+        ),
+      );
+    }
+
+    props.addAll([
+      BooleanProperty(
+        id: 'natEnabled',
+        label: 'NAT Enabled',
+        value: natEnabled,
+      ),
+      BooleanProperty(
+        id: 'dhcpEnabled',
+        label: 'DHCP Service',
+        value: dhcpServiceEnabled,
+      ),
+      BooleanProperty(
+        id: 'firewallEnabled',
+        label: 'Firewall',
+        value: firewallEnabled,
+      ),
+    ]);
+
+    return props;
+  }
 
   @override
   List<DeviceAction> getAvailableActions() {

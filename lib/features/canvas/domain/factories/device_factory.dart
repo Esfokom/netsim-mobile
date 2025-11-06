@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
     as legacy;
 import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
@@ -12,28 +11,45 @@ import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_po
 /// Factory for creating NetworkDevice entities from CanvasDevice models
 /// This provides the bridge between the old canvas system and new device architecture
 class DeviceFactory {
+  static int _deviceCounters = 0;
+
   /// Create a NetworkDevice from a CanvasDevice
-  static NetworkDevice fromCanvasDevice(legacy.CanvasDevice canvasDevice) {
+  static NetworkDevice fromCanvasDevice(
+    legacy.CanvasDevice canvasDevice, {
+    int? deviceTypeIndex,
+  }) {
     final macAddress = _generateMAC(canvasDevice.id);
+    final index = deviceTypeIndex ?? _deviceCounters++;
 
     switch (canvasDevice.type) {
       case legacy.DeviceType.computer:
-        return EndDevice(
+        // Computer gets auto-assigned IP via DHCP initially
+        final endDevice = EndDevice(
           deviceId: canvasDevice.id,
           position: canvasDevice.position,
           hostname: canvasDevice.name,
           macAddress: macAddress,
-          ipConfigMode: 'DHCP',
+          ipConfigMode: 'STATIC',
           isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
         );
 
+        // Assign a default static IP for computers
+        final computerIP = '192.168.1.${10 + index}';
+        endDevice.setStaticIp(computerIP, '255.255.255.0', '192.168.1.1');
+
+        return endDevice;
+
       case legacy.DeviceType.server:
+        final serverIP = '192.168.1.${100 + index}';
         final server = ServerDevice(
           deviceId: canvasDevice.id,
           position: canvasDevice.position,
           hostname: canvasDevice.name,
           macAddress: macAddress,
         );
+
+        // Assign static IP to server (non-changeable)
+        server.setStaticIp(serverIP, '255.255.255.0', '192.168.1.1');
 
         // Initialize with basic services
         server.addService('DHCP', DhcpServiceConfig(isRunning: false));
@@ -52,6 +68,7 @@ class DeviceFactory {
         );
 
       case legacy.DeviceType.router:
+        // Router interfaces already have default IPs set in constructor
         return RouterDevice(
           deviceId: canvasDevice.id,
           position: canvasDevice.position,
@@ -62,6 +79,7 @@ class DeviceFactory {
         );
 
       case legacy.DeviceType.firewall:
+        // Firewall interfaces already have default IPs set in constructor
         return FirewallDevice(
           deviceId: canvasDevice.id,
           position: canvasDevice.position,
@@ -70,7 +88,8 @@ class DeviceFactory {
         );
 
       case legacy.DeviceType.accessPoint:
-        return WirelessAccessPoint(
+        final wapIP = '192.168.1.${200 + index}';
+        final wap = WirelessAccessPoint(
           deviceId: canvasDevice.id,
           position: canvasDevice.position,
           isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
@@ -78,6 +97,11 @@ class DeviceFactory {
           securityMode: 'WPA2',
           wpaPassword: 'password123',
         );
+
+        // Assign static IP to WAP (non-changeable)
+        wap.setStaticIp(wapIP, '255.255.255.0', '192.168.1.1');
+
+        return wap;
     }
   }
 

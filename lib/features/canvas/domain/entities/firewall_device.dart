@@ -149,32 +149,51 @@ class FirewallDevice extends NetworkDevice
   List<DeviceCapability> get capabilities => [this];
 
   @override
-  List<DeviceProperty> get properties => [
-    StatusProperty(
-      id: 'powerState',
-      label: 'Power',
-      value: _isPoweredOn ? 'ON' : 'OFF',
-      color: _isPoweredOn ? Colors.green : Colors.red,
-    ),
-    SelectionProperty(
-      id: 'defaultPolicy',
-      label: 'Default Policy',
-      value: _defaultPolicy,
-      options: ['ALLOW', 'DENY'],
-    ),
-    IntegerProperty(
-      id: 'ruleCount',
-      label: 'Active Rules',
-      value: _firewallRules.where((r) => r.enabled).length,
-      isReadOnly: true,
-    ),
-    IntegerProperty(
-      id: 'totalRules',
-      label: 'Total Rules',
-      value: _firewallRules.length,
-      isReadOnly: true,
-    ),
-  ];
+  List<DeviceProperty> get properties {
+    final List<DeviceProperty> props = [
+      StatusProperty(
+        id: 'powerState',
+        label: 'Power',
+        value: _isPoweredOn ? 'ON' : 'OFF',
+        color: _isPoweredOn ? Colors.green : Colors.red,
+      ),
+    ];
+
+    // Add IP addresses for each interface (read-only)
+    for (var iface in interfaces) {
+      props.add(
+        IpAddressProperty(
+          id: 'ip_${iface.interfaceId}',
+          label: '${iface.interfaceId} IP',
+          value: iface.ipAddress,
+          isReadOnly: true,
+        ),
+      );
+    }
+
+    props.addAll([
+      SelectionProperty(
+        id: 'defaultPolicy',
+        label: 'Default Policy',
+        value: _defaultPolicy,
+        options: ['ALLOW', 'DENY'],
+      ),
+      IntegerProperty(
+        id: 'ruleCount',
+        label: 'Active Rules',
+        value: _firewallRules.where((r) => r.enabled).length,
+        isReadOnly: true,
+      ),
+      IntegerProperty(
+        id: 'totalRules',
+        label: 'Total Rules',
+        value: _firewallRules.length,
+        isReadOnly: true,
+      ),
+    ]);
+
+    return props;
+  }
 
   @override
   List<DeviceAction> getAvailableActions() {

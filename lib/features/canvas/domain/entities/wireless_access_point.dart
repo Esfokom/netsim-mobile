@@ -192,6 +192,12 @@ class WirelessAccessPoint extends NetworkDevice
       value: uplinkLinkState,
       color: uplinkLinkState == 'UP' ? Colors.green : Colors.orange,
     ),
+    IpAddressProperty(
+      id: 'ipAddress',
+      label: 'IP Address',
+      value: currentIpAddress ?? 'Not assigned',
+      isReadOnly: true,
+    ),
     BooleanProperty(
       id: 'radioEnabled',
       label: 'Radio Enabled',
@@ -209,6 +215,13 @@ class WirelessAccessPoint extends NetworkDevice
       value: _securityMode,
       options: ['OPEN', 'WPA2'],
     ),
+    if (_securityMode == 'WPA2')
+      StringProperty(
+        id: 'wpaPassword',
+        label: 'WPA Password',
+        value: _wpaPassword ?? '',
+        isReadOnly: true,
+      ),
     SelectionProperty(
       id: 'channel',
       label: 'Channel',

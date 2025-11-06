@@ -22,6 +22,10 @@ class ServerDevice extends EndDevice implements IServiceHost {
   @override
   Color get color => Colors.orange;
 
+  /// Server IP addresses are static and cannot be changed after initialization
+  @override
+  bool get canEditIpAddress => false;
+
   // IServiceHost implementation
   @override
   List<String> get runningServices => services.entries

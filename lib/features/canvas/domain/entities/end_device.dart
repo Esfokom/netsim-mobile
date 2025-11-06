@@ -167,6 +167,9 @@ class EndDevice extends NetworkDevice
   @override
   List<DeviceCapability> get capabilities => [this];
 
+  /// Whether IP address can be edited (true for EndDevice, false for Server/Router/etc)
+  bool get canEditIpAddress => true;
+
   @override
   List<DeviceProperty> get properties => [
     StringProperty(id: 'hostname', label: 'Hostname', value: hostname),
@@ -187,29 +190,30 @@ class EndDevice extends NetworkDevice
       value: _linkState,
       color: _linkState == 'UP' ? Colors.green : Colors.orange,
     ),
-    SelectionProperty(
-      id: 'ipConfigMode',
-      label: 'IP Configuration',
-      value: ipConfigMode,
-      options: ['STATIC', 'DHCP'],
-    ),
+    if (canEditIpAddress)
+      SelectionProperty(
+        id: 'ipConfigMode',
+        label: 'IP Configuration',
+        value: ipConfigMode,
+        options: ['STATIC', 'DHCP'],
+      ),
     IpAddressProperty(
       id: 'currentIp',
       label: 'IP Address',
       value: currentIpAddress ?? 'Not assigned',
-      isReadOnly: ipConfigMode == 'DHCP',
+      isReadOnly: !canEditIpAddress || ipConfigMode == 'DHCP',
     ),
     IpAddressProperty(
       id: 'currentSubnet',
       label: 'Subnet Mask',
       value: currentSubnetMask ?? 'Not assigned',
-      isReadOnly: ipConfigMode == 'DHCP',
+      isReadOnly: !canEditIpAddress || ipConfigMode == 'DHCP',
     ),
     IpAddressProperty(
       id: 'currentGateway',
       label: 'Default Gateway',
       value: currentDefaultGateway ?? 'Not assigned',
-      isReadOnly: ipConfigMode == 'DHCP',
+      isReadOnly: !canEditIpAddress || ipConfigMode == 'DHCP',
     ),
   ];
 
