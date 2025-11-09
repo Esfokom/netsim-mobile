@@ -67,7 +67,7 @@ class _GameViewState extends ConsumerState<GameView> {
         // Minimap below dashboard at the top-right
         if (transformationController != null)
           Positioned(
-            top: 150, // Below the dashboard
+            top: 180, // Below the dashboard
             right: 16,
             child: CanvasMinimap(
               transformationController: transformationController,
@@ -112,105 +112,172 @@ class _GameViewState extends ConsumerState<GameView> {
             ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Mode indicator
+            // Top Section - Scenario Info
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.edit, size: 16, color: Colors.blue),
-                  const SizedBox(width: 4),
-                  Text(
-                    'EDIT MODE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                    ),
+                  Row(
+                    children: [
+                      // Mode indicator
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 16, color: Colors.blue),
+                            const SizedBox(width: 4),
+                            Text(
+                              'EDIT MODE',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      // Close button
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Exit Game View'),
+                              content: const Text(
+                                'Are you sure you want to exit? Any unsaved changes will be lost.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context); // Close dialog
+                                    Navigator.pop(context); // Exit game view
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red,
+                                  ),
+                                  child: const Text('Exit'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        tooltip: 'Exit',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Scenario title and description
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final scenario = ref.watch(scenarioProvider).scenario;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.description,
+                                size: 18,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  scenario.title,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 26),
+                            child: Text(
+                              scenario.description,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
 
-            // Scenario title
-            Expanded(
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final scenario = ref.watch(scenarioProvider).scenario;
-                  return Text(
-                    scenario.title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  );
-                },
-              ),
+            // Divider
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.2),
             ),
 
-            // Actions
-            IconButton(
-              icon: const Icon(Icons.save, size: 20),
-              onPressed: _saveScenario,
-              tooltip: 'Save Scenario',
-            ),
-            IconButton(
-              icon: const Icon(Icons.upload_file, size: 20),
-              onPressed: _exportScenario,
-              tooltip: 'Export JSON',
-            ),
-            ElevatedButton.icon(
-              onPressed: _runSimulation,
-              icon: const Icon(Icons.play_arrow, size: 18),
-              label: const Text('Run'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: const Icon(Icons.close, size: 20),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Exit Game View'),
-                    content: const Text(
-                      'Are you sure you want to exit? Any unsaved changes will be lost.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context); // Close dialog
-                          Navigator.pop(context); // Exit game view
-                        },
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.red,
-                        ),
-                        child: const Text('Exit'),
-                      ),
-                    ],
+            // Bottom Section - Actions
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  // Save Button
+                  IconButton(
+                    icon: const Icon(Icons.save, size: 20),
+                    onPressed: _saveScenario,
+                    tooltip: 'Save Scenario',
                   ),
-                );
-              },
-              tooltip: 'Exit',
+                  // Export Button
+                  IconButton(
+                    icon: const Icon(Icons.upload_file, size: 20),
+                    onPressed: _exportScenario,
+                    tooltip: 'Export JSON',
+                  ),
+                  const Spacer(),
+                  // Run Button
+                  ElevatedButton.icon(
+                    onPressed: _runSimulation,
+                    icon: const Icon(Icons.play_arrow, size: 18),
+                    label: const Text('Run'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
