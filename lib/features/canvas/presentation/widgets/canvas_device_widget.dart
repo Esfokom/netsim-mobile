@@ -7,6 +7,7 @@ import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_prov
 import 'package:netsim_mobile/features/canvas/domain/factories/device_factory.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/device_details_panel.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 
 class CanvasDeviceWidget extends ConsumerStatefulWidget {
   final CanvasDevice device;
@@ -124,8 +125,16 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
             // Complete linking
             canvasNotifier.completeLinking(widget.device.id);
           } else {
-            // Select device and show details
+            // Select device in canvas
             canvasNotifier.selectDevice(widget.device.id);
+
+            // Also select in scenario provider for contextual editor
+            Future.microtask(() {
+              ref
+                  .read(scenarioProvider.notifier)
+                  .selectDevice(widget.device.id);
+            });
+
             _showDeviceMenu(context);
           }
         },

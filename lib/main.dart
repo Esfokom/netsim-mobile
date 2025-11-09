@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/core/providers/theme_provider.dart';
 import 'package:netsim_mobile/core/widgets/root_scaffold.dart';
-import 'package:netsim_mobile/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:netsim_mobile/features/leaderboard/presentation/leaderboard_screen.dart';
 import 'package:netsim_mobile/features/onboarding/presentation/screens/onboarding.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/game_view.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/screens/scenario_list.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/screens/saved_scenarios_screen.dart';
 import 'package:netsim_mobile/features/logs/presentation/screens/logs_list_screen.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-
-import 'features/devices/presentation/screens/device_list_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,15 +36,11 @@ class MyApp extends ConsumerWidget {
         return RootScaffold(child: child ?? const SizedBox.shrink());
       },
       routes: {
-        "dashboard": (context) => DashboardScreen(),
-        "/leaderboard": (context) => LeaderboardScreen(),
         "/": (context) => const Onboarding(),
         "/game": (context) => const GameView(),
-        "/dashboard": (context) => const DashboardScreen(),
-        "/scenario": (context) => const ScenarioListScreen(),
+        "/scenarios": (context) => const SavedScenariosScreen(),
+        "/leaderboard": (context) => LeaderboardScreen(),
         "/logs": (context) => const LatestLogsList(),
-        "/devices": (context) =>
-            DeviceListScreen(devices: const [], scenario: null),
       },
     );
   }

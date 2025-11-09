@@ -18,31 +18,25 @@ class Onboarding extends StatelessWidget {
               children: [
                 ShadButton(
                   width: double.infinity,
-                  leading: Icon(Icons.gamepad),
-                  child: Text("Game View"),
+                  leading: Icon(Icons.play_circle),
+                  child: Text("Create New Scenario"),
                   onPressed: () => Navigator.pushNamed(context, "/game"),
                 ),
                 ShadButton(
                   width: double.infinity,
-                  leading: Icon(Icons.add),
-                  child: Text("Dashboard"),
-                  onPressed: () => Navigator.pushNamed(context, "/dashboard"),
+                  leading: Icon(Icons.folder),
+                  child: Text("Saved Scenarios"),
+                  onPressed: () => Navigator.pushNamed(context, "/scenarios"),
                 ),
                 ShadButton(
                   width: double.infinity,
-                  leading: Icon(Icons.add),
+                  leading: Icon(Icons.leaderboard),
                   child: Text("Leaderboard"),
                   onPressed: () => Navigator.pushNamed(context, "/leaderboard"),
                 ),
                 ShadButton(
                   width: double.infinity,
-                  leading: Icon(Icons.new_label),
-                  child: Text("Scenarios"),
-                  onPressed: () => Navigator.pushNamed(context, "/scenario"),
-                ),
-                ShadButton(
-                  width: double.infinity,
-                  leading: Icon(Icons.info),
+                  leading: Icon(Icons.article),
                   child: Text("Logs"),
                   onPressed: () => Navigator.pushNamed(context, "/logs"),
                 ),
