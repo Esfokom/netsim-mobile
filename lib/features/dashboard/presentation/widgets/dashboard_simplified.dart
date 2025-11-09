@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 
 class DashboardSimplified extends ConsumerWidget {
   const DashboardSimplified({super.key});
@@ -9,6 +10,7 @@ class DashboardSimplified extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final canvasState = ref.watch(canvasProvider);
     final canvasNotifier = ref.read(canvasProvider.notifier);
+    final scenarioState = ref.watch(scenarioProvider);
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -31,43 +33,39 @@ class DashboardSimplified extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Stats Row
+            // Top Section - Scenario Info
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _StatCard(
-                      title: "Total",
-                      value: canvasState.totalDevices.toString(),
-                      icon: Icons.devices,
-                      color: Colors.blue,
-                    ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.description,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          scenarioState.scenario.title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: _StatCard(
-                      title: "Online",
-                      value: canvasState.devicesOnline.toString(),
-                      icon: Icons.check_circle,
-                      color: Colors.green,
-                    ),
-                  ),
-                  Expanded(
-                    child: _StatCard(
-                      title: "Offline",
-                      value: canvasState.devicesOffline.toString(),
-                      icon: Icons.cancel,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  Expanded(
-                    child: _StatCard(
-                      title: "Warnings",
-                      value: canvasState.devicesWithWarning.toString(),
-                      icon: Icons.warning,
-                      color: Colors.orange,
-                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    scenarioState.scenario.description,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -82,112 +80,181 @@ class DashboardSimplified extends ConsumerWidget {
               ).colorScheme.outline.withValues(alpha: 0.2),
             ),
 
-            // Action Buttons Row
+            // Bottom Section - Stats and Actions
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Column(
                 children: [
-                  // Linking Mode Indicator
-                  Expanded(
-                    child: InkWell(
-                      onTap: canvasState.isLinkingMode
-                          ? () => canvasNotifier.cancelLinking()
-                          : null,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
+                  // Stats Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: _StatCard(
+                          title: "Total",
+                          value: canvasState.totalDevices.toString(),
+                          icon: Icons.devices,
+                          color: Colors.blue,
                         ),
-                        decoration: BoxDecoration(
-                          color: canvasState.isLinkingMode
-                              ? Colors.blue.withValues(alpha: 0.15)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                          border: canvasState.isLinkingMode
-                              ? Border.all(
-                                  color: Colors.blue.withValues(alpha: 0.3),
-                                )
+                      ),
+                      Expanded(
+                        child: _StatCard(
+                          title: "Online",
+                          value: canvasState.devicesOnline.toString(),
+                          icon: Icons.check_circle,
+                          color: Colors.green,
+                        ),
+                      ),
+                      Expanded(
+                        child: _StatCard(
+                          title: "Offline",
+                          value: canvasState.devicesOffline.toString(),
+                          icon: Icons.cancel,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Expanded(
+                        child: _StatCard(
+                          title: "Warnings",
+                          value: canvasState.devicesWithWarning.toString(),
+                          icon: Icons.warning,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Action Buttons Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Linking Mode Indicator
+                      Expanded(
+                        child: InkWell(
+                          onTap: canvasState.isLinkingMode
+                              ? () => canvasNotifier.cancelLinking()
                               : null,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              canvasState.isLinkingMode
-                                  ? Icons.link
-                                  : Icons.link_off,
-                              size: 18,
-                              color: canvasState.isLinkingMode
-                                  ? Colors.blue
-                                  : Colors.grey,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
                             ),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                canvasState.isLinkingMode
-                                    ? 'Linking Mode (Tap to cancel)'
-                                    : 'Normal Mode',
-                                style: TextStyle(
-                                  fontSize: 12,
+                            decoration: BoxDecoration(
+                              color: canvasState.isLinkingMode
+                                  ? Colors.blue.withValues(alpha: 0.15)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                              border: canvasState.isLinkingMode
+                                  ? Border.all(
+                                      color: Colors.blue.withValues(alpha: 0.3),
+                                    )
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  canvasState.isLinkingMode
+                                      ? Icons.link
+                                      : Icons.link_off,
+                                  size: 18,
                                   color: canvasState.isLinkingMode
                                       ? Colors.blue
                                       : Colors.grey,
-                                  fontWeight: canvasState.isLinkingMode
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    canvasState.isLinkingMode
+                                        ? 'Linking Mode (Tap to cancel)'
+                                        : 'Normal Mode',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: canvasState.isLinkingMode
+                                          ? Colors.blue
+                                          : Colors.grey,
+                                      fontWeight: canvasState.isLinkingMode
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                      const SizedBox(width: 8),
 
-                  // Reset Button
-                  _ActionButton(
-                    icon: Icons.refresh,
-                    label: 'Reset',
-                    color: Colors.orange,
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Clear Canvas'),
-                          content: const Text(
-                            'Are you sure you want to clear all devices and connections?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
+                      // Reset Button
+                      _ActionButton(
+                        icon: Icons.refresh,
+                        label: 'Reset',
+                        color: Colors.orange,
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Clear Canvas'),
+                              content: const Text(
+                                'Are you sure you want to clear all devices and connections?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    canvasNotifier.clearCanvas();
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Clear'),
+                                ),
+                              ],
                             ),
-                            TextButton(
-                              onPressed: () {
-                                canvasNotifier.clearCanvas();
-                                Navigator.pop(context);
-                              },
-                              child: const Text('Clear'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
 
-                  // Exit Button
-                  _ActionButton(
-                    icon: Icons.exit_to_app,
-                    label: 'Exit',
-                    color: Colors.red,
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+                      // Exit Button with confirmation
+                      _ActionButton(
+                        icon: Icons.exit_to_app,
+                        label: 'Exit',
+                        color: Colors.red,
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Exit Game View'),
+                              content: const Text(
+                                'Are you sure you want to exit? Any unsaved changes will be lost.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context); // Close dialog
+                                    Navigator.pop(context); // Exit game view
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red,
+                                  ),
+                                  child: const Text('Exit'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -198,6 +265,8 @@ class DashboardSimplified extends ConsumerWidget {
     );
   }
 }
+
+// ...existing code...
 
 class _StatCard extends StatelessWidget {
   final String title;

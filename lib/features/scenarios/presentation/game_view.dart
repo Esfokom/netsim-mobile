@@ -183,7 +183,33 @@ class _GameViewState extends ConsumerState<GameView> {
             const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.close, size: 20),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Exit Game View'),
+                    content: const Text(
+                      'Are you sure you want to exit? Any unsaved changes will be lost.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context); // Close dialog
+                          Navigator.pop(context); // Exit game view
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                        child: const Text('Exit'),
+                      ),
+                    ],
+                  ),
+                );
+              },
               tooltip: 'Exit',
             ),
           ],
