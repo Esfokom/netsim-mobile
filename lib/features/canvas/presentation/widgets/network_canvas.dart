@@ -13,6 +13,13 @@ class CanvasTransformationNotifier extends Notifier<TransformationController?> {
   void setController(TransformationController controller) {
     state = controller;
   }
+
+  void clearController() {
+    // Only clear if there's actually a controller to clear
+    if (state != null) {
+      state = null;
+    }
+  }
 }
 
 /// Provider for the canvas transformation controller
@@ -32,9 +39,18 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
   final TransformationController _transformationController =
       TransformationController();
 
+  // Save the notifier reference to use safely during disposal
+  CanvasTransformationNotifier? _transformationNotifier;
+
   @override
   void initState() {
     super.initState();
+
+    // Save the notifier reference for safe disposal
+    _transformationNotifier = ref.read(
+      canvasTransformationControllerProvider.notifier,
+    );
+
     // Initialize the canvas centered on the grid
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Get the screen size
@@ -56,14 +72,18 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
       }
 
       // Make the controller available to other widgets
-      ref
-          .read(canvasTransformationControllerProvider.notifier)
-          .setController(_transformationController);
+      _transformationNotifier?.setController(_transformationController);
     });
   }
 
   @override
   void dispose() {
+    // Clear the controller from the provider after dispose completes
+    // Use Future to delay the modification as recommended by Riverpod
+    Future(() {
+      _transformationNotifier?.clearController();
+    });
+
     _transformationController.dispose();
     super.dispose();
   }

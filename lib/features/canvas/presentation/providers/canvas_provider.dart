@@ -5,6 +5,11 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
 
+/// Interface for disposable resources
+abstract class Disposable {
+  void dispose();
+}
+
 /// State class for managing canvas devices and links
 class CanvasState {
   final List<canvas_model.CanvasDevice> devices;
@@ -188,6 +193,58 @@ class CanvasNotifier extends Notifier<CanvasState> {
   /// Clear all devices and links
   void clearCanvas() {
     state = CanvasState();
+  }
+
+  /// Comprehensive cleanup method - disposes network devices and resets all state
+  void disposeAndClear() {
+    try {
+      // Dispose all network device instances that might have resources
+      for (final networkDevice in state.networkDevices.values) {
+        // If NetworkDevice has a dispose method, call it
+        try {
+          if (networkDevice is Disposable) {
+            (networkDevice as Disposable).dispose();
+          }
+          // Try to call dispose via reflection if it exists
+          else {
+            final dynamic device = networkDevice;
+            if (device?.dispose != null) {
+              device.dispose();
+            }
+          }
+        } catch (e) {
+          // Ignore disposal errors - device might not have dispose method
+          print('Device disposal error (ignored): $e');
+        }
+      }
+
+      // Clear all linking states
+      try {
+        cancelLinking();
+      } catch (e) {
+        print('Error clearing linking state (ignored): $e');
+      }
+
+      // Deselect all devices before clearing
+      try {
+        deselectAllDevices();
+      } catch (e) {
+        print('Error deselecting devices (ignored): $e');
+      }
+
+      // Reset state to initial empty state
+      state = CanvasState();
+
+      print('Canvas state cleared and disposed successfully');
+    } catch (e) {
+      print('Error during canvas cleanup: $e');
+      // Still try to reset state even if cleanup partially failed
+      try {
+        state = CanvasState();
+      } catch (resetError) {
+        print('Error resetting canvas state: $resetError');
+      }
+    }
   }
 
   /// Refresh a device to trigger UI update (when properties change)

@@ -23,19 +23,55 @@ class _CanvasMinimapState extends ConsumerState<CanvasMinimap> {
   void initState() {
     super.initState();
     // Listen to transformation changes to rebuild minimap
-    widget.transformationController.addListener(_onTransformationChanged);
+    // Add safety check for disposed controller
+    try {
+      widget.transformationController.addListener(_onTransformationChanged);
+    } catch (e) {
+      // Controller is already disposed, do nothing
+    }
+  }
+
+  @override
+  void didUpdateWidget(CanvasMinimap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If the controller changed, update listeners
+    if (oldWidget.transformationController != widget.transformationController) {
+      // Remove old listener
+      try {
+        oldWidget.transformationController.removeListener(
+          _onTransformationChanged,
+        );
+      } catch (e) {
+        // Old controller was disposed, ignore
+      }
+
+      // Add new listener
+      try {
+        widget.transformationController.addListener(_onTransformationChanged);
+      } catch (e) {
+        // New controller is disposed, ignore
+      }
+    }
   }
 
   @override
   void dispose() {
-    widget.transformationController.removeListener(_onTransformationChanged);
+    // Add safety check for disposed controller
+    try {
+      widget.transformationController.removeListener(_onTransformationChanged);
+    } catch (e) {
+      // Controller is already disposed, do nothing
+    }
     super.dispose();
   }
 
   void _onTransformationChanged() {
-    setState(() {
-      // Rebuild to update viewport indicator
-    });
+    if (mounted) {
+      setState(() {
+        // Rebuild to update viewport indicator
+      });
+    }
   }
 
   @override
@@ -62,19 +98,39 @@ class _CanvasMinimapState extends ConsumerState<CanvasMinimap> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: CustomPaint(
-          painter: MinimapPainter(
-            devices: canvasState.devices,
-            canvasSize: widget.canvasSize,
-            transformationController: widget.transformationController,
-            gridColor: Theme.of(
-              context,
-            ).colorScheme.outline.withValues(alpha: 0.1),
-            viewportColor: Theme.of(
-              context,
-            ).colorScheme.primary.withValues(alpha: 0.3),
-            viewportBorderColor: Theme.of(context).colorScheme.primary,
-          ),
+        child: Builder(
+          builder: (context) {
+            try {
+              return CustomPaint(
+                painter: MinimapPainter(
+                  devices: canvasState.devices,
+                  canvasSize: widget.canvasSize,
+                  transformationController: widget.transformationController,
+                  gridColor: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.1),
+                  viewportColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.3),
+                  viewportBorderColor: Theme.of(context).colorScheme.primary,
+                ),
+              );
+            } catch (e) {
+              // If painting fails due to disposed controller, show fallback
+              return Container(
+                color: Theme.of(context).colorScheme.surface,
+                child: Center(
+                  child: Icon(
+                    Icons.map_outlined,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.3),
+                    size: 24,
+                  ),
+                ),
+              );
+            }
+          },
         ),
       ),
     );
@@ -164,8 +220,15 @@ class MinimapPainter extends CustomPainter {
   }
 
   void _drawViewport(Canvas canvas, Size size, double scaleX, double scaleY) {
-    // Get transformation matrix
-    final matrix = transformationController.value;
+    // Get transformation matrix with safety check
+    Matrix4 matrix;
+    try {
+      matrix = transformationController.value;
+    } catch (e) {
+      // Controller is disposed, use identity matrix
+      matrix = Matrix4.identity();
+    }
+
     final scale = matrix.getMaxScaleOnAxis();
     final translation = matrix.getTranslation();
 

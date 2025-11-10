@@ -404,6 +404,11 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
   Future<void> autoSave() async {
     await _storageService.saveCurrentScenario(state.scenario);
   }
+
+  /// Reset scenario state to empty initial state
+  void resetToEmpty() {
+    state = ScenarioState(scenario: NetworkScenario.empty());
+  }
 }
 
 /// Provider for scenario state

@@ -18,13 +18,33 @@ class GameView extends ConsumerStatefulWidget {
 }
 
 class _GameViewState extends ConsumerState<GameView> {
+  // Save notifier references for safe disposal
+  CanvasNotifier? _canvasNotifier;
+  ScenarioNotifier? _scenarioNotifier;
+  CanvasTransformationNotifier? _transformationNotifier;
+
   @override
   void initState() {
     super.initState();
+
+    // Save notifier references for safe disposal
+    _canvasNotifier = ref.read(canvasProvider.notifier);
+    _scenarioNotifier = ref.read(scenarioProvider.notifier);
+    _transformationNotifier = ref.read(
+      canvasTransformationControllerProvider.notifier,
+    );
+
     // Initialize a new scenario when the game view opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(scenarioProvider.notifier).createNewScenario();
+      _scenarioNotifier?.createNewScenario();
     });
+  }
+
+  @override
+  void dispose() {
+    // Perform cleanup when widget is disposed using saved references
+    _performCleanupSafely();
+    super.dispose();
   }
 
   @override
@@ -65,12 +85,12 @@ class _GameViewState extends ConsumerState<GameView> {
         Positioned(top: 0, left: 0, right: 0, child: _buildEditModeHeader()),
 
         // Minimap below dashboard at the top-right
-        if (transformationController != null)
+        if (_isControllerValid(transformationController))
           Positioned(
             top: 130, // Below the dashboard
             right: 16,
             child: CanvasMinimap(
-              transformationController: transformationController,
+              transformationController: transformationController!,
               canvasSize: const Size(2000, 2000),
             ),
           ),
@@ -345,6 +365,8 @@ class _GameViewState extends ConsumerState<GameView> {
                       );
 
                       if (shouldExit == true && mounted) {
+                        // Cleanup all state before exiting
+                        _performCleanup();
                         navigator.pop(); // Exit game view
                       }
                     },
@@ -373,12 +395,12 @@ class _GameViewState extends ConsumerState<GameView> {
         Positioned(top: 0, left: 0, right: 0, child: _buildSimulationHeader()),
 
         // Minimap
-        if (transformationController != null)
+        if (_isControllerValid(transformationController))
           Positioned(
             top: 150,
             right: 16,
             child: CanvasMinimap(
-              transformationController: transformationController,
+              transformationController: transformationController!,
               canvasSize: const Size(2000, 2000),
             ),
           ),
@@ -718,5 +740,60 @@ class _GameViewState extends ConsumerState<GameView> {
         ],
       ),
     );
+  }
+
+  /// Helper method to check if transformation controller is valid and not disposed
+  bool _isControllerValid(TransformationController? controller) {
+    if (controller == null) return false;
+    try {
+      // Try to access the value to check if it's disposed
+      controller.value;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Comprehensive cleanup method to dispose resources and clear state
+  void _performCleanup() {
+    try {
+      // Clear and dispose canvas state
+      ref.read(canvasProvider.notifier).disposeAndClear();
+
+      // Reset scenario state
+      ref.read(scenarioProvider.notifier).resetToEmpty();
+
+      // Clear transformation controller from provider
+      ref
+          .read(canvasTransformationControllerProvider.notifier)
+          .clearController();
+
+      print('Game view cleanup completed successfully');
+    } catch (e) {
+      print('Error during cleanup: $e');
+      // Continue with exit even if cleanup fails
+    }
+  }
+
+  /// Safe cleanup method using saved notifier references (for use in dispose)
+  void _performCleanupSafely() {
+    try {
+      // Delay provider modifications to avoid lifecycle conflicts
+      Future(() {
+        // Clear and dispose canvas state using saved reference
+        _canvasNotifier?.disposeAndClear();
+
+        // Reset scenario state using saved reference
+        _scenarioNotifier?.resetToEmpty();
+
+        // Clear transformation controller from provider using saved reference
+        _transformationNotifier?.clearController();
+
+        print('Game view cleanup completed successfully (safe disposal)');
+      });
+    } catch (e) {
+      print('Error during safe cleanup: $e');
+      // Continue with disposal even if cleanup fails
+    }
   }
 }
