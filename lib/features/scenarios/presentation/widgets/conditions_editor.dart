@@ -735,6 +735,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
               ? null
               : _expectedValueController.text,
           label: const Text('Expected Value'),
+          placeholder: const Text('Select True or False'),
           options: const [
             ShadOption(value: 'true', child: Text('True')),
             ShadOption(value: 'false', child: Text('False')),
