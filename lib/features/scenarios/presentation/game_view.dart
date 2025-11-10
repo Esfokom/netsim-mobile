@@ -522,7 +522,7 @@ class _GameViewState extends ConsumerState<GameView> {
   Future<void> _checkSolution() async {
     final results = await ref
         .read(scenarioProvider.notifier)
-        .checkSuccessConditions();
+        .checkSuccessConditions(ref);
 
     final allPassed = results.values.every((passed) => passed);
     final passedCount = results.values.where((passed) => passed).length;

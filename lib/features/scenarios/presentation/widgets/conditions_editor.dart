@@ -5,6 +5,7 @@ import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario
 import 'package:netsim_mobile/features/scenarios/data/models/scenario_condition.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
 
 /// Editor for success conditions
 class ConditionsEditor extends ConsumerWidget {
@@ -170,6 +171,11 @@ class _ConditionCard extends ConsumerWidget {
         children: [
           _DetailRow(label: 'Device', value: condition.targetDeviceID ?? 'N/A'),
           _DetailRow(label: 'Property', value: condition.property ?? 'N/A'),
+          if (condition.propertyDataType != null)
+            _DetailRow(
+              label: 'Data Type',
+              value: condition.propertyDataType!.displayName,
+            ),
           _DetailRow(
             label: 'Operator',
             value: condition.operator?.displayName ?? 'N/A',
@@ -238,6 +244,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   // Property check fields
   String? _selectedTargetDeviceId;
   String? _selectedProperty;
+  PropertyDataType? _selectedPropertyDataType;
   PropertyOperator _selectedOperator = PropertyOperator.equals;
   final _expectedValueController = TextEditingController();
 
@@ -446,6 +453,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
 
   Widget _buildPropertyCheckFields(List<CanvasDevice> devices) {
     final canvasNotifier = ref.read(canvasProvider.notifier);
+    final Map<String, PropertyDataType> propertyDataTypes = {};
     List<String> availableProperties = [];
 
     // Get properties for selected device
@@ -458,6 +466,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         final propertySet = <String>{};
         for (final prop in networkDevice.properties) {
           propertySet.add(prop.label);
+          propertyDataTypes[prop.label] = getPropertyDataType(prop);
         }
         availableProperties = propertySet.toList();
 
@@ -468,11 +477,27 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
             if (mounted) {
               setState(() {
                 _selectedProperty = null;
+                _selectedPropertyDataType = null;
               });
             }
           });
         }
       }
+    }
+
+    // Get valid operators for selected property data type
+    final validOperators =
+        _selectedPropertyDataType?.validOperators ?? PropertyOperator.values;
+
+    // Reset operator if current one is not valid for the selected data type
+    if (!validOperators.contains(_selectedOperator)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _selectedOperator = validOperators.first;
+          });
+        }
+      });
     }
 
     return Column(
@@ -542,6 +567,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
             setState(() {
               _selectedTargetDeviceId = value;
               _selectedProperty = null; // Reset property when device changes
+              _selectedPropertyDataType = null;
             });
           },
         ),
@@ -557,11 +583,45 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
             label: const Text('Property'),
             placeholder: const Text('Select property'),
             options: availableProperties.map((property) {
-              return ShadOption(value: property, child: Text(property));
+              final dataType = propertyDataTypes[property]!;
+              return ShadOption(
+                value: property,
+                child: Row(
+                  children: [
+                    Expanded(child: Text(property)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getDataTypeColor(
+                          dataType,
+                        ).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: _getDataTypeColor(dataType)),
+                      ),
+                      child: Text(
+                        dataType.displayName,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: _getDataTypeColor(dataType),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
             }).toList(),
             selectedOptionBuilder: (context, value) => Text(value),
             onChanged: (value) {
-              setState(() => _selectedProperty = value);
+              setState(() {
+                _selectedProperty = value;
+                _selectedPropertyDataType = propertyDataTypes[value];
+                // Clear expected value when property changes
+                _expectedValueController.clear();
+              });
             },
           )
         else
@@ -587,15 +647,57 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
           ),
         const SizedBox(height: 12),
 
+        // Show data type info if property selected
+        if (_selectedPropertyDataType != null)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: _getDataTypeColor(
+                _selectedPropertyDataType!,
+              ).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _getDataTypeColor(_selectedPropertyDataType!),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _getDataTypeIcon(_selectedPropertyDataType!),
+                  size: 16,
+                  color: _getDataTypeColor(_selectedPropertyDataType!),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Data Type: ${_selectedPropertyDataType!.displayName}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _getDataTypeColor(_selectedPropertyDataType!),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Operator dropdown - filtered based on data type
         ShadSelectFormField<PropertyOperator>(
           id: 'operator',
           minWidth: double.infinity,
+          key: ValueKey('operator_$_selectedPropertyDataType'),
           initialValue: _selectedOperator,
           label: const Text('Operator'),
-          options: PropertyOperator.values.map((operator) {
+          options: validOperators.map((operator) {
             return ShadOption(
               value: operator,
-              child: Text(operator.displayName),
+              child: Row(
+                children: [
+                  Text(operator.symbol),
+                  const SizedBox(width: 8),
+                  Text(operator.displayName),
+                ],
+              ),
             );
           }).toList(),
           selectedOptionBuilder: (context, value) => Text(value.displayName),
@@ -607,14 +709,97 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         ),
         const SizedBox(height: 12),
 
-        ShadInputFormField(
-          controller: _expectedValueController,
-          label: Text("Expected Value"),
-          description: Text("e.g., ON, 192.168.1.1"),
-          placeholder: Text("Please enter the expected value"),
-        ),
+        // Expected value field - different based on data type
+        _buildExpectedValueField(),
       ],
     );
+  }
+
+  Widget _buildExpectedValueField() {
+    if (_selectedPropertyDataType == null) {
+      return ShadInputFormField(
+        controller: _expectedValueController,
+        label: const Text("Expected Value"),
+        description: const Text("Select a property first"),
+        placeholder: const Text("Please select a property"),
+        enabled: false,
+      );
+    }
+
+    switch (_selectedPropertyDataType!) {
+      case PropertyDataType.boolean:
+        return ShadSelectFormField<String>(
+          id: 'expectedValueBoolean',
+          minWidth: double.infinity,
+          initialValue: _expectedValueController.text.isEmpty
+              ? null
+              : _expectedValueController.text,
+          label: const Text('Expected Value'),
+          options: const [
+            ShadOption(value: 'true', child: Text('True')),
+            ShadOption(value: 'false', child: Text('False')),
+          ],
+          selectedOptionBuilder: (context, value) =>
+              Text(value == 'true' ? 'True' : 'False'),
+          onChanged: (value) {
+            if (value != null) {
+              _expectedValueController.text = value;
+            }
+          },
+        );
+
+      case PropertyDataType.integer:
+        return ShadInputFormField(
+          controller: _expectedValueController,
+          label: const Text("Expected Value"),
+          description: const Text("Enter a number"),
+          placeholder: const Text("e.g., 5, 100"),
+          keyboardType: TextInputType.number,
+        );
+
+      case PropertyDataType.ipAddress:
+        return ShadInputFormField(
+          controller: _expectedValueController,
+          label: const Text("Expected Value"),
+          description: const Text("Enter an IP address"),
+          placeholder: const Text("e.g., 192.168.1.1"),
+          keyboardType: TextInputType.number,
+        );
+
+      case PropertyDataType.string:
+        return ShadInputFormField(
+          controller: _expectedValueController,
+          label: const Text("Expected Value"),
+          description: const Text("Enter expected text"),
+          placeholder: const Text("e.g., ON, ACTIVE"),
+        );
+    }
+  }
+
+  Color _getDataTypeColor(PropertyDataType dataType) {
+    switch (dataType) {
+      case PropertyDataType.boolean:
+        return Colors.purple;
+      case PropertyDataType.integer:
+        return Colors.blue;
+      case PropertyDataType.ipAddress:
+        return Colors.green;
+      case PropertyDataType.string:
+        return Colors.orange;
+    }
+  }
+
+  IconData _getDataTypeIcon(PropertyDataType dataType) {
+    switch (dataType) {
+      case PropertyDataType.boolean:
+        return Icons.toggle_on;
+      case PropertyDataType.integer:
+        return Icons.numbers;
+      case PropertyDataType.ipAddress:
+        return Icons.settings_ethernet;
+      case PropertyDataType.string:
+        return Icons.text_fields;
+    }
   }
 
   void _saveCondition() {
@@ -647,6 +832,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     } else {
       if (_selectedTargetDeviceId == null ||
           _selectedProperty == null ||
+          _selectedPropertyDataType == null ||
           _expectedValueController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -662,6 +848,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         type: ConditionType.propertyCheck,
         targetDeviceID: _selectedTargetDeviceId,
         property: _selectedProperty,
+        propertyDataType: _selectedPropertyDataType,
         operator: _selectedOperator,
         expectedValue: _expectedValueController.text,
       );

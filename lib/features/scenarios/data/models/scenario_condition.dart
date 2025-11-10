@@ -6,8 +6,11 @@ enum ConditionType { connectivity, propertyCheck }
 /// Protocol types for connectivity checks
 enum ConnectivityProtocol { ping, http, dnsLookup }
 
+/// Data types for properties
+enum PropertyDataType { string, boolean, integer, ipAddress }
+
 /// Operators for property checks
-enum PropertyOperator { equals, notEquals, contains }
+enum PropertyOperator { equals, notEquals, contains, greaterThan, lessThan }
 
 /// Represents a success condition for a scenario
 @immutable
@@ -24,6 +27,7 @@ class ScenarioCondition {
   // Property check-specific fields
   final String? targetDeviceID;
   final String? property;
+  final PropertyDataType? propertyDataType;
   final PropertyOperator? operator;
   final String? expectedValue;
 
@@ -36,6 +40,7 @@ class ScenarioCondition {
     this.targetAddress,
     this.targetDeviceID,
     this.property,
+    this.propertyDataType,
     this.operator,
     this.expectedValue,
   });
@@ -49,6 +54,7 @@ class ScenarioCondition {
     String? targetAddress,
     String? targetDeviceID,
     String? property,
+    PropertyDataType? propertyDataType,
     PropertyOperator? operator,
     String? expectedValue,
   }) {
@@ -61,6 +67,7 @@ class ScenarioCondition {
       targetAddress: targetAddress ?? this.targetAddress,
       targetDeviceID: targetDeviceID ?? this.targetDeviceID,
       property: property ?? this.property,
+      propertyDataType: propertyDataType ?? this.propertyDataType,
       operator: operator ?? this.operator,
       expectedValue: expectedValue ?? this.expectedValue,
     );
@@ -76,6 +83,8 @@ class ScenarioCondition {
       if (targetAddress != null) 'targetAddress': targetAddress,
       if (targetDeviceID != null) 'targetDeviceID': targetDeviceID,
       if (property != null) 'property': property,
+      if (propertyDataType != null)
+        'propertyDataType': propertyDataType!.name.toUpperCase(),
       if (operator != null) 'operator': operator!.name.toUpperCase(),
       if (expectedValue != null) 'expectedValue': expectedValue,
     };
@@ -97,6 +106,18 @@ class ScenarioCondition {
           : ConnectivityProtocol.dnsLookup;
     }
 
+    PropertyDataType? propertyDataType;
+    if (json['propertyDataType'] != null) {
+      final dataTypeStr = json['propertyDataType'].toString().toLowerCase();
+      propertyDataType = dataTypeStr == 'string'
+          ? PropertyDataType.string
+          : dataTypeStr == 'boolean'
+          ? PropertyDataType.boolean
+          : dataTypeStr == 'integer'
+          ? PropertyDataType.integer
+          : PropertyDataType.ipAddress;
+    }
+
     PropertyOperator? operator;
     if (json['operator'] != null) {
       final operatorStr = json['operator'].toString().toLowerCase();
@@ -104,7 +125,11 @@ class ScenarioCondition {
           ? PropertyOperator.equals
           : operatorStr == 'notequals'
           ? PropertyOperator.notEquals
-          : PropertyOperator.contains;
+          : operatorStr == 'contains'
+          ? PropertyOperator.contains
+          : operatorStr == 'greaterthan'
+          ? PropertyOperator.greaterThan
+          : PropertyOperator.lessThan;
     }
 
     return ScenarioCondition(
@@ -116,6 +141,7 @@ class ScenarioCondition {
       targetAddress: json['targetAddress'] as String?,
       targetDeviceID: json['targetDeviceID'] as String?,
       property: json['property'] as String?,
+      propertyDataType: propertyDataType,
       operator: operator,
       expectedValue: json['expectedValue'] as String?,
     );
@@ -146,6 +172,43 @@ extension ConnectivityProtocolExtension on ConnectivityProtocol {
   }
 }
 
+extension PropertyDataTypeExtension on PropertyDataType {
+  String get displayName {
+    switch (this) {
+      case PropertyDataType.string:
+        return 'String';
+      case PropertyDataType.boolean:
+        return 'Boolean';
+      case PropertyDataType.integer:
+        return 'Integer';
+      case PropertyDataType.ipAddress:
+        return 'IP Address';
+    }
+  }
+
+  /// Get valid operators for this data type
+  List<PropertyOperator> get validOperators {
+    switch (this) {
+      case PropertyDataType.boolean:
+        return [PropertyOperator.equals, PropertyOperator.notEquals];
+      case PropertyDataType.integer:
+        return [
+          PropertyOperator.equals,
+          PropertyOperator.notEquals,
+          PropertyOperator.greaterThan,
+          PropertyOperator.lessThan,
+        ];
+      case PropertyDataType.string:
+      case PropertyDataType.ipAddress:
+        return [
+          PropertyOperator.equals,
+          PropertyOperator.notEquals,
+          PropertyOperator.contains,
+        ];
+    }
+  }
+}
+
 extension PropertyOperatorExtension on PropertyOperator {
   String get displayName {
     switch (this) {
@@ -155,6 +218,25 @@ extension PropertyOperatorExtension on PropertyOperator {
         return 'Not Equals';
       case PropertyOperator.contains:
         return 'Contains';
+      case PropertyOperator.greaterThan:
+        return 'Greater Than';
+      case PropertyOperator.lessThan:
+        return 'Less Than';
+    }
+  }
+
+  String get symbol {
+    switch (this) {
+      case PropertyOperator.equals:
+        return '==';
+      case PropertyOperator.notEquals:
+        return '!=';
+      case PropertyOperator.contains:
+        return '⊃';
+      case PropertyOperator.greaterThan:
+        return '>';
+      case PropertyOperator.lessThan:
+        return '<';
     }
   }
 }

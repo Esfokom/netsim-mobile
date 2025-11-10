@@ -2,8 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
 import 'package:netsim_mobile/features/scenarios/data/models/scenario_condition.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/scenarios/data/services/scenario_storage_service.dart';
+import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 
 /// Mode of the scenario editor/player
 enum ScenarioMode { edit, simulation }
@@ -208,12 +210,10 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
   }
 
   /// Check all success conditions
-  Future<Map<String, bool>> checkSuccessConditions() async {
+  Future<Map<String, bool>> checkSuccessConditions(WidgetRef ref) async {
     final results = <String, bool>{};
 
     for (final condition in state.scenario.successConditions) {
-      // For now, we'll implement basic checks
-      // You'll need to integrate with your actual simulation engine
       bool passed = false;
 
       if (condition.type == ConditionType.connectivity) {
@@ -223,22 +223,44 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
       } else if (condition.type == ConditionType.propertyCheck) {
         // Check if a device property matches expected value
         if (state.simulationDevices != null &&
-            condition.targetDeviceID != null) {
-          final device = state.simulationDevices!.firstWhere(
-            (d) => d.id == condition.targetDeviceID,
-            orElse: () => state.simulationDevices!.first,
-          );
-
-          // Basic property checks (you'll need to expand this based on your device schema)
-          if (condition.property == 'powerState') {
-            final value = device.status == DeviceStatus.online ? 'ON' : 'OFF';
-            passed = _checkPropertyValue(
-              value,
-              condition.expectedValue ?? '',
-              condition.operator ?? PropertyOperator.equals,
+            condition.targetDeviceID != null &&
+            condition.property != null &&
+            condition.expectedValue != null &&
+            condition.operator != null &&
+            condition.propertyDataType != null) {
+          // Find the device
+          CanvasDevice? device;
+          try {
+            device = state.simulationDevices!.firstWhere(
+              (d) => d.id == condition.targetDeviceID,
             );
+          } catch (e) {
+            // Device not found, condition fails
+            device = null;
           }
-          // Add more property checks here
+
+          if (device != null) {
+            // Get the network device to access its properties
+            final canvasNotifier = ref.read(canvasProvider.notifier);
+            final networkDevice = canvasNotifier.getNetworkDevice(device.id);
+
+            if (networkDevice != null) {
+              // Find the property by label
+              final property = networkDevice.properties
+                  .where((p) => p.label == condition.property)
+                  .firstOrNull;
+
+              if (property != null) {
+                // Use the robust verification helper
+                passed = verifyPropertyCondition(
+                  property: property,
+                  operator: condition.operator!,
+                  expectedValue: condition.expectedValue!,
+                  dataType: condition.propertyDataType!,
+                );
+              }
+            }
+          }
         }
       }
 
@@ -247,22 +269,6 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
 
     state = state.copyWith(conditionResults: results);
     return results;
-  }
-
-  /// Helper method to check property values
-  bool _checkPropertyValue(
-    String actualValue,
-    String expectedValue,
-    PropertyOperator operator,
-  ) {
-    switch (operator) {
-      case PropertyOperator.equals:
-        return actualValue == expectedValue;
-      case PropertyOperator.notEquals:
-        return actualValue != expectedValue;
-      case PropertyOperator.contains:
-        return actualValue.contains(expectedValue);
-    }
   }
 
   /// Save scenario to JSON
