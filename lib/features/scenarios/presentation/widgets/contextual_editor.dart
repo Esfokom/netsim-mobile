@@ -435,7 +435,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
           const SizedBox(height: 16),
 
           // Device-Specific Actions (from NetworkDevice)
-          if (networkDevice != null && !simulationMode) ...[
+          if (networkDevice != null) ...[
             Text(
               'Device Actions',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -448,10 +448,24 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
               spacing: 8,
               runSpacing: 8,
               children: networkDevice.getAvailableActions().map((action) {
+                // Determine the action type for rule checking
+                DeviceActionType? actionType;
+                if (action.label.toLowerCase().contains('power on')) {
+                  actionType = DeviceActionType.powerOn;
+                } else if (action.label.toLowerCase().contains('power off')) {
+                  actionType = DeviceActionType.powerOff;
+                }
+
+                // Check if action is allowed in simulation mode
+                final isAllowed =
+                    !simulationMode ||
+                    actionType == null ||
+                    scenarioNotifier.isActionAllowed(device.id, actionType);
+
                 return ActionChip(
                   avatar: Icon(action.icon, size: 18),
                   label: Text(action.label),
-                  onPressed: action.isEnabled
+                  onPressed: action.isEnabled && isAllowed
                       ? () {
                           // Execute the action
                           action.onExecute();
@@ -474,7 +488,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                           canvasNotifier.refreshDevice(device.id);
                         }
                       : null,
-                  backgroundColor: action.isEnabled
+                  backgroundColor: action.isEnabled && isAllowed
                       ? null
                       : Colors.grey.withValues(alpha: 0.2),
                 );
