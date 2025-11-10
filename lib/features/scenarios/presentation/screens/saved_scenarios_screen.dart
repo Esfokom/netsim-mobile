@@ -114,17 +114,14 @@ class _SavedScenariosScreenState extends ConsumerState<SavedScenariosScreen> {
   }
 
   void _openScenario(NetworkScenario scenario) async {
-    // Load the scenario
-    await ref
-        .read(scenarioProvider.notifier)
-        .loadScenarioFromStorage(scenario.scenarioID);
-
     if (!mounted) return;
 
-    // Navigate to game view
+    // Navigate to game view with scenario ID
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const GameView()),
+      MaterialPageRoute(
+        builder: (context) => GameView(scenarioId: scenario.scenarioID),
+      ),
     ).then((_) => _loadScenarios());
   }
 

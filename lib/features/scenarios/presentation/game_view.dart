@@ -17,7 +17,9 @@ import 'package:netsim_mobile/features/scenarios/presentation/widgets/conditions
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 
 class GameView extends ConsumerStatefulWidget {
-  const GameView({super.key});
+  final String? scenarioId; // Optional scenario ID to load
+
+  const GameView({super.key, this.scenarioId});
 
   @override
   ConsumerState<GameView> createState() => _GameViewState();
@@ -40,9 +42,32 @@ class _GameViewState extends ConsumerState<GameView> {
       canvasTransformationControllerProvider.notifier,
     );
 
-    // Initialize a new scenario when the game view opens
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scenarioNotifier?.createNewScenario();
+    // Initialize scenario - either load existing or create new
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.scenarioId != null) {
+        // Load the specified scenario
+        await _scenarioNotifier?.loadScenarioFromStorage(widget.scenarioId!);
+
+        // Restore canvas state from the loaded scenario
+        final scenario = ref.read(scenarioProvider).scenario;
+        if (scenario.initialDeviceStates.isNotEmpty ||
+            scenario.initialLinks.isNotEmpty) {
+          _canvasNotifier?.clearCanvas();
+
+          // Restore devices
+          for (final device in scenario.initialDeviceStates) {
+            _canvasNotifier?.addDevice(device);
+          }
+
+          // Restore links
+          for (final link in scenario.initialLinks) {
+            _canvasNotifier?.addLink(link);
+          }
+        }
+      } else {
+        // Create a new scenario
+        _scenarioNotifier?.createNewScenario();
+      }
     });
   }
 
