@@ -314,9 +314,10 @@ class _GameViewState extends ConsumerState<GameView> {
                     ),
                   ),
                   ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      showDialog(
+                    onPressed: () async {
+                      Navigator.pop(context); // Close details dialog first
+
+                      final shouldExit = await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
                           title: const Text('Exit Game View'),
@@ -325,14 +326,11 @@ class _GameViewState extends ConsumerState<GameView> {
                           ),
                           actions: [
                             TextButton(
-                              onPressed: () => Navigator.pop(ctx),
+                              onPressed: () => Navigator.pop(ctx, false),
                               child: const Text('Cancel'),
                             ),
                             TextButton(
-                              onPressed: () {
-                                Navigator.pop(ctx);
-                                Navigator.pop(context);
-                              },
+                              onPressed: () => Navigator.pop(ctx, true),
                               style: TextButton.styleFrom(
                                 foregroundColor: Colors.red,
                               ),
@@ -341,6 +339,10 @@ class _GameViewState extends ConsumerState<GameView> {
                           ],
                         ),
                       );
+
+                      if (shouldExit == true && mounted) {
+                        Navigator.pop(context); // Exit game view
+                      }
                     },
                     icon: const Icon(Icons.exit_to_app, size: 18),
                     label: const Text('Exit'),
