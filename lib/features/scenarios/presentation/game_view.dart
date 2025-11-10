@@ -76,18 +76,10 @@ class _GameViewState extends ConsumerState<GameView> {
           ),
 
         // Bottom panel with tabs (devices, properties, conditions)
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height * 0.4,
-            child: ScenarioBottomPanel(
-              devicesContent: const DevicePalette(),
-              propertiesContent: const ContextualEditor(),
-              conditionsContent: const ConditionsEditor(),
-            ),
-          ),
+        ScenarioBottomPanel(
+          devicesContent: const DevicePalette(),
+          propertiesContent: const ContextualEditor(),
+          conditionsContent: const ConditionsEditor(),
         ),
       ],
     );

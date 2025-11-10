@@ -274,6 +274,33 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+
+          // Device-Specific Actions (from NetworkDevice)
+          if (networkDevice != null) ...[
+            Text(
+              'Device Actions',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: networkDevice.getAvailableActions().map((action) {
+                return ActionChip(
+                  avatar: Icon(action.icon, size: 18),
+                  label: Text(action.label),
+                  onPressed: action.isEnabled ? action.onExecute : null,
+                  backgroundColor: action.isEnabled
+                      ? null
+                      : Colors.grey.withValues(alpha: 0.2),
+                );
+              }).toList(),
+            ),
+          ],
           const SizedBox(height: 24),
 
           // Basic Properties Section

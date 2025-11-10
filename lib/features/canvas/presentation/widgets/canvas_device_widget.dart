@@ -7,6 +7,7 @@ import 'package:netsim_mobile/features/canvas/domain/factories/device_factory.da
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/scenario_bottom_panel.dart';
 
 class CanvasDeviceWidget extends ConsumerStatefulWidget {
   final CanvasDevice device;
@@ -132,6 +133,10 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
               ref
                   .read(scenarioProvider.notifier)
                   .selectDevice(widget.device.id);
+              // Switch to properties tab automatically
+              ref
+                  .read(bottomPanelTabProvider.notifier)
+                  .setTab(BottomPanelTab.properties);
             });
 
             // Device details now shown in properties tab - no dialog
@@ -142,6 +147,10 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
           canvasNotifier.selectDevice(widget.device.id);
           Future.microtask(() {
             ref.read(scenarioProvider.notifier).selectDevice(widget.device.id);
+            // Switch to properties tab automatically
+            ref
+                .read(bottomPanelTabProvider.notifier)
+                .setTab(BottomPanelTab.properties);
           });
         },
         onPanStart: (details) {
