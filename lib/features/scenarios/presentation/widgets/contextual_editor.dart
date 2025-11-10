@@ -5,6 +5,12 @@ import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario
 import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/router_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/firewall_device.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_point.dart';
+import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart'
+    as network;
 
 /// Contextual editor that shows scenario metadata or device properties
 class ContextualEditor extends ConsumerStatefulWidget {
@@ -290,10 +296,21 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                       ? () {
                           // Execute the action
                           action.onExecute();
-                          // Immediately update the state
-                          setState(() {
-                            // Force rebuild to reflect changes
-                          });
+
+                          // Map NetworkDevice status to CanvasDevice status
+                          final canvasStatus = _mapToCanvasStatus(
+                            networkDevice.status,
+                          );
+
+                          // Update the device status based on current network device status
+                          canvasNotifier.updateDeviceStatus(
+                            device.id,
+                            canvasStatus,
+                          );
+
+                          // Force rebuild to reflect changes
+                          setState(() {});
+
                           // Refresh the canvas to update visuals
                           canvasNotifier.refreshDevice(device.id);
                         }
@@ -325,30 +342,6 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
             device.name,
             onChanged: (value) {
               canvasNotifier.refreshDevice(device.id);
-            },
-          ),
-          const SizedBox(height: 12),
-
-          DropdownButtonFormField<String>(
-            initialValue: device.status.name,
-            decoration: const InputDecoration(
-              labelText: 'Initial Status',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: ['online', 'offline', 'warning', 'error'].map((status) {
-              return DropdownMenuItem(
-                value: status,
-                child: Text(status.toUpperCase()),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value != null) {
-                canvasNotifier.updateDeviceStatus(
-                  device.id,
-                  DeviceStatus.values.firstWhere((s) => s.name == value),
-                );
-              }
             },
           ),
           const SizedBox(height: 12),
@@ -391,8 +384,26 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child:
                     property.buildEditWidget((newValue) {
+                      // Update property value
                       property.value = newValue;
+
+                      // Handle special case for showIpOnCanvas toggle
+                      if (property.id == 'showIpOnCanvas' && newValue is bool) {
+                        // Update the actual device field based on device type
+                        if (networkDevice is RouterDevice) {
+                          networkDevice.showIpOnCanvas = newValue;
+                        } else if (networkDevice is EndDevice) {
+                          networkDevice.showIpOnCanvas = newValue;
+                        } else if (networkDevice is FirewallDevice) {
+                          networkDevice.showIpOnCanvas = newValue;
+                        } else if (networkDevice is WirelessAccessPoint) {
+                          networkDevice.showIpOnCanvas = newValue;
+                        }
+                      }
+
+                      // Refresh canvas to update display
                       canvasNotifier.refreshDevice(device.id);
+                      setState(() {});
                     }) ??
                     property.buildDisplayWidget(),
               );
@@ -469,5 +480,22 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       readOnly: readOnly,
       onChanged: onChanged,
     );
+  }
+
+  /// Maps NetworkDevice DeviceStatus to CanvasDevice DeviceStatus
+  /// Since we now only use online/offline, this is simplified
+  DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
+    switch (networkStatus) {
+      case network.DeviceStatus.online:
+      case network.DeviceStatus.configured:
+        return DeviceStatus.online;
+      case network.DeviceStatus.offline:
+      case network.DeviceStatus.notConfigured:
+        return DeviceStatus.offline;
+      case network.DeviceStatus.warning:
+      case network.DeviceStatus.error:
+        // Map warning/error to online for now (shouldn't occur with new logic)
+        return DeviceStatus.online;
+    }
   }
 }

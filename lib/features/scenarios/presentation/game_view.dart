@@ -315,7 +315,11 @@ class _GameViewState extends ConsumerState<GameView> {
                   ),
                   ElevatedButton.icon(
                     onPressed: () async {
-                      Navigator.pop(context); // Close details dialog first
+                      // Save the context for later use
+                      final navigator = Navigator.of(context);
+
+                      // Close details dialog first
+                      navigator.pop();
 
                       final shouldExit = await showDialog<bool>(
                         context: context,
@@ -341,7 +345,7 @@ class _GameViewState extends ConsumerState<GameView> {
                       );
 
                       if (shouldExit == true && mounted) {
-                        Navigator.pop(context); // Exit game view
+                        navigator.pop(); // Exit game view
                       }
                     },
                     icon: const Icon(Icons.exit_to_app, size: 18),

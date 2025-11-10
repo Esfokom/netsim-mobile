@@ -70,10 +70,8 @@ class WirelessAccessPoint extends NetworkDevice
 
   @override
   DeviceStatus get status {
-    if (!_isPoweredOn) return DeviceStatus.offline;
-    if (uplinkLinkState == 'DOWN') return DeviceStatus.warning;
-    if (!_radioEnabled) return DeviceStatus.warning;
-    return DeviceStatus.online;
+    // Simple two-state model: online when powered on, offline when powered off
+    return _isPoweredOn ? DeviceStatus.online : DeviceStatus.offline;
   }
 
   // IPowerable implementation
