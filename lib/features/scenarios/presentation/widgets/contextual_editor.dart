@@ -10,12 +10,15 @@ import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/firewall_device.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_point.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_rules_editor.dart';
+import 'package:netsim_mobile/features/scenarios/data/models/device_rule.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart'
     as network;
 
 /// Contextual editor that shows scenario metadata or device properties
 class ContextualEditor extends ConsumerStatefulWidget {
-  const ContextualEditor({super.key});
+  final bool simulationMode;
+
+  const ContextualEditor({super.key, this.simulationMode = false});
 
   @override
   ConsumerState<ContextualEditor> createState() => _ContextualEditorState();
@@ -41,7 +44,41 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     final scenarioState = ref.watch(scenarioProvider);
     final canvasState = ref.watch(canvasProvider);
 
-    // Find selected device if any
+    // In simulation mode, only show device properties if device selected
+    if (widget.simulationMode) {
+      CanvasDevice? selectedDevice;
+      if (scenarioState.selectedDeviceId != null) {
+        try {
+          selectedDevice = canvasState.devices.firstWhere(
+            (d) => d.id == scenarioState.selectedDeviceId,
+          );
+        } catch (e) {
+          // Device not found, clear selection
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(scenarioProvider.notifier).selectDevice(null);
+          });
+        }
+      }
+
+      if (selectedDevice != null) {
+        return _buildDevicePropertiesEditor(
+          selectedDevice,
+          simulationMode: true,
+        );
+      } else {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Select a device to view its properties',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+          ),
+        );
+      }
+    }
+
+    // Edit mode: show full editor
     CanvasDevice? selectedDevice;
     if (scenarioState.selectedDeviceId != null) {
       try {
@@ -273,9 +310,13 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     );
   }
 
-  Widget _buildDevicePropertiesEditor(CanvasDevice device) {
+  Widget _buildDevicePropertiesEditor(
+    CanvasDevice device, {
+    bool simulationMode = false,
+  }) {
     final canvasNotifier = ref.read(canvasProvider.notifier);
     final networkDevice = canvasNotifier.getNetworkDevice(device.id);
+    final scenarioNotifier = ref.read(scenarioProvider.notifier);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -394,7 +435,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
           const SizedBox(height: 16),
 
           // Device-Specific Actions (from NetworkDevice)
-          if (networkDevice != null) ...[
+          if (networkDevice != null && !simulationMode) ...[
             Text(
               'Device Actions',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -438,6 +479,33 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                       : Colors.grey.withValues(alpha: 0.2),
                 );
               }).toList(),
+            ),
+          ],
+
+          // Simulation mode info banner
+          if (simulationMode) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.lock_outline, size: 20, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Simulation Mode: Some actions may be restricted based on scenario rules',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 24),
@@ -498,32 +566,92 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
 
             // Display all properties
             ...networkDevice.properties.map((property) {
+              // Check if property editing is allowed in simulation mode
+              final canEdit =
+                  !simulationMode ||
+                  scenarioNotifier.isActionAllowed(
+                    device.id,
+                    DeviceActionType.editProperty,
+                    propertyId: property.id,
+                  );
+
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child:
-                    property.buildEditWidget((newValue) {
-                      // Update property value
-                      property.value = newValue;
+                child: canEdit
+                    ? (property.buildEditWidget((newValue) {
+                            // Update property value
+                            property.value = newValue;
 
-                      // Handle special case for showIpOnCanvas toggle
-                      if (property.id == 'showIpOnCanvas' && newValue is bool) {
-                        // Update the actual device field based on device type
-                        if (networkDevice is RouterDevice) {
-                          networkDevice.showIpOnCanvas = newValue;
-                        } else if (networkDevice is EndDevice) {
-                          networkDevice.showIpOnCanvas = newValue;
-                        } else if (networkDevice is FirewallDevice) {
-                          networkDevice.showIpOnCanvas = newValue;
-                        } else if (networkDevice is WirelessAccessPoint) {
-                          networkDevice.showIpOnCanvas = newValue;
-                        }
-                      }
+                            // Handle special case for showIpOnCanvas toggle
+                            if (property.id == 'showIpOnCanvas' &&
+                                newValue is bool) {
+                              // Update the actual device field based on device type
+                              if (networkDevice is RouterDevice) {
+                                networkDevice.showIpOnCanvas = newValue;
+                              } else if (networkDevice is EndDevice) {
+                                networkDevice.showIpOnCanvas = newValue;
+                              } else if (networkDevice is FirewallDevice) {
+                                networkDevice.showIpOnCanvas = newValue;
+                              } else if (networkDevice is WirelessAccessPoint) {
+                                networkDevice.showIpOnCanvas = newValue;
+                              }
+                            }
 
-                      // Refresh canvas to update display
-                      canvasNotifier.refreshDevice(device.id);
-                      setState(() {});
-                    }) ??
-                    property.buildDisplayWidget(),
+                            // Refresh canvas to update display
+                            canvasNotifier.refreshDevice(device.id);
+                            setState(() {});
+                          }) ??
+                          property.buildDisplayWidget())
+                    : Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.grey.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lock_outline,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    property.label,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  Text(
+                                    property.value.toString(),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Locked in simulation',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
               );
             }),
 
@@ -554,8 +682,8 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
             ),
             const SizedBox(height: 24),
 
-            // Simulation Rules
-            DeviceRulesEditor(deviceId: device.id),
+            // Simulation Rules (only in edit mode)
+            if (!simulationMode) DeviceRulesEditor(deviceId: device.id),
           ] else ...[
             Container(
               padding: const EdgeInsets.all(12),
