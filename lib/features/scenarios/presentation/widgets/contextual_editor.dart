@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
@@ -76,13 +77,10 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
           const SizedBox(height: 16),
 
           // Title
-          TextField(
+          ShadInputFormField(
+            id: 'title',
             controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: 'Title',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
+            label: const Text('Title'),
             onChanged: (value) {
               ref.read(scenarioProvider.notifier).updateMetadata(title: value);
             },
@@ -90,13 +88,10 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
           const SizedBox(height: 12),
 
           // Description
-          TextField(
+          ShadInputFormField(
+            id: 'description',
             controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: 'Description',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
+            label: const Text('Description'),
             maxLines: 3,
             onChanged: (value) {
               ref
@@ -107,19 +102,17 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
           const SizedBox(height: 12),
 
           // Difficulty
-          DropdownButtonFormField<ScenarioDifficulty>(
+          ShadSelectFormField<ScenarioDifficulty>(
+            id: 'difficulty',
             initialValue: scenario.difficulty,
-            decoration: const InputDecoration(
-              labelText: 'Difficulty',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-            items: ScenarioDifficulty.values.map((difficulty) {
-              return DropdownMenuItem(
+            label: const Text('Difficulty'),
+            options: ScenarioDifficulty.values.map((difficulty) {
+              return ShadOption(
                 value: difficulty,
                 child: Text(difficulty.displayName),
               );
             }).toList(),
+            selectedOptionBuilder: (context, value) => Text(value.displayName),
             onChanged: (value) {
               if (value != null) {
                 ref
@@ -293,7 +286,18 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                 return ActionChip(
                   avatar: Icon(action.icon, size: 18),
                   label: Text(action.label),
-                  onPressed: action.isEnabled ? action.onExecute : null,
+                  onPressed: action.isEnabled
+                      ? () {
+                          // Execute the action
+                          action.onExecute();
+                          // Immediately update the state
+                          setState(() {
+                            // Force rebuild to reflect changes
+                          });
+                          // Refresh the canvas to update visuals
+                          canvasNotifier.refreshDevice(device.id);
+                        }
+                      : null,
                   backgroundColor: action.isEnabled
                       ? null
                       : Colors.grey.withValues(alpha: 0.2),

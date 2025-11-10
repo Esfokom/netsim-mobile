@@ -67,7 +67,7 @@ class _GameViewState extends ConsumerState<GameView> {
         // Minimap below dashboard at the top-right
         if (transformationController != null)
           Positioned(
-            top: 180, // Below the dashboard
+            top: 130, // Below the dashboard
             right: 16,
             child: CanvasMinimap(
               transformationController: transformationController,
