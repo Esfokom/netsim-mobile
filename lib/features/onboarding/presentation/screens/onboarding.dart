@@ -66,19 +66,29 @@ class Onboarding extends StatelessWidget {
                     child: Column(
                       children: [
                         _ActionCard(
-                          icon: Icons.add_circle,
-                          title: "Create New Scenario",
+                          icon: Icons.play_circle_filled,
+                          title: "Game Mode",
                           description:
-                              "Build network topologies and set challenges",
-                          color: Colors.blue,
+                              "Play challenges and complete network scenarios",
+                          color: Colors.green,
                           onPressed: () =>
                               Navigator.pushNamed(context, "/game"),
                         ),
                         const SizedBox(height: 16),
                         _ActionCard(
+                          icon: Icons.edit,
+                          title: "Scenario Editor",
+                          description:
+                              "Create and edit your own network scenarios",
+                          color: Colors.blue,
+                          onPressed: () =>
+                              Navigator.pushNamed(context, "/editor"),
+                        ),
+                        const SizedBox(height: 16),
+                        _ActionCard(
                           icon: Icons.folder_open,
                           title: "Saved Scenarios",
-                          description: "Browse and load your saved scenarios",
+                          description: "Browse and manage your saved scenarios",
                           color: Colors.purple,
                           onPressed: () =>
                               Navigator.pushNamed(context, "/scenarios"),

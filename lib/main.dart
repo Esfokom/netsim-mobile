@@ -4,6 +4,7 @@ import 'package:netsim_mobile/core/providers/theme_provider.dart';
 import 'package:netsim_mobile/core/widgets/root_scaffold.dart';
 import 'package:netsim_mobile/features/leaderboard/presentation/leaderboard_screen.dart';
 import 'package:netsim_mobile/features/onboarding/presentation/screens/onboarding.dart';
+import 'package:netsim_mobile/features/game/presentation/screens/game_screen.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/game_view.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/screens/saved_scenarios_screen.dart';
 import 'package:netsim_mobile/features/logs/presentation/screens/logs_list_screen.dart';
@@ -37,7 +38,8 @@ class MyApp extends ConsumerWidget {
       },
       routes: {
         "/": (context) => const Onboarding(),
-        "/game": (context) => const GameView(),
+        "/game": (context) => const GameScreen(),
+        "/editor": (context) => const GameView(),
         "/scenarios": (context) => const SavedScenariosScreen(),
         "/leaderboard": (context) => LeaderboardScreen(),
         "/logs": (context) => const LatestLogsList(),

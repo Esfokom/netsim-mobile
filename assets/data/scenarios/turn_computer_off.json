@@ -1,0 +1,55 @@
+{
+  "scenarioID": "1762788274723",
+  "title": "Turn on computer",
+  "description": "Describe the scenario objective here...",
+  "difficulty": "medium",
+  "initialDeviceStates": [
+    {
+      "id": "1762788283288",
+      "name": "Router 1",
+      "type": "router",
+      "position": {
+        "x": 797.6666666666666,
+        "y": 851.03125
+      },
+      "status": "offline"
+    }
+  ],
+  "initialLinks": [],
+  "playerSettings": {
+    "availableTools": [
+      "ping",
+      "ipconfig",
+      "nslookup"
+    ],
+    "editableDevices": []
+  },
+  "successConditions": [
+    {
+      "id": "1762789087896",
+      "description": "Router should be online",
+      "type": "PROPERTYCHECK",
+      "targetDeviceID": "1762788283288",
+      "property": "Power",
+      "propertyDataType": "STRING",
+      "operator": "EQUALS",
+      "expectedValue": "ON"
+    }
+  ],
+  "deviceRules": {
+    "1762788283288": [
+      {
+        "id": "1762789000680",
+        "type": "ALLOW",
+        "actionType": "POWERON"
+      },
+      {
+        "id": "1762789013310",
+        "type": "ALLOW",
+        "actionType": "POWEROFF"
+      }
+    ]
+  },
+  "createdAt": "2025-11-10T15:24:34.723985",
+  "lastModified": "2025-11-10T15:38:14.670993"
+}

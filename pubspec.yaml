@@ -45,6 +45,7 @@ dependencies:
   lucide_icons: ^0.257.0
   audioplayers: ^6.5.1
   flutter_highlight: ^0.7.0
+  confetti: ^0.7.0
 
 dev_dependencies:
   flutter_test:
