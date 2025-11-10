@@ -96,190 +96,271 @@ class _GameViewState extends ConsumerState<GameView> {
   Widget _buildEditModeHeader() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-            width: 1,
-          ),
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+      child: GestureDetector(
+        onTap: () {
+          _showEditModeDetails();
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.3),
+              width: 1,
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Top Section - Scenario Info
-            Container(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            color: Theme.of(context).colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      // Mode indicator
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, size: 16, color: Colors.blue),
+                        const SizedBox(width: 4),
+                        Text(
+                          'EDIT MODE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 16, color: Colors.blue),
-                            const SizedBox(width: 4),
-                            Text(
-                              'EDIT MODE',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      // Close button
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 20),
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Exit Game View'),
-                              content: const Text(
-                                'Are you sure you want to exit? Any unsaved changes will be lost.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Cancel'),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.pop(context); // Close dialog
-                                    Navigator.pop(context); // Exit game view
-                                  },
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.red,
-                                  ),
-                                  child: const Text('Exit'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        tooltip: 'Exit',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  // Scenario title and description
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final scenario = ref.watch(scenarioProvider).scenario;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.description,
-                                size: 18,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  scenario.title,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 26),
-                            child: Text(
-                              scenario.description,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                  const Spacer(),
+                  Icon(
+                    Icons.expand_more,
+                    size: 20,
+                    color: Colors.grey.shade600,
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 8),
+              Consumer(
+                builder: (context, ref, _) {
+                  final scenario = ref.watch(scenarioProvider).scenario;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        scenario.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        scenario.description,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            // Divider
-            Divider(
-              height: 1,
-              thickness: 1,
-              color: Theme.of(
-                context,
-              ).colorScheme.outline.withValues(alpha: 0.2),
-            ),
-
-            // Bottom Section - Actions
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
+  void _showEditModeDetails() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
                 children: [
-                  // Save Button
-                  IconButton(
-                    icon: const Icon(Icons.save, size: 20),
-                    onPressed: _saveScenario,
-                    tooltip: 'Save Scenario',
-                  ),
-                  // Export Button
-                  IconButton(
-                    icon: const Icon(Icons.upload_file, size: 20),
-                    onPressed: _exportScenario,
-                    tooltip: 'Export JSON',
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, size: 16, color: Colors.blue),
+                        const SizedBox(width: 4),
+                        Text(
+                          'EDIT MODE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const Spacer(),
-                  // Run Button
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Consumer(
+                builder: (context, ref, _) {
+                  final scenario = ref.watch(scenarioProvider).scenario;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.description,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              scenario.title,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        scenario.description,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Difficulty: ${scenario.difficulty.name.toUpperCase()}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
                   ElevatedButton.icon(
-                    onPressed: _runSimulation,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _saveScenario();
+                    },
+                    icon: const Icon(Icons.save, size: 18),
+                    label: const Text('Save'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _exportScenario();
+                    },
+                    icon: const Icon(Icons.upload_file, size: 18),
+                    label: const Text('Export JSON'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _runSimulation();
+                    },
                     icon: const Icon(Icons.play_arrow, size: 18),
-                    label: const Text('Run'),
+                    label: const Text('Run Simulation'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Exit Game View'),
+                          content: const Text(
+                            'Are you sure you want to exit? Any unsaved changes will be lost.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                Navigator.pop(context);
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.red,
+                              ),
+                              child: const Text('Exit'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.exit_to_app, size: 18),
+                    label: const Text('Exit'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

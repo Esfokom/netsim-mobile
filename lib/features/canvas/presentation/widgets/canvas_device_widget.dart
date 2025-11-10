@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
-import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/domain/factories/device_factory.dart';
-import 'package:netsim_mobile/features/canvas/presentation/widgets/device_details_panel.dart';
+import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 
@@ -135,11 +134,15 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
                   .selectDevice(widget.device.id);
             });
 
-            _showDeviceMenu(context);
+            // Device details now shown in properties tab - no dialog
           }
         },
         onLongPress: () {
-          _showDeviceMenu(context);
+          // Select device for properties tab on long press
+          canvasNotifier.selectDevice(widget.device.id);
+          Future.microtask(() {
+            ref.read(scenarioProvider.notifier).selectDevice(widget.device.id);
+          });
         },
         onPanStart: (details) {
           if (!canvasState.isLinkingMode) {
@@ -246,57 +249,6 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showDeviceMenu(BuildContext context) {
-    // Show the new DeviceDetailsPanel with rich device information
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) {
-          // Watch canvas state to rebuild when device changes
-          final canvasState = ref.watch(canvasProvider);
-          final canvasNotifier = ref.read(canvasProvider.notifier);
-
-          // Find the current device from canvas state
-          final canvasDevice = canvasState.devices.firstWhere(
-            (d) => d.id == widget.device.id,
-            orElse: () => widget.device,
-          );
-
-          // Get or create NetworkDevice
-          NetworkDevice networkDevice;
-          final cachedDevice = canvasNotifier.getNetworkDevice(canvasDevice.id);
-
-          if (cachedDevice != null) {
-            // Use cached device to preserve state
-            networkDevice = cachedDevice;
-            // Update position if changed
-            networkDevice.updatePosition(canvasDevice.position);
-          } else {
-            // Create new NetworkDevice and cache it AFTER build completes
-            networkDevice = DeviceFactory.fromCanvasDevice(canvasDevice);
-
-            // Delay the cache update until after the build phase
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              canvasNotifier.setNetworkDevice(canvasDevice.id, networkDevice);
-            });
-          }
-
-          return SizedBox(
-            height: MediaQuery.of(context).size.height * 0.75,
-            child: DeviceDetailsPanel(
-              device: networkDevice,
-              onClose: () {
-                Navigator.pop(context);
-              },
-            ),
-          );
-        },
       ),
     );
   }

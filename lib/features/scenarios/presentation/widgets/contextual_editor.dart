@@ -168,13 +168,42 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
           // Header
           Row(
             children: [
-              Icon(device.type.icon, color: device.type.color),
-              const SizedBox(width: 8),
+              Icon(device.type.icon, color: device.type.color, size: 32),
+              const SizedBox(width: 12),
               Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      device.type.displayName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: device.status.color.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: device.status.color),
+                ),
                 child: Text(
-                  '${device.type.displayName} Properties',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                  device.status.name.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: device.status.color,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -187,6 +216,65 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
             ],
           ),
           const SizedBox(height: 16),
+
+          // Quick Actions
+          Text(
+            'Quick Actions',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              // Link action
+              ActionChip(
+                avatar: const Icon(Icons.link, size: 18),
+                label: const Text('Create Link'),
+                onPressed: () {
+                  canvasNotifier.startLinking(device.id);
+                  ref.read(scenarioProvider.notifier).selectDevice(null);
+                },
+              ),
+              // Delete action
+              ActionChip(
+                avatar: const Icon(Icons.delete, size: 18),
+                label: const Text('Delete'),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Delete Device'),
+                      content: Text('Delete ${device.name}?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            canvasNotifier.removeDevice(device.id);
+                            ref
+                                .read(scenarioProvider.notifier)
+                                .selectDevice(null);
+                            Navigator.pop(ctx);
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
 
           // Basic Properties Section
           Text(
@@ -205,8 +293,6 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
             'Name',
             device.name,
             onChanged: (value) {
-              // Update device name by removing and re-adding with new name
-              // This is a workaround - ideally we'd have an updateDeviceName method
               canvasNotifier.refreshDevice(device.id);
             },
           ),
