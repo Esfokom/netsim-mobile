@@ -1,6 +1,12 @@
 import 'dart:convert';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_highlight/flutter_highlight.dart';
+import 'package:flutter_highlight/themes/tomorrow.dart';
+import 'package:flutter_highlight/themes/tomorrow-night.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_minimap.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
@@ -721,15 +727,103 @@ class _GameViewState extends ConsumerState<GameView> {
   void _exportScenario() {
     final json = ref.read(scenarioProvider.notifier).exportToJson();
     final prettyJson = const JsonEncoder.withIndent('  ').convert(json);
+    const name = 'json';
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Scenario JSON'),
-        content: SingleChildScrollView(
-          child: SelectableText(
-            prettyJson,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+        content: Container(
+          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 500),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(16),
+              bottomRight: Radius.circular(16),
+            ),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.light
+                  ? Colors.white
+                  : const Color(0xff1d1f21),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header bar with language name and copy button
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.inverseSurface.withAlpha(30),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const SizedBox(width: 8),
+                      Text(
+                        name,
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.inverseSurface.withAlpha(200),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: prettyJson));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Code copied to clipboard'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        },
+                        icon: const Icon(LucideIcons.clipboard),
+                        iconSize: 18,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Horizontally scrollable highlight view
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    dragStartBehavior: DragStartBehavior.start,
+                    clipBehavior: Clip.antiAlias,
+                    physics: const BouncingScrollPhysics(),
+                    child: SingleChildScrollView(
+                      child: HighlightView(
+                        prettyJson,
+                        padding: const EdgeInsets.all(16),
+                        language: name,
+                        theme: Theme.of(context).brightness == Brightness.light
+                            ? tomorrowTheme
+                            : tomorrowNightTheme,
+                        textStyle: const TextStyle(),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
