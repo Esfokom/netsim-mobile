@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/scenarios/utils/property_verification_hel
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/scenarios/data/services/scenario_storage_service.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/scenarios/data/models/device_rule.dart';
 
 /// Mode of the scenario editor/player
 enum ScenarioMode { edit, simulation }
@@ -150,6 +151,91 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
       ),
       isModified: true,
     );
+  }
+
+  /// Add a rule to a device
+  void addDeviceRule(String deviceId, DeviceRule rule) {
+    final currentRules = Map<String, List<DeviceRule>>.from(
+      state.scenario.deviceRules,
+    );
+    final deviceRules = List<DeviceRule>.from(currentRules[deviceId] ?? []);
+    deviceRules.add(rule);
+    currentRules[deviceId] = deviceRules;
+
+    state = state.copyWith(
+      scenario: state.scenario.copyWith(
+        deviceRules: currentRules,
+        lastModified: DateTime.now(),
+      ),
+      isModified: true,
+    );
+  }
+
+  /// Remove a rule from a device
+  void removeDeviceRule(String deviceId, String ruleId) {
+    final currentRules = Map<String, List<DeviceRule>>.from(
+      state.scenario.deviceRules,
+    );
+    final deviceRules = currentRules[deviceId];
+    if (deviceRules != null) {
+      currentRules[deviceId] = deviceRules
+          .where((r) => r.id != ruleId)
+          .toList();
+      if (currentRules[deviceId]!.isEmpty) {
+        currentRules.remove(deviceId);
+      }
+    }
+
+    state = state.copyWith(
+      scenario: state.scenario.copyWith(
+        deviceRules: currentRules,
+        lastModified: DateTime.now(),
+      ),
+      isModified: true,
+    );
+  }
+
+  /// Get rules for a specific device
+  List<DeviceRule> getDeviceRules(String deviceId) {
+    return state.scenario.deviceRules[deviceId] ?? [];
+  }
+
+  /// Check if an action is allowed in simulation mode
+  bool isActionAllowed(
+    String deviceId,
+    DeviceActionType actionType, {
+    String? propertyId,
+  }) {
+    if (state.mode != ScenarioMode.simulation) return true;
+
+    final rules = getDeviceRules(deviceId);
+    if (rules.isEmpty) {
+      // No rules means no actions allowed by default
+      return false;
+    }
+
+    // Check for deny rules first
+    final hasDenyRule = rules.any(
+      (rule) =>
+          rule.type == RuleType.deny &&
+          rule.actionType == actionType &&
+          (actionType != DeviceActionType.editProperty ||
+              rule.propertyId == propertyId),
+    );
+
+    if (hasDenyRule) return false;
+
+    // Check for allow rules
+    final hasAllowRule = rules.any(
+      (rule) =>
+          rule.type == RuleType.allow &&
+          rule.actionType == actionType &&
+          (actionType != DeviceActionType.editProperty ||
+              rule.propertyId == propertyId ||
+              rule.propertyId == null),
+    );
+
+    return hasAllowRule;
   }
 
   /// Select a device for editing

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/scenarios/data/models/scenario_condition.dart';
+import 'package:netsim_mobile/features/scenarios/data/models/device_rule.dart';
 
 /// Difficulty levels for scenarios
 enum ScenarioDifficulty { easy, medium, hard }
@@ -75,6 +76,7 @@ class NetworkScenario {
   final List<DeviceLink> initialLinks;
   final PlayerSettings playerSettings;
   final List<ScenarioCondition> successConditions;
+  final Map<String, List<DeviceRule>> deviceRules; // Map of deviceId to rules
   final DateTime createdAt;
   final DateTime? lastModified;
 
@@ -87,6 +89,7 @@ class NetworkScenario {
     required this.initialLinks,
     required this.playerSettings,
     required this.successConditions,
+    this.deviceRules = const {},
     required this.createdAt,
     this.lastModified,
   });
@@ -100,6 +103,7 @@ class NetworkScenario {
     List<DeviceLink>? initialLinks,
     PlayerSettings? playerSettings,
     List<ScenarioCondition>? successConditions,
+    Map<String, List<DeviceRule>>? deviceRules,
     DateTime? createdAt,
     DateTime? lastModified,
   }) {
@@ -112,6 +116,7 @@ class NetworkScenario {
       initialLinks: initialLinks ?? this.initialLinks,
       playerSettings: playerSettings ?? this.playerSettings,
       successConditions: successConditions ?? this.successConditions,
+      deviceRules: deviceRules ?? this.deviceRules,
       createdAt: createdAt ?? this.createdAt,
       lastModified: lastModified ?? this.lastModified,
     );
@@ -147,6 +152,10 @@ class NetworkScenario {
       'successConditions': successConditions
           .map((condition) => condition.toJson())
           .toList(),
+      'deviceRules': deviceRules.map(
+        (deviceId, rules) =>
+            MapEntry(deviceId, rules.map((rule) => rule.toJson()).toList()),
+      ),
       'createdAt': createdAt.toIso8601String(),
       if (lastModified != null) 'lastModified': lastModified!.toIso8601String(),
     };
@@ -200,6 +209,19 @@ class NetworkScenario {
             ),
           )
           .toList(),
+      deviceRules:
+          (json['deviceRules'] as Map<String, dynamic>?)?.map(
+            (deviceId, rulesJson) => MapEntry(
+              deviceId,
+              (rulesJson as List<dynamic>)
+                  .map(
+                    (ruleJson) =>
+                        DeviceRule.fromJson(ruleJson as Map<String, dynamic>),
+                  )
+                  .toList(),
+            ),
+          ) ??
+          {},
       createdAt: DateTime.parse(json['createdAt'] as String),
       lastModified: json['lastModified'] != null
           ? DateTime.parse(json['lastModified'] as String)
