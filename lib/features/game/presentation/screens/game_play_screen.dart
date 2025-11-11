@@ -88,15 +88,24 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
           .read(scenarioProvider.notifier)
           .checkSuccessConditions(ref);
 
-      final allPassed = results.values.every((passed) => passed);
+      print('[GamePlayScreen] Condition check results: $results');
 
-      if (allPassed) {
-        _onGameCompleted();
+      // Only check if we have conditions
+      if (results.isNotEmpty) {
+        final allPassed = results.values.every((passed) => passed);
+        print('[GamePlayScreen] All conditions passed: $allPassed');
+
+        if (allPassed) {
+          print('[GamePlayScreen] Game completed! Showing success screen...');
+          _onGameCompleted();
+        }
       }
     });
   }
 
   void _onGameCompleted() {
+    print('[GamePlayScreen] _onGameCompleted called');
+
     setState(() {
       _isGameCompleted = true;
     });
@@ -104,18 +113,29 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
     _conditionCheckTimer?.cancel();
     _gameTimer?.cancel();
 
+    print('[GamePlayScreen] Timers cancelled, showing dialog...');
+
+    // Ensure we're still mounted before showing dialog
+    if (!mounted) {
+      print('[GamePlayScreen] Widget not mounted, cannot show dialog');
+      return;
+    }
+
     // Show success screen
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => SuccessScreen(
-        scenario: widget.scenario,
-        completionTime: _elapsedSeconds,
-        onContinue: () {
-          Navigator.of(context).pop(); // Close success dialog
-          Navigator.of(context).pop(); // Return to game screen
-        },
-      ),
+      builder: (context) {
+        print('[GamePlayScreen] Building SuccessScreen dialog');
+        return SuccessScreen(
+          scenario: widget.scenario,
+          completionTime: _elapsedSeconds,
+          onContinue: () {
+            Navigator.of(context).pop(); // Close success dialog
+            Navigator.of(context).pop(); // Return to game screen
+          },
+        );
+      },
     );
   }
 

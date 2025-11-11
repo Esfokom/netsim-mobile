@@ -299,14 +299,34 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
   Future<Map<String, bool>> checkSuccessConditions(WidgetRef ref) async {
     final results = <String, bool>{};
 
+    print('[ScenarioProvider] Checking success conditions...');
+    print(
+      '[ScenarioProvider] Number of conditions: ${state.scenario.successConditions.length}',
+    );
+    print(
+      '[ScenarioProvider] Simulation devices: ${state.simulationDevices?.length}',
+    );
+
     for (final condition in state.scenario.successConditions) {
       bool passed = false;
+
+      print(
+        '[ScenarioProvider] Checking condition: ${condition.id} - ${condition.description}',
+      );
+      print('[ScenarioProvider] Condition type: ${condition.type}');
 
       if (condition.type == ConditionType.connectivity) {
         // TODO: Implement connectivity check using simulation engine
         // For now, return false as placeholder
         passed = false;
       } else if (condition.type == ConditionType.propertyCheck) {
+        print(
+          '[ScenarioProvider] Property check - target device: ${condition.targetDeviceID}',
+        );
+        print(
+          '[ScenarioProvider] Property: ${condition.property}, Expected: ${condition.expectedValue}',
+        );
+
         // Check if a device property matches expected value
         if (state.simulationDevices != null &&
             condition.targetDeviceID != null &&
@@ -320,9 +340,13 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
             device = state.simulationDevices!.firstWhere(
               (d) => d.id == condition.targetDeviceID,
             );
+            print('[ScenarioProvider] Found simulation device: ${device.name}');
           } catch (e) {
             // Device not found, condition fails
             device = null;
+            print(
+              '[ScenarioProvider] Device not found in simulationDevices: $e',
+            );
           }
 
           if (device != null) {
@@ -330,13 +354,24 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
             final canvasNotifier = ref.read(canvasProvider.notifier);
             final networkDevice = canvasNotifier.getNetworkDevice(device.id);
 
+            print(
+              '[ScenarioProvider] Network device: ${networkDevice != null ? "found" : "not found"}',
+            );
+
             if (networkDevice != null) {
+              print(
+                '[ScenarioProvider] Network device properties: ${networkDevice.properties.map((p) => p.label).join(", ")}',
+              );
+
               // Find the property by label
               final property = networkDevice.properties
                   .where((p) => p.label == condition.property)
                   .firstOrNull;
 
+              print('[ScenarioProvider] Property found: ${property != null}');
               if (property != null) {
+                print('[ScenarioProvider] Property value: ${property.value}');
+
                 // Use the robust verification helper
                 passed = verifyPropertyCondition(
                   property: property,
@@ -344,15 +379,29 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
                   expectedValue: condition.expectedValue!,
                   dataType: condition.propertyDataType!,
                 );
+
+                print('[ScenarioProvider] Verification result: $passed');
               }
             }
           }
+        } else {
+          print(
+            '[ScenarioProvider] Missing required fields for property check',
+          );
+          print('  - simulationDevices: ${state.simulationDevices != null}');
+          print('  - targetDeviceID: ${condition.targetDeviceID != null}');
+          print('  - property: ${condition.property != null}');
+          print('  - expectedValue: ${condition.expectedValue != null}');
+          print('  - operator: ${condition.operator != null}');
+          print('  - propertyDataType: ${condition.propertyDataType != null}');
         }
       }
 
       results[condition.id] = passed;
+      print('[ScenarioProvider] Condition ${condition.id} result: $passed');
     }
 
+    print('[ScenarioProvider] All results: $results');
     state = state.copyWith(conditionResults: results);
     return results;
   }
