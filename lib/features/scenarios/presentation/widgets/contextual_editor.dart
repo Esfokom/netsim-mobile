@@ -13,6 +13,7 @@ import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_rul
 import 'package:netsim_mobile/features/scenarios/data/models/device_rule.dart';
 import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart'
     as network;
+import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 
 /// Contextual editor that shows scenario metadata or device properties
 class ContextualEditor extends ConsumerStatefulWidget {
@@ -315,8 +316,110 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     bool simulationMode = false,
   }) {
     final canvasNotifier = ref.read(canvasProvider.notifier);
+    final canvasState = ref.watch(canvasProvider);
     final networkDevice = canvasNotifier.getNetworkDevice(device.id);
     final scenarioNotifier = ref.read(scenarioProvider.notifier);
+
+    // Show linking mode message if in linking mode
+    if (canvasState.isLinkingMode && canvasState.linkingFromDeviceId != null) {
+      final linkingFromDevice = canvasState.devices
+          .where((d) => d.id == canvasState.linkingFromDeviceId)
+          .firstOrNull;
+
+      return Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.blue.withValues(alpha: 0.3),
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.cable, size: 64, color: Colors.blue.shade600),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Linking Mode',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (linkingFromDevice != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'From: ',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        Icon(
+                          linkingFromDevice.type.icon,
+                          size: 18,
+                          color: linkingFromDevice.type.color,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          linkingFromDevice.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Click on a device on the canvas to create a link',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      canvasNotifier.cancelLinking();
+                    },
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Cancel Linking'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -397,16 +500,85 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                   ref.read(scenarioProvider.notifier).selectDevice(null);
                 },
               ),
+              // Remove Link action (only show if device has connections and user has permission)
+              if (canvasState.links.any(
+                    (link) =>
+                        link.fromDeviceId == device.id ||
+                        link.toDeviceId == device.id,
+                  ) &&
+                  (!simulationMode ||
+                      ref
+                          .read(scenarioProvider.notifier)
+                          .isActionAllowed(
+                            device.id,
+                            DeviceActionType.removeLink,
+                          )))
+                ActionChip(
+                  avatar: const Icon(Icons.link_off, size: 18),
+                  label: const Text('Remove Link'),
+                  onPressed: () {
+                    _showRemoveLinkDialog(device, canvasState);
+                  },
+                ),
               // Delete action
               ActionChip(
                 avatar: const Icon(Icons.delete, size: 18),
                 label: const Text('Delete'),
                 onPressed: () {
+                  // Find links connected to this device
+                  final canvasState = ref.read(canvasProvider);
+                  final connectedLinks = canvasState.links
+                      .where(
+                        (link) =>
+                            link.fromDeviceId == device.id ||
+                            link.toDeviceId == device.id,
+                      )
+                      .toList();
+
                   showDialog(
                     context: context,
                     builder: (ctx) => AlertDialog(
                       title: const Text('Delete Device'),
-                      content: Text('Delete ${device.name}?'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Delete ${device.name}?'),
+                          if (connectedLinks.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.orange.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    size: 20,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'This device has ${connectedLinks.length} active connection${connectedLinks.length > 1 ? 's' : ''}. All links will be removed.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.orange.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx),
@@ -414,6 +586,11 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                         ),
                         TextButton(
                           onPressed: () {
+                            // Remove all connected links first
+                            for (final link in connectedLinks) {
+                              canvasNotifier.removeLink(link.id);
+                            }
+                            // Then remove the device
                             canvasNotifier.removeDevice(device.id);
                             ref
                                 .read(scenarioProvider.notifier)
@@ -696,6 +873,15 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
             ),
             const SizedBox(height: 24),
 
+            // Connected Devices Section
+            _buildConnectedDevicesSection(
+              device,
+              canvasState,
+              simulationMode: simulationMode,
+            ),
+
+            const SizedBox(height: 24),
+
             // Simulation Rules (only in edit mode)
             if (!simulationMode) DeviceRulesEditor(deviceId: device.id),
           ] else ...[
@@ -726,6 +912,299 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
         ],
       ),
     );
+  }
+
+  Widget _buildConnectedDevicesSection(
+    CanvasDevice device,
+    CanvasState canvasState, {
+    bool simulationMode = false,
+  }) {
+    // Find all links connected to this device
+    final connectedLinks = canvasState.links
+        .where(
+          (link) =>
+              link.fromDeviceId == device.id || link.toDeviceId == device.id,
+        )
+        .toList();
+
+    // Check if user has permission to remove links in simulation mode
+    final canRemoveLinks =
+        !simulationMode ||
+        ref
+            .read(scenarioProvider.notifier)
+            .isActionAllowed(device.id, DeviceActionType.removeLink);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Connected Devices',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (connectedLinks.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.link_off, size: 20, color: Colors.grey.shade600),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'No connections. Click "Create Link" to connect this device.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...connectedLinks.map((link) {
+            // Determine the other device in the link
+            final otherDeviceId = link.fromDeviceId == device.id
+                ? link.toDeviceId
+                : link.fromDeviceId;
+
+            final otherDevice = canvasState.devices
+                .where((d) => d.id == otherDeviceId)
+                .firstOrNull;
+
+            if (otherDevice == null) return const SizedBox.shrink();
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    otherDevice.type.icon,
+                    size: 24,
+                    color: otherDevice.type.color,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          otherDevice.name,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Icon(
+                              _getLinkTypeIcon(link.type),
+                              size: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${link.type.displayName} • ${otherDevice.type.displayName}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'ID: ${otherDevice.id}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade500,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Only show disconnect button if user has permission
+                  if (canRemoveLinks)
+                    IconButton(
+                      icon: const Icon(Icons.link_off, size: 18),
+                      color: Colors.red.shade600,
+                      tooltip: 'Disconnect',
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Disconnect Devices'),
+                            content: Text(
+                              'Remove the connection between ${device.name} and ${otherDevice.name}?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(canvasProvider.notifier)
+                                      .removeLink(link.id);
+                                  Navigator.pop(ctx);
+                                  setState(() {});
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                ),
+                                child: const Text('Disconnect'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    )
+                  else if (simulationMode)
+                    // Show locked icon in simulation mode when permission denied
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Icon(
+                        Icons.lock_outline,
+                        size: 18,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                ],
+              ),
+            );
+          }).toList(),
+      ],
+    );
+  }
+
+  void _showRemoveLinkDialog(CanvasDevice device, CanvasState canvasState) {
+    // Find all links connected to this device
+    final connectedLinks = canvasState.links
+        .where(
+          (link) =>
+              link.fromDeviceId == device.id || link.toDeviceId == device.id,
+        )
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Link'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select a connection to remove:',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 12),
+              if (connectedLinks.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Center(
+                    child: Text(
+                      'No connections found',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...connectedLinks.map((link) {
+                  // Determine the other device in the link
+                  final otherDeviceId = link.fromDeviceId == device.id
+                      ? link.toDeviceId
+                      : link.fromDeviceId;
+
+                  final otherDevice = canvasState.devices
+                      .where((d) => d.id == otherDeviceId)
+                      .firstOrNull;
+
+                  if (otherDevice == null) return const SizedBox.shrink();
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: Icon(
+                        otherDevice.type.icon,
+                        color: otherDevice.type.color,
+                      ),
+                      title: Text(
+                        otherDevice.name,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${link.type.displayName} • ${otherDevice.type.displayName}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red.shade600,
+                        ),
+                        tooltip: 'Remove this link',
+                        onPressed: () {
+                          ref.read(canvasProvider.notifier).removeLink(link.id);
+                          Navigator.pop(ctx);
+                          setState(() {});
+
+                          // Show confirmation snackbar
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Disconnected ${device.name} from ${otherDevice.name}',
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                }).toList(),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getLinkTypeIcon(LinkType type) {
+    switch (type) {
+      case LinkType.ethernet:
+        return Icons.settings_ethernet;
+      case LinkType.wireless:
+        return Icons.wifi;
+      case LinkType.fiber:
+        return Icons.fiber_manual_record;
+    }
   }
 
   Widget _buildPropertyField(

@@ -207,56 +207,126 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
           dragStartPosition = null;
           _stopEdgeScrolling();
         },
-        child: Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            color: widget.device.type.color.withValues(alpha: 0.2),
-            border: Border.all(
-              color: widget.device.isSelected
-                  ? Colors.blue
-                  : widget.device.type.color,
-              width: widget.device.isSelected ? 3 : 2,
-            ),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: widget.device.isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.blue.withValues(alpha: 0.5),
-                      blurRadius: 10,
-                      spreadRadius: 2,
+        child: Stack(
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: widget.device.type.color.withValues(alpha: 0.2),
+                border: Border.all(
+                  color: widget.device.isSelected
+                      ? Colors.blue
+                      : canvasState.isLinkingMode &&
+                            canvasState.linkingFromDeviceId == widget.device.id
+                      ? Colors.green
+                      : widget.device.type.color,
+                  width: widget.device.isSelected
+                      ? 3
+                      : canvasState.isLinkingMode &&
+                            canvasState.linkingFromDeviceId == widget.device.id
+                      ? 3
+                      : 2,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: widget.device.isSelected
+                    ? [
+                        BoxShadow(
+                          color: Colors.blue.withValues(alpha: 0.5),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : canvasState.isLinkingMode &&
+                          canvasState.linkingFromDeviceId == widget.device.id
+                    ? [
+                        BoxShadow(
+                          color: Colors.green.withValues(alpha: 0.5),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : [],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    widget.device.type.icon,
+                    size: 32,
+                    color: widget.device.type.color,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    networkDevice
+                        .displayName, // Use NetworkDevice displayName instead of widget.device.name
+                    style: const TextStyle(fontSize: 10),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: widget.device.status.color,
+                      shape: BoxShape.circle,
                     ),
-                  ]
-                : [],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.device.type.icon,
-                size: 32,
-                color: widget.device.type.color,
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                networkDevice
-                    .displayName, // Use NetworkDevice displayName instead of widget.device.name
-                style: const TextStyle(fontSize: 10),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: widget.device.status.color,
-                  shape: BoxShape.circle,
+            ),
+            // Linking mode badge
+            if (canvasState.isLinkingMode &&
+                canvasState.linkingFromDeviceId == widget.device.id)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withValues(alpha: 0.5),
+                        blurRadius: 6,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.cable, size: 16, color: Colors.white),
                 ),
               ),
-            ],
-          ),
+            // Clickable to link badge
+            if (canvasState.isLinkingMode &&
+                canvasState.linkingFromDeviceId != widget.device.id &&
+                canvasState.linkingFromDeviceId != null)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withValues(alpha: 0.3),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.add_link,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
