@@ -316,9 +316,50 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
       print('[ScenarioProvider] Condition type: ${condition.type}');
 
       if (condition.type == ConditionType.connectivity) {
-        // TODO: Implement connectivity check using simulation engine
-        // For now, return false as placeholder
-        passed = false;
+        print(
+          '[ScenarioProvider] Connectivity check - protocol: ${condition.protocol}',
+        );
+
+        // Check for link/cable connectivity
+        if (condition.protocol == ConnectivityProtocol.link) {
+          print(
+            '[ScenarioProvider] Link check - source: ${condition.sourceDeviceID}, target: ${condition.targetDeviceID}',
+          );
+
+          // Check if both source and target device IDs are provided
+          if (condition.sourceDeviceID != null &&
+              condition.targetDeviceID != null) {
+            // Check if a link exists between the two devices
+            final links = state.simulationLinks;
+            if (links != null) {
+              // Check if there's a link connecting these two devices (in either direction)
+              final linkExists = links.any(
+                (link) =>
+                    (link.fromDeviceId == condition.sourceDeviceID &&
+                        link.toDeviceId == condition.targetDeviceID) ||
+                    (link.fromDeviceId == condition.targetDeviceID &&
+                        link.toDeviceId == condition.sourceDeviceID),
+              );
+
+              passed = linkExists;
+              print('[ScenarioProvider] Link exists: $linkExists');
+            } else {
+              print('[ScenarioProvider] No simulation links available');
+              passed = false;
+            }
+          } else {
+            print(
+              '[ScenarioProvider] Missing source or target device ID for link check',
+            );
+            passed = false;
+          }
+        } else {
+          // TODO: Implement other connectivity checks (ping, http, dnsLookup)
+          print(
+            '[ScenarioProvider] Other connectivity protocols not yet implemented',
+          );
+          passed = false;
+        }
       } else if (condition.type == ConditionType.propertyCheck) {
         print(
           '[ScenarioProvider] Property check - target device: ${condition.targetDeviceID}',

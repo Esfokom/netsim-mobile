@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 enum ConditionType { connectivity, propertyCheck }
 
 /// Protocol types for connectivity checks
-enum ConnectivityProtocol { ping, http, dnsLookup }
+enum ConnectivityProtocol { ping, http, dnsLookup, link }
 
 /// Data types for properties
 enum PropertyDataType { string, boolean, integer, ipAddress }
@@ -103,7 +103,11 @@ class ScenarioCondition {
           ? ConnectivityProtocol.ping
           : protocolStr == 'http'
           ? ConnectivityProtocol.http
-          : ConnectivityProtocol.dnsLookup;
+          : protocolStr == 'dnslookup'
+          ? ConnectivityProtocol.dnsLookup
+          : protocolStr == 'link'
+          ? ConnectivityProtocol.link
+          : ConnectivityProtocol.ping;
     }
 
     PropertyDataType? propertyDataType;
@@ -168,6 +172,8 @@ extension ConnectivityProtocolExtension on ConnectivityProtocol {
         return 'HTTP';
       case ConnectivityProtocol.dnsLookup:
         return 'DNS Lookup';
+      case ConnectivityProtocol.link:
+        return 'Link/Cable';
     }
   }
 }

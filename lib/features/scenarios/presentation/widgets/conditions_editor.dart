@@ -441,12 +441,87 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         ),
         const SizedBox(height: 12),
 
-        ShadInputFormField(
-          controller: _targetAddressController,
-          label: Text("Target Address"),
-          description: Text("e.g., 8.8.8.8 or google.com"),
-          placeholder: Text("Please enter address"),
-        ),
+        // Show target device selector for link protocol, otherwise target address
+        if (_selectedProtocol == ConnectivityProtocol.link)
+          ShadSelectFormField<String>(
+            key: const ValueKey('targetDeviceSelector'),
+            id: 'targetDevice',
+            minWidth: double.infinity,
+            initialValue: _selectedTargetDeviceId,
+            label: const Text('Target Device'),
+            placeholder: const Text('Select target device'),
+            options: devices
+                .where((device) => device.id != _selectedSourceDeviceId)
+                .map((device) {
+                  return ShadOption(
+                    value: device.id,
+                    child: SizedBox(
+                      height: 48,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            device.type.icon,
+                            size: 16,
+                            color: device.type.color,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  device.name,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                                Text(
+                                  '${device.id} • ${device.type.displayName}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                })
+                .toList(),
+            selectedOptionBuilder: (context, value) {
+              final device = devices.firstWhere((d) => d.id == value);
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(device.type.icon, size: 16, color: device.type.color),
+                  const SizedBox(width: 8),
+                  Text(device.name),
+                ],
+              );
+            },
+            onChanged: (value) {
+              setState(() => _selectedTargetDeviceId = value);
+            },
+          )
+        else
+          ShadInputFormField(
+            key: const ValueKey('targetAddressInput'),
+            controller: _targetAddressController,
+            label: Text("Target Address"),
+            description: Text("e.g., 8.8.8.8 or google.com"),
+            placeholder: Text("Please enter address"),
+          ),
       ],
     );
   }
@@ -814,22 +889,48 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     ScenarioCondition condition;
 
     if (_selectedType == ConditionType.connectivity) {
-      if (_selectedSourceDeviceId == null ||
-          _targetAddressController.text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please fill all connectivity fields')),
-        );
-        return;
-      }
+      // Validate based on protocol type
+      if (_selectedProtocol == ConnectivityProtocol.link) {
+        // For link protocol, we need source and target device IDs
+        if (_selectedSourceDeviceId == null ||
+            _selectedTargetDeviceId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select both source and target devices'),
+            ),
+          );
+          return;
+        }
 
-      condition = ScenarioCondition(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        description: _descriptionController.text,
-        type: ConditionType.connectivity,
-        protocol: _selectedProtocol,
-        sourceDeviceID: _selectedSourceDeviceId,
-        targetAddress: _targetAddressController.text,
-      );
+        condition = ScenarioCondition(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          description: _descriptionController.text,
+          type: ConditionType.connectivity,
+          protocol: _selectedProtocol,
+          sourceDeviceID: _selectedSourceDeviceId,
+          targetDeviceID: _selectedTargetDeviceId,
+        );
+      } else {
+        // For other protocols, we need source device and target address
+        if (_selectedSourceDeviceId == null ||
+            _targetAddressController.text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please fill all connectivity fields'),
+            ),
+          );
+          return;
+        }
+
+        condition = ScenarioCondition(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          description: _descriptionController.text,
+          type: ConditionType.connectivity,
+          protocol: _selectedProtocol,
+          sourceDeviceID: _selectedSourceDeviceId,
+          targetAddress: _targetAddressController.text,
+        );
+      }
     } else {
       if (_selectedTargetDeviceId == null ||
           _selectedProperty == null ||

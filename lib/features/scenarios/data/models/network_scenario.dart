@@ -145,6 +145,7 @@ class NetworkScenario {
               'id': link.id,
               'fromDeviceId': link.fromDeviceId,
               'toDeviceId': link.toDeviceId,
+              'type': link.type.name,
             },
           )
           .toList(),
@@ -196,6 +197,12 @@ class NetworkScenario {
               id: linkJson['id'] as String,
               fromDeviceId: linkJson['fromDeviceId'] as String,
               toDeviceId: linkJson['toDeviceId'] as String,
+              type: linkJson['type'] != null
+                  ? LinkType.values.firstWhere(
+                      (t) => t.name == linkJson['type'],
+                      orElse: () => LinkType.ethernet,
+                    )
+                  : LinkType.ethernet,
             ),
           )
           .toList(),

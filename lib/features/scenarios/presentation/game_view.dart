@@ -750,6 +750,12 @@ class _GameViewState extends ConsumerState<GameView> {
   }
 
   void _exportScenario() {
+    // Take a snapshot of current canvas state before exporting
+    final canvasState = ref.read(canvasProvider);
+    ref
+        .read(scenarioProvider.notifier)
+        .snapshotCanvasState(canvasState.devices, canvasState.links);
+
     final json = ref.read(scenarioProvider.notifier).exportToJson();
     final prettyJson = const JsonEncoder.withIndent('  ').convert(json);
     const name = 'json';
