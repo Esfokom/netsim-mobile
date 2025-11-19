@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Service for persisting and loading scenarios
 class ScenarioStorageService {
@@ -31,7 +32,7 @@ class ScenarioStorageService {
 
       return await prefs.setString(_scenariosKey, jsonString);
     } catch (e) {
-      print('Error saving scenario: $e');
+      appLogger.e('Error saving scenario', error: e);
       return false;
     }
   }
@@ -51,7 +52,7 @@ class ScenarioStorageService {
           .map((json) => NetworkScenario.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      print('Error loading scenarios: $e');
+      appLogger.e('Error loading scenarios', error: e);
       return [];
     }
   }
@@ -79,7 +80,7 @@ class ScenarioStorageService {
 
       return await prefs.setString(_scenariosKey, jsonString);
     } catch (e) {
-      print('Error deleting scenario: $e');
+      appLogger.e('Error deleting scenario', error: e);
       return false;
     }
   }
@@ -91,7 +92,7 @@ class ScenarioStorageService {
       final jsonString = jsonEncode(scenario.toJson());
       return await prefs.setString(_currentScenarioKey, jsonString);
     } catch (e) {
-      print('Error saving current scenario: $e');
+      appLogger.e('Error saving current scenario', error: e);
       return false;
     }
   }
@@ -110,7 +111,7 @@ class ScenarioStorageService {
         jsonDecode(jsonString) as Map<String, dynamic>,
       );
     } catch (e) {
-      print('Error loading current scenario: $e');
+      appLogger.e('Error loading current scenario', error: e);
       return null;
     }
   }
@@ -121,7 +122,7 @@ class ScenarioStorageService {
       final prefs = await SharedPreferences.getInstance();
       return await prefs.remove(_currentScenarioKey);
     } catch (e) {
-      print('Error clearing current scenario: $e');
+      appLogger.e('Error clearing current scenario', error: e);
       return false;
     }
   }
@@ -137,7 +138,7 @@ class ScenarioStorageService {
       final json = jsonDecode(jsonString) as Map<String, dynamic>;
       return NetworkScenario.fromJson(json);
     } catch (e) {
-      print('Error importing scenario: $e');
+      appLogger.e('Error importing scenario', error: e);
       return null;
     }
   }
@@ -154,7 +155,7 @@ class ScenarioStorageService {
       final prefs = await SharedPreferences.getInstance();
       return await prefs.remove(_scenariosKey);
     } catch (e) {
-      print('Error clearing all scenarios: $e');
+      appLogger.e('Error clearing all scenarios', error: e);
       return false;
     }
   }

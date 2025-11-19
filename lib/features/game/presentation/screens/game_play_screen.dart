@@ -12,6 +12,7 @@ import 'package:netsim_mobile/features/game/presentation/widgets/game_objectives
 import 'package:netsim_mobile/features/game/presentation/widgets/property_bottom_panel.dart';
 import 'package:netsim_mobile/core/utils/canvas_lifecycle_manager.dart';
 import 'package:netsim_mobile/core/utils/controller_validator.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 class GamePlayScreen extends ConsumerStatefulWidget {
   final NetworkScenario scenario;
@@ -85,15 +86,17 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
           .read(scenarioProvider.notifier)
           .checkSuccessConditions(ref);
 
-      print('[GamePlayScreen] Condition check results: $results');
+      appLogger.d('[GamePlayScreen] Condition check results: $results');
 
       // Only check if we have conditions
       if (results.isNotEmpty) {
         final allPassed = results.values.every((passed) => passed);
-        print('[GamePlayScreen] All conditions passed: $allPassed');
+        appLogger.d('[GamePlayScreen] All conditions passed: $allPassed');
 
         if (allPassed) {
-          print('[GamePlayScreen] Game completed! Showing success screen...');
+          appLogger.i(
+            '[GamePlayScreen] Game completed! Showing success screen...',
+          );
           _onGameCompleted();
         }
       }
@@ -101,7 +104,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   }
 
   void _onGameCompleted() {
-    print('[GamePlayScreen] _onGameCompleted called');
+    appLogger.i('[GamePlayScreen] _onGameCompleted called');
 
     setState(() {
       _isGameCompleted = true;
@@ -110,11 +113,11 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
     _conditionCheckTimer?.cancel();
     _gameTimer?.cancel();
 
-    print('[GamePlayScreen] Timers cancelled, showing dialog...');
+    appLogger.d('[GamePlayScreen] Timers cancelled, showing dialog...');
 
     // Ensure we're still mounted before showing dialog
     if (!mounted) {
-      print('[GamePlayScreen] Widget not mounted, cannot show dialog');
+      appLogger.w('[GamePlayScreen] Widget not mounted, cannot show dialog');
       return;
     }
 
@@ -123,7 +126,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        print('[GamePlayScreen] Building SuccessScreen dialog');
+        appLogger.d('[GamePlayScreen] Building SuccessScreen dialog');
         return SuccessScreen(
           scenario: widget.scenario,
           completionTime: _elapsedSeconds,

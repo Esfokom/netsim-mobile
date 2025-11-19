@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/device_details_panel.dart';
 import 'package:netsim_mobile/features/devices/devices.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Example: How to create and use the new network devices
 
@@ -150,27 +151,27 @@ class DeviceExamples {
 
     // Power management
     pc.powerOff();
-    print('PC is powered ${pc.isPoweredOn ? "ON" : "OFF"}');
+    appLogger.i('PC is powered ${pc.isPoweredOn ? "ON" : "OFF"}');
 
     pc.powerOn();
-    print('PC is powered ${pc.isPoweredOn ? "ON" : "OFF"}');
+    appLogger.i('PC is powered ${pc.isPoweredOn ? "ON" : "OFF"}');
 
     // Network configuration
     pc.setStaticIp('192.168.1.50', '255.255.255.0', '192.168.1.1');
-    print('PC IP: ${pc.currentIpAddress}');
+    appLogger.i('PC IP: ${pc.currentIpAddress}');
 
     // Switch to DHCP
     pc.enableDhcp();
-    print('PC is now in ${pc.ipConfigMode} mode');
+    appLogger.i('PC is now in ${pc.ipConfigMode} mode');
 
     // Get device properties
     for (var property in pc.properties) {
-      print('${property.label}: ${property.value}');
+      appLogger.i('${property.label}: ${property.value}');
     }
 
     // Get available actions
     for (var action in pc.getAvailableActions()) {
-      print(
+      appLogger.i(
         'Action: ${action.label} (${action.isEnabled ? "enabled" : "disabled"})',
       );
     }
@@ -182,10 +183,10 @@ class DeviceExamples {
 
     // Start/stop services
     server.startService('DHCP');
-    print('Running services: ${server.runningServices}');
+    appLogger.i('Running services: ${server.runningServices}');
 
     server.stopService('DNS');
-    print('Running services: ${server.runningServices}');
+    appLogger.i('Running services: ${server.runningServices}');
 
     // Configure DHCP
     server.configureService('DHCP', {
@@ -202,39 +203,39 @@ class DeviceExamples {
     switch_.learnMacAddress('00:1A:2B:3C:4D:5E', 1);
     switch_.learnMacAddress('00:1A:2B:3C:4D:5F', 2);
 
-    print('MAC Table entries: ${switch_.macAddressTable.length}');
+    appLogger.i('MAC Table entries: ${switch_.macAddressTable.length}');
 
     // Clear MAC table
     switch_.clearMacAddressTable();
-    print('MAC Table after clear: ${switch_.macAddressTable.length}');
+    appLogger.i('MAC Table after clear: ${switch_.macAddressTable.length}');
   }
 
   /// Example: Working with Router routing table
   static void manageRouterRoutes() {
     final router = createRouter();
 
-    print('Initial routes: ${router.routingTable.length}');
+    appLogger.i('Initial routes: ${router.routingTable.length}');
 
     // Add static routes
     router.addStaticRoute('172.16.0.0', '255.255.0.0', '192.168.1.254');
 
-    print('Routes after adding: ${router.routingTable.length}');
+    appLogger.i('Routes after adding: ${router.routingTable.length}');
 
     // Remove a route
     router.removeStaticRoute('172.16.0.0');
 
-    print('Routes after removing: ${router.routingTable.length}');
+    appLogger.i('Routes after removing: ${router.routingTable.length}');
 
     // Enable NAT
     router.startService('NAT');
-    print('NAT enabled: ${router.natEnabled}');
+    appLogger.i('NAT enabled: ${router.natEnabled}');
   }
 
   /// Example: Working with Firewall rules
   static void manageFirewallRules() {
     final firewall = createFirewall();
 
-    print('Initial rules: ${firewall.firewallRules.length}');
+    appLogger.i('Initial rules: ${firewall.firewallRules.length}');
 
     // Add a new rule
     firewall.addRule({
@@ -248,7 +249,7 @@ class DeviceExamples {
       'enabled': true,
     });
 
-    print('Rules after adding: ${firewall.firewallRules.length}');
+    appLogger.i('Rules after adding: ${firewall.firewallRules.length}');
 
     // Move rule up (order matters!)
     firewall.moveRuleUp('3');
@@ -258,7 +259,7 @@ class DeviceExamples {
 
     // Change default policy
     firewall.setDefaultPolicy('ALLOW');
-    print('Default policy: ${firewall.defaultPolicy}');
+    appLogger.i('Default policy: ${firewall.defaultPolicy}');
   }
 
   /// Example: Working with WAP clients
@@ -269,19 +270,19 @@ class DeviceExamples {
     wap.addClient('AA:BB:CC:DD:EE:01', -45);
     wap.addClient('AA:BB:CC:DD:EE:02', -60);
 
-    print('Connected clients: ${wap.connectedClients.length}');
+    appLogger.i('Connected clients: ${wap.connectedClients.length}');
 
     // Kick a client
     wap.kickClient('AA:BB:CC:DD:EE:01');
 
-    print('Clients after kick: ${wap.connectedClients.length}');
+    appLogger.i('Clients after kick: ${wap.connectedClients.length}');
 
     // Change SSID
     wap.setSsid('New-Office-WiFi');
-    print('New SSID: ${wap.ssid}');
+    appLogger.i('New SSID: ${wap.ssid}');
 
     // Disable radio
     wap.disableRadio();
-    print('Radio enabled: ${wap.radioEnabled}');
+    appLogger.i('Radio enabled: ${wap.radioEnabled}');
   }
 }

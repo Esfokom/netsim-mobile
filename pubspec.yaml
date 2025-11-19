@@ -46,6 +46,7 @@ dependencies:
   audioplayers: ^6.5.1
   flutter_highlight: ^0.7.0
   confetti: ^0.7.0
+  logger: ^2.6.2
 
 dev_dependencies:
   flutter_test:

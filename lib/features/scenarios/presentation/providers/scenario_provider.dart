@@ -9,6 +9,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Mode of the scenario editor/player
 enum ScenarioMode { edit, simulation }
@@ -301,30 +302,30 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
   Future<Map<String, bool>> checkSuccessConditions(WidgetRef ref) async {
     final results = <String, bool>{};
 
-    print('[ScenarioProvider] Checking success conditions...');
-    print(
+    appLogger.d('[ScenarioProvider] Checking success conditions...');
+    appLogger.d(
       '[ScenarioProvider] Number of conditions: ${state.scenario.successConditions.length}',
     );
-    print(
+    appLogger.d(
       '[ScenarioProvider] Simulation devices: ${state.simulationDevices?.length}',
     );
 
     for (final condition in state.scenario.successConditions) {
       bool passed = false;
 
-      print(
+      appLogger.d(
         '[ScenarioProvider] Checking condition: ${condition.id} - ${condition.description}',
       );
-      print('[ScenarioProvider] Condition type: ${condition.type}');
+      appLogger.d('[ScenarioProvider] Condition type: ${condition.type}');
 
       if (condition.type == ConditionType.connectivity) {
-        print(
+        appLogger.d(
           '[ScenarioProvider] Connectivity check - protocol: ${condition.protocol}',
         );
 
         // Check for link/cable connectivity
         if (condition.protocol == ConnectivityProtocol.link) {
-          print(
+          appLogger.d(
             '[ScenarioProvider] Link check - source: ${condition.sourceDeviceID}, target: ${condition.targetDeviceID}',
           );
 
@@ -344,29 +345,29 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
               );
 
               passed = linkExists;
-              print('[ScenarioProvider] Link exists: $linkExists');
+              appLogger.d('[ScenarioProvider] Link exists: $linkExists');
             } else {
-              print('[ScenarioProvider] No simulation links available');
+              appLogger.d('[ScenarioProvider] No simulation links available');
               passed = false;
             }
           } else {
-            print(
+            appLogger.d(
               '[ScenarioProvider] Missing source or target device ID for link check',
             );
             passed = false;
           }
         } else {
           // TODO: Implement other connectivity checks (ping, http, dnsLookup)
-          print(
+          appLogger.d(
             '[ScenarioProvider] Other connectivity protocols not yet implemented',
           );
           passed = false;
         }
       } else if (condition.type == ConditionType.propertyCheck) {
-        print(
+        appLogger.d(
           '[ScenarioProvider] Property check - target device: ${condition.targetDeviceID}',
         );
-        print(
+        appLogger.d(
           '[ScenarioProvider] Property: ${condition.property}, Expected: ${condition.expectedValue}',
         );
 
@@ -383,12 +384,15 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
             device = state.simulationDevices!.firstWhere(
               (d) => d.id == condition.targetDeviceID,
             );
-            print('[ScenarioProvider] Found simulation device: ${device.name}');
+            appLogger.d(
+              '[ScenarioProvider] Found simulation device: ${device.name}',
+            );
           } catch (e) {
             // Device not found, condition fails
             device = null;
-            print(
-              '[ScenarioProvider] Device not found in simulationDevices: $e',
+            appLogger.d(
+              '[ScenarioProvider] Device not found in simulationDevices',
+              error: e,
             );
           }
 
@@ -397,12 +401,12 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
             final canvasNotifier = ref.read(canvasProvider.notifier);
             final networkDevice = canvasNotifier.getNetworkDevice(device.id);
 
-            print(
+            appLogger.d(
               '[ScenarioProvider] Network device: ${networkDevice != null ? "found" : "not found"}',
             );
 
             if (networkDevice != null) {
-              print(
+              appLogger.d(
                 '[ScenarioProvider] Network device properties: ${networkDevice.properties.map((p) => p.label).join(", ")}',
               );
 
@@ -411,9 +415,13 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
                   .where((p) => p.label == condition.property)
                   .firstOrNull;
 
-              print('[ScenarioProvider] Property found: ${property != null}');
+              appLogger.d(
+                '[ScenarioProvider] Property found: ${property != null}',
+              );
               if (property != null) {
-                print('[ScenarioProvider] Property value: ${property.value}');
+                appLogger.d(
+                  '[ScenarioProvider] Property value: ${property.value}',
+                );
 
                 // Use the robust verification helper
                 passed = verifyPropertyCondition(
@@ -423,28 +431,36 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
                   dataType: condition.propertyDataType!,
                 );
 
-                print('[ScenarioProvider] Verification result: $passed');
+                appLogger.d('[ScenarioProvider] Verification result: $passed');
               }
             }
           }
         } else {
-          print(
+          appLogger.d(
             '[ScenarioProvider] Missing required fields for property check',
           );
-          print('  - simulationDevices: ${state.simulationDevices != null}');
-          print('  - targetDeviceID: ${condition.targetDeviceID != null}');
-          print('  - property: ${condition.property != null}');
-          print('  - expectedValue: ${condition.expectedValue != null}');
-          print('  - operator: ${condition.operator != null}');
-          print('  - propertyDataType: ${condition.propertyDataType != null}');
+          appLogger.d(
+            '  - simulationDevices: ${state.simulationDevices != null}',
+          );
+          appLogger.d(
+            '  - targetDeviceID: ${condition.targetDeviceID != null}',
+          );
+          appLogger.d('  - property: ${condition.property != null}');
+          appLogger.d('  - expectedValue: ${condition.expectedValue != null}');
+          appLogger.d('  - operator: ${condition.operator != null}');
+          appLogger.d(
+            '  - propertyDataType: ${condition.propertyDataType != null}',
+          );
         }
       }
 
       results[condition.id] = passed;
-      print('[ScenarioProvider] Condition ${condition.id} result: $passed');
+      appLogger.d(
+        '[ScenarioProvider] Condition ${condition.id} result: $passed',
+      );
     }
 
-    print('[ScenarioProvider] All results: $results');
+    appLogger.d('[ScenarioProvider] All results: $results');
     state = state.copyWith(conditionResults: results);
     return results;
   }
@@ -460,7 +476,7 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
       final scenario = NetworkScenario.fromJson(json);
       state = ScenarioState(scenario: scenario);
     } catch (e) {
-      print('Error importing scenario: $e');
+      appLogger.e('Error importing scenario', error: e);
     }
   }
 

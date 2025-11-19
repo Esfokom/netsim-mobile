@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
-import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
+
+import '../../features/canvas/presentation/widgets/network_canvas.dart';
 
 /// Utility class for managing canvas lifecycle operations
 /// Handles initialization, cleanup, snapshots, and state restoration
@@ -61,9 +64,9 @@ class CanvasLifecycleManager {
           .read(canvasTransformationControllerProvider.notifier)
           .clearController();
 
-      print('Canvas lifecycle cleanup completed successfully');
+      appLogger.i('Canvas lifecycle cleanup completed successfully');
     } catch (e) {
-      print('Error during canvas cleanup: $e');
+      appLogger.e('Error during canvas cleanup', error: e);
       // Continue even if cleanup fails
     }
   }
@@ -81,10 +84,10 @@ class CanvasLifecycleManager {
         scenarioNotifier?.resetToEmpty();
         transformationNotifier?.clearController();
 
-        print('Canvas lifecycle safe cleanup completed successfully');
+        appLogger.i('Canvas lifecycle safe cleanup completed successfully');
       });
     } catch (e) {
-      print('Error during safe cleanup: $e');
+      appLogger.e('Error during safe cleanup', error: e);
       // Continue with disposal even if cleanup fails
     }
   }

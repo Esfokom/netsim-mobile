@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:netsim_mobile/features/scenarios/domain/repositories/i_scenario_repository.dart';
 import 'package:netsim_mobile/features/scenarios/data/services/scenario_storage_service.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Implementation of the scenario repository interface
 /// Uses ScenarioStorageService for actual persistence
@@ -15,7 +16,7 @@ class ScenarioRepositoryImpl implements IScenarioRepository {
     try {
       return await _storageService.getAllScenarios();
     } catch (e) {
-      print('Error listing scenarios: $e');
+      appLogger.e('Error listing scenarios', error: e);
       return [];
     }
   }
@@ -25,7 +26,7 @@ class ScenarioRepositoryImpl implements IScenarioRepository {
     try {
       return await _storageService.getScenario(scenarioId);
     } catch (e) {
-      print('Error loading scenario: $e');
+      appLogger.e('Error loading scenario', error: e);
       return null;
     }
   }
@@ -38,7 +39,7 @@ class ScenarioRepositoryImpl implements IScenarioRepository {
         throw Exception('Failed to save scenario');
       }
     } catch (e) {
-      print('Error saving scenario: $e');
+      appLogger.e('Error saving scenario', error: e);
       rethrow;
     }
   }
@@ -51,7 +52,7 @@ class ScenarioRepositoryImpl implements IScenarioRepository {
         throw Exception('Failed to delete scenario');
       }
     } catch (e) {
-      print('Error deleting scenario: $e');
+      appLogger.e('Error deleting scenario', error: e);
       rethrow;
     }
   }
@@ -71,7 +72,7 @@ class ScenarioRepositoryImpl implements IScenarioRepository {
     try {
       return jsonEncode(scenario.toJson());
     } catch (e) {
-      print('Error exporting scenario: $e');
+      appLogger.e('Error exporting scenario', error: e);
       rethrow;
     }
   }
@@ -82,7 +83,7 @@ class ScenarioRepositoryImpl implements IScenarioRepository {
       final json = jsonDecode(jsonString) as Map<String, dynamic>;
       return NetworkScenario.fromJson(json);
     } catch (e) {
-      print('Error importing scenario: $e');
+      appLogger.e('Error importing scenario', error: e);
       rethrow;
     }
   }

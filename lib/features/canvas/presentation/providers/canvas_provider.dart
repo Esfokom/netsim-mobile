@@ -5,6 +5,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart'
     show NetworkDevice, DeviceStatus;
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Interface for disposable resources
 abstract class Disposable {
@@ -213,7 +214,7 @@ class CanvasNotifier extends Notifier<CanvasState> {
           }
         } catch (e) {
           // Ignore disposal errors - device might not have dispose method
-          print('Device disposal error (ignored): $e');
+          appLogger.d('Device disposal error (ignored)', error: e);
         }
       }
 
@@ -221,27 +222,27 @@ class CanvasNotifier extends Notifier<CanvasState> {
       try {
         cancelLinking();
       } catch (e) {
-        print('Error clearing linking state (ignored): $e');
+        appLogger.d('Error clearing linking state (ignored)', error: e);
       }
 
       // Deselect all devices before clearing
       try {
         deselectAllDevices();
       } catch (e) {
-        print('Error deselecting devices (ignored): $e');
+        appLogger.d('Error deselecting devices (ignored)', error: e);
       }
 
       // Reset state to initial empty state
       state = CanvasState();
 
-      print('Canvas state cleared and disposed successfully');
+      appLogger.i('Canvas state cleared and disposed successfully');
     } catch (e) {
-      print('Error during canvas cleanup: $e');
+      appLogger.e('Error during canvas cleanup', error: e);
       // Still try to reset state even if cleanup partially failed
       try {
         state = CanvasState();
       } catch (resetError) {
-        print('Error resetting canvas state: $resetError');
+        appLogger.e('Error resetting canvas state', error: resetError);
       }
     }
   }

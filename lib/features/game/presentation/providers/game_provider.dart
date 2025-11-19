@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:netsim_mobile/features/scenarios/data/services/scenario_storage_service.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Game state for managing scenario lists and game progress
 class GameState {
@@ -88,12 +89,12 @@ class GameNotifier extends Notifier<GameState> {
           final scenario = NetworkScenario.fromJson(jsonMap);
           scenarios.add(scenario);
         } catch (e) {
-          print('Failed to load scenario $fileName: $e');
+          appLogger.w('Failed to load scenario $fileName', error: e);
           // Continue loading other scenarios even if one fails
         }
       }
     } catch (e) {
-      print('Error loading preconfigured scenarios: $e');
+      appLogger.e('Error loading preconfigured scenarios', error: e);
     }
 
     return scenarios;
