@@ -266,8 +266,6 @@ class DashboardSimplified extends ConsumerWidget {
   }
 }
 
-// ...existing code...
-
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
