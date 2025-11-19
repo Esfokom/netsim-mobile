@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/game_view.dart';
+import 'package:netsim_mobile/features/game/presentation/screens/game_view.dart';
 
 /// Screen to display all saved scenarios
 class SavedScenariosScreen extends ConsumerStatefulWidget {

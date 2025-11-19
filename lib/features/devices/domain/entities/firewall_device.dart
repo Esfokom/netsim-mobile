@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/interfaces/device_capability.dart';
-import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
 
 /// Dedicated Firewall Device - Filters traffic between networks
 class FirewallDevice extends NetworkDevice

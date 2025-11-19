@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/factories/device_factory.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/devices/domain/factories/device_factory.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/scenario_bottom_panel.dart';
 

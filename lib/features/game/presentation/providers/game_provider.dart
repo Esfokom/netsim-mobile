@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
-import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:netsim_mobile/features/scenarios/data/services/scenario_storage_service.dart';
 
 /// Game state for managing scenario lists and game progress

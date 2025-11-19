@@ -1,12 +1,12 @@
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
     as legacy;
-import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/server_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/switch_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/router_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/firewall_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_point.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/server_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/firewall_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/wireless_access_point.dart';
 
 /// Factory for creating NetworkDevice entities from CanvasDevice models
 /// This provides the bridge between the old canvas system and new device architecture
@@ -30,7 +30,7 @@ class DeviceFactory {
           hostname: canvasDevice.name,
           macAddress: macAddress,
           ipConfigMode: 'STATIC',
-          isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
+          isPoweredOn: canvasDevice.status != DeviceStatus.offline,
         );
 
         // Assign a default static IP for computers
@@ -65,7 +65,7 @@ class DeviceFactory {
           position: canvasDevice.position,
           portCount: 8,
           isManaged: false,
-          isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
+          isPoweredOn: canvasDevice.status != DeviceStatus.offline,
         );
 
       case legacy.DeviceType.router:
@@ -74,7 +74,7 @@ class DeviceFactory {
           deviceId: canvasDevice.id,
           name: canvasDevice.name,
           position: canvasDevice.position,
-          isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
+          isPoweredOn: canvasDevice.status != DeviceStatus.offline,
           natEnabled: false,
           dhcpServiceEnabled: false,
           firewallEnabled: false,
@@ -86,7 +86,7 @@ class DeviceFactory {
           deviceId: canvasDevice.id,
           name: canvasDevice.name,
           position: canvasDevice.position,
-          isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
+          isPoweredOn: canvasDevice.status != DeviceStatus.offline,
           defaultPolicy: 'DENY',
         );
 
@@ -96,7 +96,7 @@ class DeviceFactory {
           deviceId: canvasDevice.id,
           name: canvasDevice.name,
           position: canvasDevice.position,
-          isPoweredOn: canvasDevice.status != legacy.DeviceStatus.offline,
+          isPoweredOn: canvasDevice.status != DeviceStatus.offline,
           ssid: 'Network-${canvasDevice.id.substring(0, 4)}',
           securityMode: 'WPA2',
           wpaPassword: 'password123',
@@ -117,7 +117,7 @@ class DeviceFactory {
       type: _getDeviceType(networkDevice),
       position: networkDevice.position,
       isSelected: networkDevice.isSelected,
-      status: _getDeviceStatus(networkDevice.status),
+      status: networkDevice.status, // Both use same DeviceStatus enum now
     );
   }
 
@@ -138,22 +138,6 @@ class DeviceFactory {
         return legacy.DeviceType.accessPoint;
       default:
         return legacy.DeviceType.computer;
-    }
-  }
-
-  /// Map NetworkDevice status to CanvasDevice DeviceStatus
-  static legacy.DeviceStatus _getDeviceStatus(DeviceStatus status) {
-    switch (status) {
-      case DeviceStatus.online:
-        return legacy.DeviceStatus.online;
-      case DeviceStatus.offline:
-        return legacy.DeviceStatus.offline;
-      case DeviceStatus.warning:
-      case DeviceStatus.notConfigured:
-        return legacy.DeviceStatus.warning;
-      case DeviceStatus.error:
-      case DeviceStatus.configured:
-        return legacy.DeviceStatus.error;
     }
   }
 

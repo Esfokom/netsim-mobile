@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/device_rule.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_rules_editor.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/router_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/firewall_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_point.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_rules_editor.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/device_rule.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart'
-    as network;
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart'
+    as network;
+import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/firewall_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/wireless_access_point.dart';
 
 /// Contextual editor that shows scenario metadata or device properties
 class ContextualEditor extends ConsumerStatefulWidget {
@@ -1226,19 +1226,9 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   }
 
   /// Maps NetworkDevice DeviceStatus to CanvasDevice DeviceStatus
-  DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
-    switch (networkStatus) {
-      case network.DeviceStatus.online:
-      case network.DeviceStatus.configured:
-        return DeviceStatus.online;
-      case network.DeviceStatus.offline:
-      case network.DeviceStatus.notConfigured:
-        return DeviceStatus.offline;
-      case network.DeviceStatus.warning:
-      case network.DeviceStatus.error:
-        // Map warning/error to online (shouldn't occur with new two-state logic)
-        return DeviceStatus.online;
-    }
+  /// Since both now use the same DeviceStatus enum from devices domain, just return as-is
+  network.DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
+    return networkStatus;
   }
 }
 

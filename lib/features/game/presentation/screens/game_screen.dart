@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_provider.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/scenario_card.dart';
 import 'package:netsim_mobile/features/game/presentation/screens/game_play_screen.dart';

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_minimap.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';

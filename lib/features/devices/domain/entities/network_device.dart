@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:netsim_mobile/features/canvas/domain/interfaces/device_capability.dart';
-import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
 
 /// Base abstract class for all network devices
 /// Uses composition pattern - devices are defined by their capabilities

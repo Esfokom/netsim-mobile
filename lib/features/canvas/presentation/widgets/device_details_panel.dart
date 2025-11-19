@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/router_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/firewall_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/switch_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_point.dart';
-import 'package:netsim_mobile/features/canvas/domain/interfaces/device_capability.dart';
-import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/core/utils/ip_validator.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/firewall_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/wireless_access_point.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
 
 /// Device Details Panel - Shows device properties and available actions
 class DeviceDetailsPanel extends ConsumerWidget {

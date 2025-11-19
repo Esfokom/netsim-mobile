@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
     as canvas_model;
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart'
+    show NetworkDevice, DeviceStatus;
 
 /// Interface for disposable resources
 abstract class Disposable {
@@ -53,15 +54,13 @@ class CanvasState {
   // Statistics
   int get totalDevices => devices.length;
   int get devicesOnline =>
-      devices.where((d) => d.status == canvas_model.DeviceStatus.online).length;
-  int get devicesOffline => devices
-      .where((d) => d.status == canvas_model.DeviceStatus.offline)
-      .length;
-  int get devicesWithWarning => devices
-      .where((d) => d.status == canvas_model.DeviceStatus.warning)
-      .length;
+      devices.where((d) => d.status == DeviceStatus.online).length;
+  int get devicesOffline =>
+      devices.where((d) => d.status == DeviceStatus.offline).length;
+  int get devicesWithWarning =>
+      devices.where((d) => d.status == DeviceStatus.warning).length;
   int get devicesWithError =>
-      devices.where((d) => d.status == canvas_model.DeviceStatus.error).length;
+      devices.where((d) => d.status == DeviceStatus.error).length;
 }
 
 /// Notifier for managing canvas state
@@ -179,7 +178,7 @@ class CanvasNotifier extends Notifier<CanvasState> {
   }
 
   /// Update device status
-  void updateDeviceStatus(String deviceId, canvas_model.DeviceStatus status) {
+  void updateDeviceStatus(String deviceId, DeviceStatus status) {
     final updatedDevices = state.devices.map((device) {
       if (device.id == deviceId) {
         return device.copyWith(status: status);

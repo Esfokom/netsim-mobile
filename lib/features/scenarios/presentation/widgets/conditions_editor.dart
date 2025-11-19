@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/scenario_condition.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/scenario_condition.dart';
+import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
-import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
 
 /// Editor for success conditions
 class ConditionsEditor extends ConsumerWidget {

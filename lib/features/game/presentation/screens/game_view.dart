@@ -10,7 +10,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_minimap.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_palette.dart';
+import 'package:netsim_mobile/features/devices/presentation/widgets/device_palette.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/scenario_bottom_panel.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/conditions_editor.dart';

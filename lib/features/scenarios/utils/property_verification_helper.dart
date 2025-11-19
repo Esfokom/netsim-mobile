@@ -1,5 +1,5 @@
-import 'package:netsim_mobile/features/canvas/domain/interfaces/device_property.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/scenario_condition.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/scenario_condition.dart';
 
 /// Helper to get property data type from DeviceProperty
 PropertyDataType getPropertyDataType(DeviceProperty property) {

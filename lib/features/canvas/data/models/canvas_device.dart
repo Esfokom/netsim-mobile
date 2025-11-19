@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart'
+    show DeviceStatus;
 
 /// Represents a device placed on the canvas
 class CanvasDevice {
@@ -89,24 +91,6 @@ extension DeviceTypeExtension on DeviceType {
         return Colors.red;
       case DeviceType.accessPoint:
         return Colors.cyan;
-    }
-  }
-}
-
-/// Status of a device
-enum DeviceStatus { online, offline, warning, error }
-
-extension DeviceStatusExtension on DeviceStatus {
-  Color get color {
-    switch (this) {
-      case DeviceStatus.online:
-        return Colors.green;
-      case DeviceStatus.offline:
-        return Colors.grey;
-      case DeviceStatus.warning:
-        return Colors.orange;
-      case DeviceStatus.error:
-        return Colors.red;
     }
   }
 }

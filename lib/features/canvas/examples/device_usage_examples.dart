@@ -1,12 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/end_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/server_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/switch_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/router_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/firewall_device.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/wireless_access_point.dart';
-import 'package:netsim_mobile/features/canvas/domain/entities/server_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/device_details_panel.dart';
+import 'package:netsim_mobile/features/devices/devices.dart';
 
 /// Example: How to create and use the new network devices
 

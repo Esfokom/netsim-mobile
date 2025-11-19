@@ -1,12 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/network_scenario.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/scenario_condition.dart';
-import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
-import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
-import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/scenario_condition.dart';
+import 'package:netsim_mobile/features/scenarios/domain/entities/device_rule.dart';
+import 'package:netsim_mobile/features/scenarios/domain/repositories/i_scenario_repository.dart';
+import 'package:netsim_mobile/features/scenarios/data/repositories/scenario_repository_impl.dart';
 import 'package:netsim_mobile/features/scenarios/data/services/scenario_storage_service.dart';
+import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
-import 'package:netsim_mobile/features/scenarios/data/models/device_rule.dart';
+import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
 
 /// Mode of the scenario editor/player
 enum ScenarioMode { edit, simulation }
@@ -500,6 +502,17 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
     state = ScenarioState(scenario: NetworkScenario.empty());
   }
 }
+
+/// Provider for scenario storage service
+final scenarioStorageServiceProvider = Provider<ScenarioStorageService>((ref) {
+  return ScenarioStorageService();
+});
+
+/// Provider for scenario repository
+final scenarioRepositoryProvider = Provider<IScenarioRepository>((ref) {
+  final storageService = ref.watch(scenarioStorageServiceProvider);
+  return ScenarioRepositoryImpl(storageService);
+});
 
 /// Provider for scenario state
 final scenarioProvider = NotifierProvider<ScenarioNotifier, ScenarioState>(() {
