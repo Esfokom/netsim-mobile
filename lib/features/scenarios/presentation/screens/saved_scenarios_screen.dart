@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
-import 'package:netsim_mobile/features/game/presentation/screens/game_view.dart';
+import 'package:netsim_mobile/features/game/presentation/screens/scenario_editor.dart';
 
 /// Screen to display all saved scenarios
 class SavedScenariosScreen extends ConsumerStatefulWidget {
@@ -56,7 +56,7 @@ class _SavedScenariosScreenState extends ConsumerState<SavedScenariosScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const GameView()),
+            MaterialPageRoute(builder: (context) => const ScenarioEditor()),
           ).then((_) => _loadScenarios());
         },
         icon: const Icon(Icons.add),
@@ -120,7 +120,7 @@ class _SavedScenariosScreenState extends ConsumerState<SavedScenariosScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => GameView(scenarioId: scenario.scenarioID),
+        builder: (context) => ScenarioEditor(scenarioId: scenario.scenarioID),
       ),
     ).then((_) => _loadScenarios());
   }

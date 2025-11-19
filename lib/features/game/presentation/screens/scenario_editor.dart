@@ -16,16 +16,16 @@ import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/conditions_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 
-class GameView extends ConsumerStatefulWidget {
+class ScenarioEditor extends ConsumerStatefulWidget {
   final String? scenarioId; // Optional scenario ID to load
 
-  const GameView({super.key, this.scenarioId});
+  const ScenarioEditor({super.key, this.scenarioId});
 
   @override
-  ConsumerState<GameView> createState() => _GameViewState();
+  ConsumerState<ScenarioEditor> createState() => _ScenarioEditorState();
 }
 
-class _GameViewState extends ConsumerState<GameView> {
+class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
   // Save notifier references for safe disposal
   CanvasNotifier? _canvasNotifier;
   ScenarioNotifier? _scenarioNotifier;

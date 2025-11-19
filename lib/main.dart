@@ -5,7 +5,7 @@ import 'package:netsim_mobile/core/widgets/root_scaffold.dart';
 import 'package:netsim_mobile/features/leaderboard/presentation/leaderboard_screen.dart';
 import 'package:netsim_mobile/features/onboarding/presentation/screens/main_menu.dart';
 import 'package:netsim_mobile/features/game/presentation/screens/game_screen.dart';
-import 'package:netsim_mobile/features/game/presentation/screens/game_view.dart';
+import 'package:netsim_mobile/features/game/presentation/screens/scenario_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/screens/saved_scenarios_screen.dart';
 import 'package:netsim_mobile/features/logs/presentation/screens/logs_list_screen.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -39,7 +39,7 @@ class MyApp extends ConsumerWidget {
       routes: {
         "/": (context) => const MainMenu(),
         "/game": (context) => const GameScreen(),
-        "/editor": (context) => const GameView(),
+        "/editor": (context) => const ScenarioEditor(),
         "/scenarios": (context) => const SavedScenariosScreen(),
         "/leaderboard": (context) => LeaderboardScreen(),
         "/logs": (context) => const LatestLogsList(),
