@@ -178,6 +178,6 @@ The system generates standardized JSON following this structure:
 6. `lib/features/scenarios/presentation/widgets/conditions_editor.dart`
 
 ## Files Modified
-1. `lib/features/scenarios/presentation/game_view.dart` - Complete rewrite with two modes
+1. `lib/features/game/presentation/screens/scenario_editor.dart` - Complete rewrite with two modes
 2. `lib/features/canvas/presentation/widgets/canvas_device_widget.dart` - Added scenario integration
 

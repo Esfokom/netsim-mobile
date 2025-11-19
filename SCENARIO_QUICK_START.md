@@ -66,7 +66,7 @@ lib/features/scenarios/
 
 ```
 lib/features/scenarios/presentation/
-└── game_view.dart                    # Complete rewrite with two modes
+└── scenario_editor.dart              # Complete rewrite with two modes
 
 lib/features/canvas/presentation/widgets/
 └── canvas_device_widget.dart         # Added scenario integration

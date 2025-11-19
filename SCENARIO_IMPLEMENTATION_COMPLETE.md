@@ -19,7 +19,7 @@ I've successfully implemented a comprehensive **two-mode scenario creation and s
 - `ScenarioBottomPanel` - Three-tab interface (Devices, Properties, Conditions)
 - `ContextualEditor` - Dual-mode editor (scenario metadata or device properties)
 - `ConditionsEditor` - Visual condition manager with dialog-based creation
-- Enhanced `game_view.dart` - Full two-mode system implementation
+- Enhanced `scenario_editor.dart` - Full two-mode system implementation
 
 ### State Management
 - `ScenarioProvider` - Riverpod 3.0 compatible

@@ -213,7 +213,7 @@ Future<Map<String, bool>> checkSuccessConditions(WidgetRef ref) async
 2. ✅ `lib/features/scenarios/utils/property_verification_helper.dart` (NEW)
 3. ✅ `lib/features/scenarios/presentation/widgets/conditions_editor.dart`
 4. ✅ `lib/features/scenarios/presentation/providers/scenario_provider.dart`
-5. ✅ `lib/features/scenarios/presentation/game_view.dart`
+5. ✅ `lib/features/game/presentation/screens/scenario_editor.dart`
 
 ## Testing Scenarios
 
