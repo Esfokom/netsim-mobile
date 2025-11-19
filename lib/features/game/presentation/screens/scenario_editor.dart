@@ -405,6 +405,8 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
     final passedCount = results.values.where((passed) => passed).length;
     final totalCount = results.length;
 
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

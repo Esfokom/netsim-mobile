@@ -1084,7 +1084,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                 ],
               ),
             );
-          }).toList(),
+          }),
       ],
     );
   }
@@ -1181,7 +1181,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                       ),
                     ),
                   );
-                }).toList(),
+                }),
             ],
           ),
         ),

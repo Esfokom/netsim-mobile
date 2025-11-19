@@ -82,7 +82,7 @@ class _ScenarioBottomPanelState extends ConsumerState<ScenarioBottomPanel> {
         right: 0,
         child: GestureDetector(
           onTap: () {
-            ref.read(bottomPanelCollapsedProvider.notifier).state = false;
+            ref.read(bottomPanelCollapsedProvider.notifier).setCollapsed(false);
           },
           child: Container(
             height: 40,
@@ -136,7 +136,9 @@ class _ScenarioBottomPanelState extends ConsumerState<ScenarioBottomPanel> {
           final newFraction =
               heightFraction - (details.delta.dy / screenHeight);
           final clampedFraction = newFraction.clamp(minHeight, maxHeight);
-          ref.read(bottomPanelHeightProvider.notifier).state = clampedFraction;
+          ref
+              .read(bottomPanelHeightProvider.notifier)
+              .setHeight(clampedFraction);
         },
         child: Container(
           height: screenHeight * heightFraction,
@@ -157,7 +159,9 @@ class _ScenarioBottomPanelState extends ConsumerState<ScenarioBottomPanel> {
               // Drag handle
               GestureDetector(
                 onTap: () {
-                  ref.read(bottomPanelCollapsedProvider.notifier).state = true;
+                  ref
+                      .read(bottomPanelCollapsedProvider.notifier)
+                      .setCollapsed(true);
                 },
                 child: Container(
                   width: double.infinity,

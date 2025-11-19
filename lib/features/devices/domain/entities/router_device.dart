@@ -9,7 +9,7 @@ class RouterDevice extends NetworkDevice
   String name;
   bool _isPoweredOn;
   List<RouterInterface> interfaces;
-  List<RouteEntry> _routingTable;
+  final List<RouteEntry> _routingTable;
   bool natEnabled;
   bool dhcpServiceEnabled;
   bool firewallEnabled;
@@ -64,7 +64,7 @@ class RouterDevice extends NetworkDevice
 
   String _getNetworkAddress(String ip, String mask) {
     // Simplified - in real implementation, do actual subnet calculation
-    return ip.substring(0, ip.lastIndexOf('.')) + '.0';
+    return '${ip.substring(0, ip.lastIndexOf('.'))}.0';
   }
 
   @override

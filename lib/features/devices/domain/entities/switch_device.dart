@@ -10,7 +10,7 @@ class SwitchDevice extends NetworkDevice
   bool _isPoweredOn;
   final int portCount;
   List<SwitchPort> ports;
-  List<MacTableEntry> _macAddressTable;
+  final List<MacTableEntry> _macAddressTable;
   bool isManaged;
   List<VlanConfig> vlanDatabase;
 

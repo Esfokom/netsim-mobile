@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 
 import '../../features/canvas/presentation/widgets/network_canvas.dart';
 

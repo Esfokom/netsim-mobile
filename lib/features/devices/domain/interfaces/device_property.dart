@@ -156,7 +156,7 @@ class SelectionProperty extends DeviceProperty<String> {
     if (isReadOnly) return null;
     return DropdownButtonFormField<String>(
       decoration: InputDecoration(labelText: label),
-      value: value,
+      initialValue: value,
       items: options.map((option) {
         return DropdownMenuItem(value: option, child: Text(option));
       }).toList(),

@@ -10,7 +10,7 @@ class FirewallDevice extends NetworkDevice
   bool _isPoweredOn;
   List<FirewallInterface> interfaces;
   String _defaultPolicy; // "ALLOW" | "DENY"
-  List<FirewallRule> _firewallRules;
+  final List<FirewallRule> _firewallRules;
   List<String> log;
   bool showIpOnCanvas;
 

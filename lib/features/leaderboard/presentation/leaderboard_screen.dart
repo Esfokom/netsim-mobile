@@ -122,7 +122,9 @@ class LeaderboardScreen extends ConsumerWidget {
                                   ),
                                   child: CircleAvatar(
                                     radius: 20,
-                                    backgroundColor: color.withOpacity(0.2),
+                                    backgroundColor: color.withValues(
+                                      alpha: 0.2,
+                                    ),
                                     child: Icon(icon, color: color, size: 22),
                                   ),
                                 ),

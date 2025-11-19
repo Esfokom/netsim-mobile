@@ -50,7 +50,7 @@ class EndDevice extends NetworkDevice
     required super.position,
     required this.hostname,
     required this.macAddress,
-    String deviceType = 'PC',
+    super.deviceType = 'PC',
     this.ipConfigMode = 'DHCP',
     bool isPoweredOn = true,
     String linkState = 'DOWN',
@@ -61,7 +61,7 @@ class EndDevice extends NetworkDevice
     this.showIpOnCanvas = false,
   }) : _isPoweredOn = isPoweredOn,
        _linkState = linkState,
-       super(deviceType: deviceType);
+       super();
 
   @override
   IconData get icon => Icons.computer;

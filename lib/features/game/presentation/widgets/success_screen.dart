@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:confetti/confetti.dart';
