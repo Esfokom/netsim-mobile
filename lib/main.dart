@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/core/providers/theme_provider.dart';
 import 'package:netsim_mobile/core/widgets/root_scaffold.dart';
 import 'package:netsim_mobile/features/leaderboard/presentation/leaderboard_screen.dart';
-import 'package:netsim_mobile/features/onboarding/presentation/screens/onboarding.dart';
+import 'package:netsim_mobile/features/onboarding/presentation/screens/main_menu.dart';
 import 'package:netsim_mobile/features/game/presentation/screens/game_screen.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/game_view.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/screens/saved_scenarios_screen.dart';
@@ -37,7 +37,7 @@ class MyApp extends ConsumerWidget {
         return RootScaffold(child: child ?? const SizedBox.shrink());
       },
       routes: {
-        "/": (context) => const Onboarding(),
+        "/": (context) => const MainMenu(),
         "/game": (context) => const GameScreen(),
         "/editor": (context) => const GameView(),
         "/scenarios": (context) => const SavedScenariosScreen(),
