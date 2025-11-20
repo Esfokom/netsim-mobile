@@ -28,6 +28,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   Timer? _gameTimer;
   int _elapsedSeconds = 0;
   bool _isGameCompleted = false;
+  bool _isPaused = false;
 
   @override
   void initState() {
@@ -38,7 +39,17 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   @override
   void dispose() {
     _gameTimer?.cancel();
+    // Clean up game state when leaving
+    _cleanupGameState();
     super.dispose();
+  }
+
+  void _cleanupGameState() {
+    // Clear condition check results
+    ref.read(gameConditionCheckerProvider.notifier).clearResults();
+    // Exit simulation mode
+    ref.read(scenarioProvider.notifier).exitSimulationMode();
+    appLogger.d('[GamePlayScreen] Game state cleaned up');
   }
 
   void _initializeGame() {
@@ -66,7 +77,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
 
   void _startGameTimer() {
     _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!_isGameCompleted) {
+      if (!_isGameCompleted && !_isPaused) {
         setState(() {
           _elapsedSeconds++;
         });
@@ -101,6 +112,8 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
           scenario: widget.scenario,
           completionTime: _elapsedSeconds,
           onContinue: () {
+            // Clean up state before exiting
+            _cleanupGameState();
             Navigator.of(context).pop(); // Close success dialog
             Navigator.of(context).pop(); // Return to game screen
           },
@@ -370,26 +383,340 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   }
 
   void _showPauseMenu() {
+    // Pause the game
+    setState(() {
+      _isPaused = true;
+    });
+
+    final conditionState = ref.read(gameConditionCheckerProvider);
+    final totalConditions = widget.scenario.successConditions.length;
+    final passedConditions = conditionState.passedCount;
+
+    final minutes = _elapsedSeconds ~/ 60;
+    final seconds = _elapsedSeconds % 60;
+    final timeString =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Game Paused'),
-        content: const Text('What would you like to do?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Resume'),
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Scrollable content section
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Pause icon
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.pause_circle_filled,
+                            size: 48,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // "Game Paused" title
+                        Text(
+                          'GAME PAUSED',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade700,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // Time spent
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.blue.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.timer,
+                                size: 20,
+                                color: Colors.blue.shade700,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Time Spent: ',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                              Text(
+                                timeString,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade700,
+                                  fontFeatures: const [
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // Scenario info
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Scenario name
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.gamepad,
+                                    size: 20,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      widget.scenario.title,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              // Progress indicator
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.flag,
+                                    size: 18,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '$passedConditions',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: passedConditions == totalConditions
+                                          ? Colors.green.shade700
+                                          : Colors.orange.shade700,
+                                    ),
+                                  ),
+                                  Text(
+                                    ' / $totalConditions',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    passedConditions == totalConditions
+                                        ? 'objectives completed'
+                                        : 'objectives completed',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              // Progress bar
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: LinearProgressIndicator(
+                                  value: totalConditions > 0
+                                      ? passedConditions / totalConditions
+                                      : 0,
+                                  minHeight: 8,
+                                  backgroundColor: Colors.grey.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    passedConditions == totalConditions
+                                        ? Colors.green
+                                        : Colors.orange,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              // Objectives list
+                              ...widget.scenario.successConditions.map((
+                                condition,
+                              ) {
+                                final isPassed =
+                                    conditionState.conditionResults[condition
+                                        .id] ??
+                                    false;
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        isPassed
+                                            ? Icons.check_circle
+                                            : Icons.radio_button_unchecked,
+                                        size: 18,
+                                        color: isPassed
+                                            ? Colors.green.shade700
+                                            : Colors.grey.shade400,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          condition.description,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: isPassed
+                                                ? Colors.grey.shade700
+                                                : Colors.grey.shade600,
+                                            decoration: isPassed
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Fixed buttons at bottom
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.05),
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.grey.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Resume button
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _isPaused = false;
+                          });
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(Icons.play_arrow, size: 24),
+                        label: const Text(
+                          'RESUME',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Quit button
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _isPaused = false;
+                          });
+                          // Clean up state before quitting
+                          _cleanupGameState();
+                          Navigator.pop(context); // Close pause dialog
+                          Navigator.pop(context); // Return to game screen
+                        },
+                        icon: const Icon(Icons.exit_to_app, size: 24),
+                        label: const Text(
+                          'QUIT',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // Close pause dialog
-              Navigator.pop(context); // Return to game screen
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Quit'),
-          ),
-        ],
+        ),
       ),
-    );
+    ).then((_) {
+      // Ensure game is unpaused if dialog is dismissed
+      if (mounted) {
+        setState(() {
+          _isPaused = false;
+        });
+      }
+    });
   }
 }
