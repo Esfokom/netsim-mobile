@@ -298,8 +298,16 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
     state = state.copyWith(simulationDevices: updatedDevices);
   }
 
-  /// Check all success conditions
-  Future<Map<String, bool>> checkSuccessConditions(WidgetRef ref) async {
+  /// Check all success conditions (deprecated - use checkConditions instead)
+  @Deprecated('Use checkConditions() instead')
+  Future<Map<String, bool>> checkSuccessConditions(
+    WidgetRef externalRef,
+  ) async {
+    return checkConditions();
+  }
+
+  /// Check all success conditions using instance ref
+  Future<Map<String, bool>> checkConditions() async {
     final results = <String, bool>{};
 
     appLogger.d('[ScenarioProvider] Checking success conditions...');

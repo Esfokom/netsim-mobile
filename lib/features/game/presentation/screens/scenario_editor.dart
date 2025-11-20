@@ -15,6 +15,7 @@ import 'package:netsim_mobile/features/scenarios/presentation/widgets/scenario_b
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/conditions_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
+import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/mode_header_widget.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/property_bottom_panel.dart';
 import 'package:netsim_mobile/core/utils/canvas_lifecycle_manager.dart';
@@ -380,6 +381,9 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
     // Enter simulation mode
     ref.read(scenarioProvider.notifier).enterSimulationMode();
 
+    // Trigger initial condition check
+    ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Simulation started! Try to complete the objectives.'),
@@ -391,15 +395,16 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
   void _exitSimulation() {
     ref.read(scenarioProvider.notifier).exitSimulationMode();
 
+    // Clear condition check results when exiting simulation
+    ref.read(gameConditionCheckerProvider.notifier).clearResults();
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Returned to edit mode')));
   }
 
   Future<void> _checkSolution() async {
-    final results = await ref
-        .read(scenarioProvider.notifier)
-        .checkSuccessConditions(ref);
+    final results = await ref.read(scenarioProvider.notifier).checkConditions();
 
     final allPassed = results.values.every((passed) => passed);
     final passedCount = results.values.where((passed) => passed).length;

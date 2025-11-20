@@ -5,6 +5,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart'
     show NetworkDevice, DeviceStatus;
+import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Interface for disposable resources
@@ -116,6 +117,9 @@ class CanvasNotifier extends Notifier<CanvasState> {
     }).toList();
 
     state = state.copyWith(devices: updatedDevices);
+
+    // Trigger condition check after position update
+    ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
   }
 
   /// Select a device
@@ -139,6 +143,9 @@ class CanvasNotifier extends Notifier<CanvasState> {
   /// Add a link between two devices
   void addLink(DeviceLink link) {
     state = state.copyWith(links: [...state.links, link]);
+
+    // Trigger condition check after link added
+    ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
   }
 
   /// Remove a link
@@ -146,6 +153,9 @@ class CanvasNotifier extends Notifier<CanvasState> {
     state = state.copyWith(
       links: state.links.where((l) => l.id != linkId).toList(),
     );
+
+    // Trigger condition check after link removed
+    ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
   }
 
   /// Start linking mode
@@ -188,6 +198,9 @@ class CanvasNotifier extends Notifier<CanvasState> {
     }).toList();
 
     state = state.copyWith(devices: updatedDevices);
+
+    // Trigger condition check after status update
+    ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
   }
 
   /// Clear all devices and links
@@ -251,6 +264,9 @@ class CanvasNotifier extends Notifier<CanvasState> {
   void refreshDevice(String deviceId) {
     // Force a state update by creating a new list
     state = state.copyWith(devices: [...state.devices]);
+
+    // Trigger condition check after device refresh (properties changed)
+    ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
   }
 }
 

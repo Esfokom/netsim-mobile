@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canva
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_minimap.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
+import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/game_timer.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/success_screen.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/game_objectives_list.dart';
@@ -24,7 +25,6 @@ class GamePlayScreen extends ConsumerStatefulWidget {
 }
 
 class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
-  Timer? _conditionCheckTimer;
   Timer? _gameTimer;
   int _elapsedSeconds = 0;
   bool _isGameCompleted = false;
@@ -37,7 +37,6 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
 
   @override
   void dispose() {
-    _conditionCheckTimer?.cancel();
     _gameTimer?.cancel();
     super.dispose();
   }
@@ -60,8 +59,8 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
       // Start the game timer
       _startGameTimer();
 
-      // Start automatic condition checking
-      _startConditionChecking();
+      // Trigger initial condition check
+      ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
     });
   }
 
@@ -75,34 +74,6 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
     });
   }
 
-  void _startConditionChecking() {
-    // Check conditions every 2 seconds
-    _conditionCheckTimer = Timer.periodic(const Duration(seconds: 2), (
-      timer,
-    ) async {
-      if (_isGameCompleted) return;
-
-      final results = await ref
-          .read(scenarioProvider.notifier)
-          .checkSuccessConditions(ref);
-
-      appLogger.d('[GamePlayScreen] Condition check results: $results');
-
-      // Only check if we have conditions
-      if (results.isNotEmpty) {
-        final allPassed = results.values.every((passed) => passed);
-        appLogger.d('[GamePlayScreen] All conditions passed: $allPassed');
-
-        if (allPassed) {
-          appLogger.i(
-            '[GamePlayScreen] Game completed! Showing success screen...',
-          );
-          _onGameCompleted();
-        }
-      }
-    });
-  }
-
   void _onGameCompleted() {
     appLogger.i('[GamePlayScreen] _onGameCompleted called');
 
@@ -110,10 +81,9 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
       _isGameCompleted = true;
     });
 
-    _conditionCheckTimer?.cancel();
     _gameTimer?.cancel();
 
-    appLogger.d('[GamePlayScreen] Timers cancelled, showing dialog...');
+    appLogger.d('[GamePlayScreen] Timer cancelled, showing dialog...');
 
     // Ensure we're still mounted before showing dialog
     if (!mounted) {
@@ -144,6 +114,22 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
     final transformationController = ref.watch(
       canvasTransformationControllerProvider,
     );
+
+    // Listen to condition checker state changes
+    ref.listen<GameConditionState>(gameConditionCheckerProvider, (
+      previous,
+      next,
+    ) {
+      // Check if game is completed and not already showing dialog
+      if (!_isGameCompleted &&
+          next.allConditionsPassed &&
+          next.conditionResults.isNotEmpty) {
+        appLogger.i(
+          '[GamePlayScreen] All conditions passed! Showing success screen...',
+        );
+        _onGameCompleted();
+      }
+    });
 
     return Scaffold(
       body: SafeArea(
@@ -265,6 +251,8 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   }
 
   Widget _buildObjectivesList() {
+    final conditionState = ref.watch(gameConditionCheckerProvider);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -272,7 +260,11 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
       ),
-      child: GameObjectivesList(conditions: widget.scenario.successConditions),
+      child: GameObjectivesList(
+        conditions: widget.scenario.successConditions,
+        results: conditionState.conditionResults,
+        showStatus: true,
+      ),
     );
   }
 
