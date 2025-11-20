@@ -10,7 +10,6 @@ import 'package:netsim_mobile/features/game/presentation/providers/game_conditio
 import 'package:netsim_mobile/features/game/presentation/widgets/game_timer.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/success_screen.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/game_objectives_list.dart';
-import 'package:netsim_mobile/features/game/presentation/widgets/property_bottom_panel.dart';
 import 'package:netsim_mobile/core/utils/canvas_lifecycle_manager.dart';
 import 'package:netsim_mobile/core/utils/controller_validator.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
@@ -29,6 +28,8 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   int _elapsedSeconds = 0;
   bool _isGameCompleted = false;
   bool _isPaused = false;
+  bool _showPropertiesPanel = false;
+  bool _showSpeedDial = false;
 
   @override
   void initState() {
@@ -204,8 +205,12 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
             ),
           ),
 
-        // Bottom panel with device properties
-        Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomPanel()),
+        // Bottom panel with device properties (conditionally shown)
+        if (_showPropertiesPanel)
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomPanel()),
+
+        // Floating Action Button with Speed Dial
+        if (!_showPropertiesPanel) _buildFloatingActionButton(),
       ],
     );
   }
@@ -314,10 +319,153 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   }
 
   Widget _buildBottomPanel() {
-    return PropertyBottomPanel(
-      title: 'Device Properties',
-      subtitle: 'Actions based on rules',
-      child: const ContextualEditor(simulationMode: true),
+    return Container(
+      height: 300,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header with close button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.2),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.settings,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Device Properties',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      Text(
+                        'Actions based on rules',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    setState(() {
+                      _showPropertiesPanel = false;
+                    });
+                  },
+                  tooltip: 'Close',
+                ),
+              ],
+            ),
+          ),
+          // Content
+          const Expanded(child: ContextualEditor(simulationMode: true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingActionButton() {
+    return Positioned(
+      right: 16,
+      bottom: 16,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Speed dial options (shown when FAB is tapped)
+          if (_showSpeedDial) ...[
+            _buildSpeedDialOption(
+              icon: Icons.settings,
+              label: 'Device Properties',
+              onTap: () {
+                setState(() {
+                  _showSpeedDial = false;
+                  _showPropertiesPanel = true;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+          // Main FAB
+          FloatingActionButton(
+            onPressed: () {
+              setState(() {
+                _showSpeedDial = !_showSpeedDial;
+              });
+            },
+            child: AnimatedRotation(
+              turns: _showSpeedDial ? 0.125 : 0, // 45 degrees when open
+              duration: const Duration(milliseconds: 200),
+              child: Icon(_showSpeedDial ? Icons.close : Icons.menu),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeedDialOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Label
+        Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
+          color: Theme.of(context).colorScheme.surface,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Icon button
+        FloatingActionButton.small(
+          onPressed: onTap,
+          heroTag: label,
+          child: Icon(icon),
+        ),
+      ],
     );
   }
 
