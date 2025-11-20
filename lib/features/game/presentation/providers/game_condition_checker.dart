@@ -73,12 +73,11 @@ class GameConditionChecker extends Notifier<GameConditionState> {
 
   /// Internal method to perform the actual condition check
   Future<void> _performConditionCheck() async {
-    // Check if we're in simulation mode
+    // Only skip condition checks in edit mode
+    // Allow checks in simulation mode (scenario editor testing AND game play)
     final scenarioState = ref.read(scenarioProvider);
-    if (scenarioState.mode != ScenarioMode.simulation) {
-      appLogger.d(
-        '[GameConditionChecker] Not in simulation mode, skipping check',
-      );
+    if (scenarioState.mode == ScenarioMode.edit) {
+      appLogger.d('[GameConditionChecker] In edit mode, skipping check');
       return;
     }
 
