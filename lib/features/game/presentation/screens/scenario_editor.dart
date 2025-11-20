@@ -11,13 +11,11 @@ import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canva
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_minimap.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/devices/presentation/widgets/device_palette.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/widgets/scenario_bottom_panel.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/conditions_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/mode_header_widget.dart';
-import 'package:netsim_mobile/features/game/presentation/widgets/property_bottom_panel.dart';
 import 'package:netsim_mobile/core/utils/canvas_lifecycle_manager.dart';
 import 'package:netsim_mobile/core/utils/controller_validator.dart';
 
@@ -30,11 +28,24 @@ class ScenarioEditor extends ConsumerStatefulWidget {
   ConsumerState<ScenarioEditor> createState() => _ScenarioEditorState();
 }
 
+/// Enum for different bottom panel types
+enum BottomPanelType {
+  addDevice,
+  deviceProperties,
+  scenarioProperties,
+  conditionsEditor,
+}
+
 class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
   // Save notifier references for safe disposal
   CanvasNotifier? _canvasNotifier;
   ScenarioNotifier? _scenarioNotifier;
   CanvasTransformationNotifier? _transformationNotifier;
+
+  // FAB and panel state
+  bool _showBottomPanel = false;
+  bool _showSpeedDial = false;
+  BottomPanelType? _currentPanelType;
 
   @override
   void initState() {
@@ -70,6 +81,21 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
     );
     final scenarioState = ref.watch(scenarioProvider);
     final canvasState = ref.watch(canvasProvider);
+
+    // Listen for mode changes and close panels
+    ref.listen<ScenarioState>(scenarioProvider, (previous, next) {
+      if (previous?.mode != next.mode) {
+        // Close any open panels when mode changes
+        if (_showBottomPanel) {
+          _closePanel();
+        }
+        if (_showSpeedDial) {
+          setState(() {
+            _showSpeedDial = false;
+          });
+        }
+      }
+    });
 
     return Scaffold(
       body: SafeArea(
@@ -111,12 +137,12 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
             ),
           ),
 
-        // Bottom panel with tabs (devices, properties, conditions)
-        ScenarioBottomPanel(
-          devicesContent: const DevicePalette(),
-          propertiesContent: const ContextualEditor(),
-          conditionsContent: const ConditionsEditor(),
-        ),
+        // Conditional bottom panel
+        if (_showBottomPanel && _currentPanelType != null)
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildCurrentPanel()),
+
+        // FAB (hidden when panel is open)
+        if (!_showBottomPanel) _buildFloatingActionButton(),
       ],
     );
   }
@@ -332,17 +358,13 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
             ),
           ),
 
-        // Bottom panel with contextual editor (properties only)
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: PropertyBottomPanel(
-            title: 'Device Properties',
-            showReadOnlyWarning: true,
-            child: const ContextualEditor(simulationMode: true),
-          ),
-        ),
+        // Conditional bottom panel
+        if (_showBottomPanel &&
+            _currentPanelType == BottomPanelType.deviceProperties)
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildCurrentPanel()),
+
+        // FAB (hidden when panel is open)
+        if (!_showBottomPanel) _buildFloatingActionButton(),
       ],
     );
   }
@@ -606,6 +628,232 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
       ),
     );
   }
+
+  // ============ FAB AND PANEL MANAGEMENT ============
+
+  Widget _buildFloatingActionButton() {
+    return Positioned(
+      right: 16,
+      bottom: 16,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Speed dial options (shown when FAB is tapped)
+          if (_showSpeedDial) ...[
+            _buildSpeedDialOptions(),
+            const SizedBox(height: 12),
+          ],
+          // Main FAB
+          FloatingActionButton(
+            onPressed: () {
+              setState(() {
+                _showSpeedDial = !_showSpeedDial;
+              });
+            },
+            child: AnimatedRotation(
+              turns: _showSpeedDial ? 0.125 : 0, // 45 degrees when open
+              duration: const Duration(milliseconds: 200),
+              child: Icon(_showSpeedDial ? Icons.close : Icons.menu),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeedDialOptions() {
+    final scenarioState = ref.watch(scenarioProvider);
+
+    if (scenarioState.mode == ScenarioMode.simulation) {
+      // Simulation mode: Only device properties
+      return _buildSpeedDialOption(
+        icon: Icons.settings,
+        label: 'Device Properties',
+        onTap: () => _openPanel(BottomPanelType.deviceProperties),
+      );
+    } else {
+      // Edit mode: All 4 options
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _buildSpeedDialOption(
+            icon: Icons.add_circle,
+            label: 'Add Device',
+            onTap: () => _openPanel(BottomPanelType.addDevice),
+          ),
+          const SizedBox(height: 12),
+          _buildSpeedDialOption(
+            icon: Icons.settings,
+            label: 'Device Properties',
+            onTap: () => _openPanel(BottomPanelType.deviceProperties),
+          ),
+          const SizedBox(height: 12),
+          _buildSpeedDialOption(
+            icon: Icons.edit_note,
+            label: 'Scenario Properties',
+            onTap: () => _openPanel(BottomPanelType.scenarioProperties),
+          ),
+          const SizedBox(height: 12),
+          _buildSpeedDialOption(
+            icon: Icons.flag,
+            label: 'Conditions',
+            onTap: () => _openPanel(BottomPanelType.conditionsEditor),
+          ),
+        ],
+      );
+    }
+  }
+
+  Widget _buildSpeedDialOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Label
+        Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
+          color: Theme.of(context).colorScheme.surface,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Icon button
+        FloatingActionButton.small(
+          onPressed: onTap,
+          heroTag: label,
+          child: Icon(icon),
+        ),
+      ],
+    );
+  }
+
+  void _openPanel(BottomPanelType type) {
+    setState(() {
+      _currentPanelType = type;
+      _showBottomPanel = true;
+      _showSpeedDial = false; // Close speed dial
+    });
+  }
+
+  void _closePanel() {
+    setState(() {
+      _showBottomPanel = false;
+      _currentPanelType = null;
+    });
+  }
+
+  Widget _buildCurrentPanel() {
+    if (_currentPanelType == null) return const SizedBox.shrink();
+
+    final scenarioState = ref.watch(scenarioProvider);
+
+    switch (_currentPanelType!) {
+      case BottomPanelType.addDevice:
+        return _buildPanelWrapper(
+          title: 'Add Device',
+          icon: Icons.add_circle,
+          child: const DevicePalette(),
+        );
+      case BottomPanelType.deviceProperties:
+        return _buildPanelWrapper(
+          title: 'Device Properties',
+          icon: Icons.settings,
+          child: ContextualEditor(
+            simulationMode: scenarioState.mode == ScenarioMode.simulation,
+          ),
+        );
+      case BottomPanelType.scenarioProperties:
+        return _buildPanelWrapper(
+          title: 'Scenario Properties',
+          icon: Icons.edit_note,
+          child: const ContextualEditor(), // Will show scenario properties
+        );
+      case BottomPanelType.conditionsEditor:
+        return _buildPanelWrapper(
+          title: 'Success Conditions',
+          icon: Icons.flag,
+          child: const ConditionsEditor(),
+        );
+    }
+  }
+
+  Widget _buildPanelWrapper({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Container(
+      height: 400,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header with close button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.2),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _closePanel,
+                  tooltip: 'Close',
+                ),
+              ],
+            ),
+          ),
+          // Content
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
+  // ============ CLEANUP METHODS ============
 
   /// Comprehensive cleanup method to dispose resources and clear state
   void _performCleanup() {
