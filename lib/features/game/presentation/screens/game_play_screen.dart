@@ -151,13 +151,13 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   Widget _buildGameUI(TransformationController? transformationController) {
     return Stack(
       children: [
-        // Game header with timer and scenario info
+        // Compact game header with controls
         Positioned(top: 0, left: 0, right: 0, child: _buildGameHeader()),
 
-        // Minimap
+        // Minimap (adjusted position for smaller header)
         if (ControllerValidator.isValid(transformationController))
           Positioned(
-            top: 180,
+            top: 90,
             right: 16,
             child: CanvasMinimap(
               transformationController: transformationController!,
@@ -172,98 +172,106 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   }
 
   Widget _buildGameHeader() {
+    final conditionState = ref.watch(gameConditionCheckerProvider);
+    final totalConditions = widget.scenario.successConditions.length;
+    final passedConditions = conditionState.passedCount;
+
     return Container(
       margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(12),
         color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          _buildHeaderRow(),
-          const SizedBox(height: 12),
-          Text(
-            widget.scenario.title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          // PLAYING badge (left, isolated)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.green.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.play_circle, size: 18, color: Colors.green.shade700),
+                const SizedBox(width: 6),
+                Text(
+                  'PLAYING',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green.shade700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            widget.scenario.description,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+          const Spacer(),
+          // Timer (right side with better styling)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: GameTimer(elapsedSeconds: _elapsedSeconds),
           ),
-          const SizedBox(height: 12),
-          _buildObjectivesList(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeaderRow() {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.green.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.play_circle, size: 16, color: Colors.green),
-              const SizedBox(width: 4),
-              Text(
-                'PLAYING',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
+          const SizedBox(width: 8),
+          // Info button showing condition progress
+          Material(
+            color: Colors.orange.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+            child: InkWell(
+              onTap: _showGameInfo,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$passedConditions/$totalConditions',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-        const Spacer(),
-        GameTimer(elapsedSeconds: _elapsedSeconds),
-        const SizedBox(width: 12),
-        IconButton(
-          onPressed: _showPauseMenu,
-          icon: const Icon(Icons.pause),
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.grey.withValues(alpha: 0.2),
+          const SizedBox(width: 8),
+          // Pause button
+          IconButton(
+            onPressed: _showPauseMenu,
+            icon: const Icon(Icons.pause, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.grey.withValues(alpha: 0.15),
+              padding: const EdgeInsets.all(8),
+            ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildObjectivesList() {
-    final conditionState = ref.watch(gameConditionCheckerProvider);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
-      ),
-      child: GameObjectivesList(
-        conditions: widget.scenario.successConditions,
-        results: conditionState.conditionResults,
-        showStatus: true,
+        ],
       ),
     );
   }
@@ -273,6 +281,93 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
       title: 'Device Properties',
       subtitle: 'Actions based on rules',
       child: const ContextualEditor(simulationMode: true),
+    );
+  }
+
+  void _showGameInfo() {
+    final conditionState = ref.read(gameConditionCheckerProvider);
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Icon(
+                    Icons.gamepad,
+                    size: 24,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.scenario.title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Description
+              Text(
+                widget.scenario.description,
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 24),
+              // Objectives header
+              Row(
+                children: [
+                  Icon(
+                    Icons.flag,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Objectives',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Objectives list with real-time status
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                ),
+                child: GameObjectivesList(
+                  conditions: widget.scenario.successConditions,
+                  results: conditionState.conditionResults,
+                  showStatus: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
