@@ -52,6 +52,25 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
     appLogger.d('[GamePlayScreen] Game state cleaned up');
   }
 
+  void _replayGame() {
+    appLogger.i('[GamePlayScreen] Replaying game...');
+
+    // Reset game state
+    setState(() {
+      _elapsedSeconds = 0;
+      _isGameCompleted = false;
+      _isPaused = false;
+    });
+
+    // Clean up previous game state
+    _cleanupGameState();
+
+    // Reinitialize the game
+    _initializeGame();
+
+    appLogger.d('[GamePlayScreen] Game replayed successfully');
+  }
+
   void _initializeGame() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // Load the scenario into the scenario provider
@@ -116,6 +135,10 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
             _cleanupGameState();
             Navigator.of(context).pop(); // Close success dialog
             Navigator.of(context).pop(); // Return to game screen
+          },
+          onReplay: () {
+            Navigator.of(context).pop(); // Close success dialog
+            _replayGame(); // Restart the game
           },
         );
       },

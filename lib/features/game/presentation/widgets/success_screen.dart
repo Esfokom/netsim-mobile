@@ -6,12 +6,14 @@ class SuccessScreen extends StatefulWidget {
   final NetworkScenario scenario;
   final int completionTime;
   final VoidCallback onContinue;
+  final VoidCallback? onReplay;
 
   const SuccessScreen({
     super.key,
     required this.scenario,
     required this.completionTime,
     required this.onContinue,
+    this.onReplay,
   });
 
   @override
@@ -183,10 +185,7 @@ class _SuccessScreenState extends State<SuccessScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () {
-                          // TODO: Implement replay functionality
-                          widget.onContinue();
-                        },
+                        onPressed: widget.onReplay ?? widget.onContinue,
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
