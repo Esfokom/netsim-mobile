@@ -11,9 +11,9 @@ class GameTimer extends StatelessWidget {
     final seconds = elapsedSeconds % 60;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.2),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
       ),
@@ -25,9 +25,9 @@ class GameTimer extends StatelessWidget {
           Text(
             '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
+              color: Colors.black,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),

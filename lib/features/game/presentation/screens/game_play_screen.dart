@@ -157,7 +157,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
         // Minimap (adjusted position for smaller header)
         if (ControllerValidator.isValid(transformationController))
           Positioned(
-            top: 90,
+            top: 100,
             right: 16,
             child: CanvasMinimap(
               transformationController: transformationController!,
@@ -181,6 +181,10 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.inverseSurface,
+          width: 2,
+        ),
         color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
@@ -201,6 +205,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Icon(Icons.play_circle, size: 18, color: Colors.green.shade700),
                 const SizedBox(width: 6),
@@ -218,14 +223,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
           ),
           const Spacer(),
           // Timer (right side with better styling)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: GameTimer(elapsedSeconds: _elapsedSeconds),
-          ),
+          GameTimer(elapsedSeconds: _elapsedSeconds),
           const SizedBox(width: 8),
           // Info button showing condition progress
           Material(

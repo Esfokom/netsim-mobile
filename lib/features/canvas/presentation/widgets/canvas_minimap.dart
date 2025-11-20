@@ -84,7 +84,7 @@ class _CanvasMinimapState extends ConsumerState<CanvasMinimap> {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+          color: Theme.of(context).colorScheme.outline,
           width: 2,
         ),
         borderRadius: BorderRadius.circular(8),
