@@ -95,6 +95,9 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   }
 
   void _startGameTimer() {
+    // Cancel any existing timer before starting a new one
+    _gameTimer?.cancel();
+
     _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isGameCompleted && !_isPaused) {
         setState(() {
@@ -463,50 +466,30 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        // Time spent
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.blue.withValues(alpha: 0.3),
+                        // Time display - compact version
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.timer_outlined,
+                              size: 18,
+                              color: Colors.blue.shade700,
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.timer,
-                                size: 20,
+                            const SizedBox(width: 6),
+                            Text(
+                              timeString,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                                 color: Colors.blue.shade700,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Time Spent: ',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade700,
-                                ),
-                              ),
-                              Text(
-                                timeString,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade700,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
                         // Scenario info
                         Container(
                           padding: const EdgeInsets.all(16),
@@ -654,7 +637,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
               ),
               // Fixed buttons at bottom
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.grey.withValues(alpha: 0.05),
                   border: Border(
@@ -664,67 +647,104 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
                     ),
                   ),
                 ),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Resume button
-                    Expanded(
-                      child: ElevatedButton.icon(
+                    // Reset button (full width, prominent)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
                         onPressed: () {
-                          setState(() {
-                            _isPaused = false;
-                          });
-                          Navigator.pop(context);
+                          Navigator.pop(context); // Close dialog
+                          _replayGame(); // Reset and restart
                         },
-                        icon: const Icon(Icons.play_arrow, size: 24),
+                        icon: const Icon(Icons.refresh, size: 22),
                         label: const Text(
-                          'RESUME',
+                          'RESET GAME',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
+                            letterSpacing: 0.8,
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue.shade700,
+                          side: BorderSide(
+                            color: Colors.blue.shade700,
+                            width: 2,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    // Quit button
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _isPaused = false;
-                          });
-                          // Clean up state before quitting
-                          _cleanupGameState();
-                          Navigator.pop(context); // Close pause dialog
-                          Navigator.pop(context); // Return to game screen
-                        },
-                        icon: const Icon(Icons.exit_to_app, size: 24),
-                        label: const Text(
-                          'QUIT',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
+                    const SizedBox(height: 12),
+                    // Resume and Quit buttons (side by side)
+                    Row(
+                      children: [
+                        // Resume button
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _isPaused = false;
+                              });
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.play_arrow, size: 22),
+                            label: const Text(
+                              'RESUME',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
                           ),
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        const SizedBox(width: 10),
+                        // Quit button
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _isPaused = false;
+                              });
+                              // Clean up state before quitting
+                              _cleanupGameState();
+                              Navigator.pop(context); // Close pause dialog
+                              Navigator.pop(context); // Return to game screen
+                            },
+                            icon: const Icon(Icons.exit_to_app, size: 22),
+                            label: const Text(
+                              'QUIT',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
