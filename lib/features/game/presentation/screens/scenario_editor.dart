@@ -13,6 +13,7 @@ import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_prov
 import 'package:netsim_mobile/features/devices/presentation/widgets/device_palette.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/conditions_editor.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/scenario_properties_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/mode_header_widget.dart';
@@ -777,7 +778,7 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
         return _buildPanelWrapper(
           title: 'Scenario Properties',
           icon: Icons.edit_note,
-          child: const ContextualEditor(), // Will show scenario properties
+          child: const ScenarioPropertiesEditor(),
         );
       case BottomPanelType.conditionsEditor:
         return _buildPanelWrapper(
