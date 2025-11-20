@@ -110,11 +110,11 @@ class MainMenu extends StatelessWidget {
                             const SizedBox(width: 16),
                             Expanded(
                               child: _CompactActionCard(
-                                icon: Icons.description,
-                                title: "Logs",
-                                color: Colors.teal,
+                                icon: Icons.settings,
+                                title: "Settings",
+                                color: Colors.blueGrey,
                                 onPressed: () =>
-                                    Navigator.pushNamed(context, "/logs"),
+                                    Navigator.pushNamed(context, "/settings"),
                               ),
                             ),
                           ],
