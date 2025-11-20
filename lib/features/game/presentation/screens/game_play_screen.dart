@@ -798,7 +798,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Reset button (full width, prominent)
+                    // Reset button (full width)
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
@@ -819,6 +819,37 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
                           foregroundColor: Colors.blue.shade700,
                           side: BorderSide(
                             color: Colors.blue.shade700,
+                            width: 2,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Settings button (full width)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context); // Close pause dialog
+                          Navigator.pushNamed(context, '/settings');
+                        },
+                        icon: const Icon(Icons.settings, size: 22),
+                        label: const Text(
+                          'SETTINGS',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blueGrey.shade700,
+                          side: BorderSide(
+                            color: Colors.blueGrey.shade700,
                             width: 2,
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
