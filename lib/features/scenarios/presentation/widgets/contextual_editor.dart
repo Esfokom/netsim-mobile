@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
-import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenario.dart';
 import 'package:netsim_mobile/features/scenarios/domain/entities/device_rule.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_rules_editor.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
@@ -25,20 +24,6 @@ class ContextualEditor extends ConsumerStatefulWidget {
 }
 
 class _ContextualEditorState extends ConsumerState<ContextualEditor> {
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  String _pendingTitle = '';
-  String _pendingDescription = '';
-  bool _isTitleEditing = false;
-  bool _isDescriptionEditing = false;
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final scenarioState = ref.watch(scenarioProvider);
@@ -97,217 +82,34 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       // Show device properties editor
       return _buildDevicePropertiesEditor(selectedDevice);
     } else {
-      // Show scenario metadata editor
-      return _buildScenarioMetadataEditor(scenarioState.scenario);
-    }
-  }
-
-  Widget _buildScenarioMetadataEditor(NetworkScenario scenario) {
-    // Initialize controllers with current values if not editing
-    if (!_isTitleEditing && _titleController.text != scenario.title) {
-      _titleController.text = scenario.title;
-      _pendingTitle = scenario.title;
-    }
-    if (!_isDescriptionEditing &&
-        _descriptionController.text != scenario.description) {
-      _descriptionController.text = scenario.description;
-      _pendingDescription = scenario.description;
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Scenario Settings',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-
-          // Title with validation
-          Text(
-            'Title',
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Row(
+      // Show "no device selected" message
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: TextField(
-                  controller: _titleController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter scenario title',
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                    errorText: _isTitleEditing && _pendingTitle.trim().isEmpty
-                        ? 'Title cannot be empty'
-                        : null,
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _pendingTitle = value;
-                      _isTitleEditing = true;
-                    });
-                  },
+              Icon(Icons.touch_app, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(
+                'No Device Selected',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
                 ),
               ),
-              if (_isTitleEditing) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.check, color: Colors.green),
-                  onPressed: _pendingTitle.trim().isEmpty
-                      ? null
-                      : () {
-                          ref
-                              .read(scenarioProvider.notifier)
-                              .updateMetadata(title: _pendingTitle.trim());
-                          setState(() => _isTitleEditing = false);
-                        },
-                  tooltip: 'Accept',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.red),
-                  onPressed: () {
-                    setState(() {
-                      _titleController.text = scenario.title;
-                      _pendingTitle = scenario.title;
-                      _isTitleEditing = false;
-                    });
-                  },
-                  tooltip: 'Cancel',
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Description with validation
-          Text(
-            'Description',
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _descriptionController,
-                decoration: InputDecoration(
-                  hintText: 'Enter scenario description',
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                  errorText:
-                      _isDescriptionEditing &&
-                          _pendingDescription.trim().isEmpty
-                      ? 'Description cannot be empty'
-                      : null,
-                ),
-                maxLines: 3,
-                onChanged: (value) {
-                  setState(() {
-                    _pendingDescription = value;
-                    _isDescriptionEditing = true;
-                  });
-                },
+              const SizedBox(height: 8),
+              Text(
+                'Tap on a device on the canvas to view and edit its properties',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
               ),
-              if (_isDescriptionEditing) ...[
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      icon: const Icon(Icons.close, size: 16),
-                      label: const Text('Cancel'),
-                      onPressed: () {
-                        setState(() {
-                          _descriptionController.text = scenario.description;
-                          _pendingDescription = scenario.description;
-                          _isDescriptionEditing = false;
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.check, size: 16),
-                      label: const Text('Accept'),
-                      onPressed: _pendingDescription.trim().isEmpty
-                          ? null
-                          : () {
-                              ref
-                                  .read(scenarioProvider.notifier)
-                                  .updateMetadata(
-                                    description: _pendingDescription.trim(),
-                                  );
-                              setState(() => _isDescriptionEditing = false);
-                            },
-                    ),
-                  ],
-                ),
-              ],
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Difficulty with icon buttons
-          Text(
-            'Difficulty',
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: ScenarioDifficulty.values.map((difficulty) {
-              final isSelected = scenario.difficulty == difficulty;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: _DifficultyButton(
-                    difficulty: difficulty,
-                    isSelected: isSelected,
-                    onTap: () {
-                      ref
-                          .read(scenarioProvider.notifier)
-                          .updateMetadata(difficulty: difficulty);
-                    },
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-
-          // Info card
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, size: 20, color: Colors.blue),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Click on a device on the canvas to edit its properties',
-                    style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+        ),
+      );
+    }
   }
 
   Widget _buildDevicePropertiesEditor(
@@ -1608,83 +1410,5 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   /// Since both now use the same DeviceStatus enum from devices domain, just return as-is
   network.DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
     return networkStatus;
-  }
-}
-
-/// Difficulty button widget
-class _DifficultyButton extends StatelessWidget {
-  final ScenarioDifficulty difficulty;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _DifficultyButton({
-    required this.difficulty,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  IconData _getIcon() {
-    switch (difficulty) {
-      case ScenarioDifficulty.easy:
-        return Icons.sentiment_satisfied;
-      case ScenarioDifficulty.medium:
-        return Icons.sentiment_neutral;
-      case ScenarioDifficulty.hard:
-        return Icons.sentiment_very_dissatisfied;
-    }
-  }
-
-  Color _getColor() {
-    switch (difficulty) {
-      case ScenarioDifficulty.easy:
-        return Colors.green;
-      case ScenarioDifficulty.medium:
-        return Colors.orange;
-      case ScenarioDifficulty.hard:
-        return Colors.red;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _getColor();
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? color.withValues(alpha: 0.1)
-              : Colors.grey.withValues(alpha: 0.05),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _getIcon(),
-              size: 32,
-              color: isSelected ? color : Colors.grey.shade600,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              difficulty.displayName,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? color : Colors.grey.shade700,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
