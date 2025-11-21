@@ -203,42 +203,54 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
     return state.scenario.deviceRules[deviceId] ?? [];
   }
 
-  /// Check if an action is allowed in simulation mode
+  /// Get the permission level for a specific property or action
+  PropertyPermission getPropertyPermission(
+    String deviceId,
+    DeviceActionType actionType, {
+    String? propertyId,
+  }) {
+    // In edit mode, everything is editable
+    if (state.mode == ScenarioMode.edit) return PropertyPermission.editable;
+
+    final rules = getDeviceRules(deviceId);
+
+    // Find the most specific rule for this action/property
+    DeviceRule? matchingRule;
+
+    for (final rule in rules) {
+      if (rule.actionType == actionType) {
+        // For editProperty actions, check if propertyId matches
+        if (actionType == DeviceActionType.editProperty) {
+          if (rule.propertyId == propertyId) {
+            matchingRule = rule;
+            break; // Exact match found
+          } else if (rule.propertyId == null && matchingRule == null) {
+            matchingRule = rule; // Wildcard match (applies to all properties)
+          }
+        } else {
+          matchingRule = rule;
+          break;
+        }
+      }
+    }
+
+    // Return the permission from the matching rule, or denied by default
+    return matchingRule?.permission ?? PropertyPermission.denied;
+  }
+
+  /// Check if an action is allowed (editable) in simulation mode
+  /// This is a convenience method for backward compatibility
   bool isActionAllowed(
     String deviceId,
     DeviceActionType actionType, {
     String? propertyId,
   }) {
-    if (state.mode != ScenarioMode.simulation) return true;
-
-    final rules = getDeviceRules(deviceId);
-    if (rules.isEmpty) {
-      // No rules means no actions allowed by default
-      return false;
-    }
-
-    // Check for deny rules first
-    final hasDenyRule = rules.any(
-      (rule) =>
-          rule.type == RuleType.deny &&
-          rule.actionType == actionType &&
-          (actionType != DeviceActionType.editProperty ||
-              rule.propertyId == propertyId),
+    final permission = getPropertyPermission(
+      deviceId,
+      actionType,
+      propertyId: propertyId,
     );
-
-    if (hasDenyRule) return false;
-
-    // Check for allow rules
-    final hasAllowRule = rules.any(
-      (rule) =>
-          rule.type == RuleType.allow &&
-          rule.actionType == actionType &&
-          (actionType != DeviceActionType.editProperty ||
-              rule.propertyId == propertyId ||
-              rule.propertyId == null),
-    );
-
-    return hasAllowRule;
+    return permission == PropertyPermission.editable;
   }
 
   /// Select a device for editing

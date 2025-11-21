@@ -11,34 +11,41 @@ enum DeviceActionType {
   removeLink,
 }
 
-/// Rule types
+/// Property permission levels
+/// - denied: Property is completely hidden from view
+/// - readonly: Property is visible but cannot be edited
+/// - editable: Property is visible and can be edited
+enum PropertyPermission { denied, readonly, editable }
+
+/// Legacy rule types for backward compatibility
+@Deprecated('Use PropertyPermission instead')
 enum RuleType { allow, deny }
 
 /// A rule that controls what actions can be performed on a device in simulation
 @immutable
 class DeviceRule {
   final String id;
-  final RuleType type;
+  final PropertyPermission permission;
   final DeviceActionType actionType;
   final String?
   propertyId; // Specific property ID if actionType is editProperty
 
   const DeviceRule({
     required this.id,
-    required this.type,
+    required this.permission,
     required this.actionType,
     this.propertyId,
   });
 
   DeviceRule copyWith({
     String? id,
-    RuleType? type,
+    PropertyPermission? permission,
     DeviceActionType? actionType,
     String? propertyId,
   }) {
     return DeviceRule(
       id: id ?? this.id,
-      type: type ?? this.type,
+      permission: permission ?? this.permission,
       actionType: actionType ?? this.actionType,
       propertyId: propertyId ?? this.propertyId,
     );
@@ -47,15 +54,33 @@ class DeviceRule {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'type': type.name.toUpperCase(),
+      'permission': permission.name.toUpperCase(),
       'actionType': actionType.name.toUpperCase(),
       if (propertyId != null) 'propertyId': propertyId,
     };
   }
 
   factory DeviceRule.fromJson(Map<String, dynamic> json) {
-    final typeStr = json['type'].toString().toLowerCase();
-    final type = typeStr == 'allow' ? RuleType.allow : RuleType.deny;
+    // Handle backward compatibility: convert old 'type' to 'permission'
+    PropertyPermission permission;
+    if (json.containsKey('permission')) {
+      final permissionStr = json['permission'].toString().toLowerCase();
+      permission = PropertyPermission.values.firstWhere(
+        (e) => e.name.toLowerCase() == permissionStr,
+        orElse: () => PropertyPermission.denied,
+      );
+    } else if (json.containsKey('type')) {
+      // Legacy support: convert old allow/deny to new permission model
+      final typeStr = json['type'].toString().toLowerCase();
+      if (typeStr == 'allow') {
+        permission = PropertyPermission.editable;
+      } else {
+        permission = PropertyPermission.denied;
+      }
+    } else {
+      // Default to denied if neither field exists
+      permission = PropertyPermission.denied;
+    }
 
     final actionTypeStr = json['actionType'].toString().toLowerCase();
     final actionType = DeviceActionType.values.firstWhere(
@@ -65,7 +90,7 @@ class DeviceRule {
 
     return DeviceRule(
       id: json['id'] as String,
-      type: type,
+      permission: permission,
       actionType: actionType,
       propertyId: json['propertyId'] as String?,
     );
@@ -77,7 +102,7 @@ class DeviceRule {
 
     return other is DeviceRule &&
         other.id == id &&
-        other.type == type &&
+        other.permission == permission &&
         other.actionType == actionType &&
         other.propertyId == propertyId;
   }
@@ -85,7 +110,7 @@ class DeviceRule {
   @override
   int get hashCode {
     return id.hashCode ^
-        type.hashCode ^
+        permission.hashCode ^
         actionType.hashCode ^
         propertyId.hashCode;
   }
@@ -131,6 +156,31 @@ extension DeviceActionTypeExtension on DeviceActionType {
   }
 }
 
+extension PropertyPermissionExtension on PropertyPermission {
+  String get displayName {
+    switch (this) {
+      case PropertyPermission.denied:
+        return 'Denied (Hidden)';
+      case PropertyPermission.readonly:
+        return 'Read Only';
+      case PropertyPermission.editable:
+        return 'Editable';
+    }
+  }
+
+  String get shortName {
+    switch (this) {
+      case PropertyPermission.denied:
+        return 'Denied';
+      case PropertyPermission.readonly:
+        return 'Read Only';
+      case PropertyPermission.editable:
+        return 'Editable';
+    }
+  }
+}
+
+@Deprecated('Use PropertyPermissionExtension instead')
 extension RuleTypeExtension on RuleType {
   String get displayName {
     switch (this) {

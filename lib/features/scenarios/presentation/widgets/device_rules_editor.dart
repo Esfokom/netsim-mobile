@@ -50,7 +50,7 @@ class DeviceRulesEditor extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'No rules = No actions allowed. Add allow rules to enable actions in simulation mode.',
+                  'Properties are hidden by default. Set permission to Read Only or Editable to show in simulation mode.',
                   style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
                 ),
               ),
@@ -63,7 +63,7 @@ class DeviceRulesEditor extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'No rules defined\nAll actions blocked in simulation',
+                'No permissions defined\nAll properties are hidden in simulation',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
@@ -92,33 +92,45 @@ class _RuleCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Get color based on permission level
+    Color permissionColor;
+    IconData permissionIcon;
+    switch (rule.permission) {
+      case PropertyPermission.editable:
+        permissionColor = Colors.green;
+        permissionIcon = Icons.edit;
+        break;
+      case PropertyPermission.readonly:
+        permissionColor = Colors.orange;
+        permissionIcon = Icons.visibility;
+        break;
+      case PropertyPermission.denied:
+        permissionColor = Colors.red;
+        permissionIcon = Icons.visibility_off;
+        break;
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
+            Icon(permissionIcon, size: 18, color: permissionColor),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: rule.type == RuleType.allow
-                    ? Colors.green.withValues(alpha: 0.2)
-                    : Colors.red.withValues(alpha: 0.2),
+                color: permissionColor.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: rule.type == RuleType.allow
-                      ? Colors.green
-                      : Colors.red,
-                ),
+                border: Border.all(color: permissionColor),
               ),
               child: Text(
-                rule.type.displayName,
+                rule.permission.shortName,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: rule.type == RuleType.allow
-                      ? Colors.green
-                      : Colors.red,
+                  color: permissionColor,
                 ),
               ),
             ),
@@ -171,7 +183,7 @@ class _AddRuleDialog extends ConsumerStatefulWidget {
 }
 
 class _AddRuleDialogState extends ConsumerState<_AddRuleDialog> {
-  RuleType _selectedRuleType = RuleType.allow;
+  PropertyPermission _selectedPermission = PropertyPermission.editable;
   DeviceActionType _selectedActionType = DeviceActionType.editProperty;
   String? _selectedPropertyId;
 
@@ -189,24 +201,44 @@ class _AddRuleDialogState extends ConsumerState<_AddRuleDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Rule Type Toggle
+            // Permission Level Selector
+            const Text(
+              'Permission Level',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
-                  child: _RuleTypeButton(
-                    type: RuleType.allow,
-                    isSelected: _selectedRuleType == RuleType.allow,
-                    onTap: () =>
-                        setState(() => _selectedRuleType = RuleType.allow),
+                  child: _PermissionButton(
+                    permission: PropertyPermission.denied,
+                    isSelected:
+                        _selectedPermission == PropertyPermission.denied,
+                    onTap: () => setState(
+                      () => _selectedPermission = PropertyPermission.denied,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: _RuleTypeButton(
-                    type: RuleType.deny,
-                    isSelected: _selectedRuleType == RuleType.deny,
-                    onTap: () =>
-                        setState(() => _selectedRuleType = RuleType.deny),
+                  child: _PermissionButton(
+                    permission: PropertyPermission.readonly,
+                    isSelected:
+                        _selectedPermission == PropertyPermission.readonly,
+                    onTap: () => setState(
+                      () => _selectedPermission = PropertyPermission.readonly,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _PermissionButton(
+                    permission: PropertyPermission.editable,
+                    isSelected:
+                        _selectedPermission == PropertyPermission.editable,
+                    onTap: () => setState(
+                      () => _selectedPermission = PropertyPermission.editable,
+                    ),
                   ),
                 ),
               ],
@@ -309,7 +341,7 @@ class _AddRuleDialogState extends ConsumerState<_AddRuleDialog> {
   void _saveRule() {
     final rule = DeviceRule(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      type: _selectedRuleType,
+      permission: _selectedPermission,
       actionType: _selectedActionType,
       propertyId: _selectedPropertyId,
     );
@@ -319,30 +351,45 @@ class _AddRuleDialogState extends ConsumerState<_AddRuleDialog> {
   }
 }
 
-/// Rule type toggle button
-class _RuleTypeButton extends StatelessWidget {
-  final RuleType type;
+/// Permission level toggle button
+class _PermissionButton extends StatelessWidget {
+  final PropertyPermission permission;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _RuleTypeButton({
-    required this.type,
+  const _PermissionButton({
+    required this.permission,
     required this.isSelected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = type == RuleType.allow ? Colors.green : Colors.red;
+    Color color;
+    IconData icon;
+    switch (permission) {
+      case PropertyPermission.editable:
+        color = Colors.green;
+        icon = Icons.edit;
+        break;
+      case PropertyPermission.readonly:
+        color = Colors.orange;
+        icon = Icons.visibility;
+        break;
+      case PropertyPermission.denied:
+        color = Colors.red;
+        icon = Icons.visibility_off;
+        break;
+    }
 
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? color.withValues(alpha: 0.1)
+              ? color.withValues(alpha: 0.15)
               : Colors.grey.withValues(alpha: 0.05),
           border: Border.all(
             color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
@@ -354,19 +401,20 @@ class _RuleTypeButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              type == RuleType.allow ? Icons.check_circle : Icons.block,
-              size: 32,
+              icon,
+              size: 24,
               color: isSelected ? color : Colors.grey.shade600,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
-              type.displayName,
+              permission.shortName,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 color: isSelected ? color : Colors.grey.shade700,
               ),
               textAlign: TextAlign.center,
+              maxLines: 2,
             ),
           ],
         ),

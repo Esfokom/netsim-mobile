@@ -608,7 +608,26 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+
+          // Basic Properties Section (Compact with Dialog Editing)
+          if (!simulationMode) ...[
+            Text(
+              'Basic Properties',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildCompactPropertyCard(
+              context,
+              device,
+              canvasState,
+              canvasNotifier,
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Device-Specific Actions (from NetworkDevice)
           if (networkDevice != null) ...[
@@ -674,6 +693,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
 
           // Simulation mode info banner
           if (simulationMode) ...[
+            const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -697,51 +717,8 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                 ],
               ),
             ),
+            const SizedBox(height: 24),
           ],
-          const SizedBox(height: 24),
-
-          // Basic Properties Section
-          Text(
-            'Basic Properties',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          _buildPropertyField('Device ID', device.id, readOnly: true),
-          const SizedBox(height: 12),
-
-          _buildPropertyField(
-            'Name',
-            device.name,
-            onChanged: (value) {
-              canvasNotifier.refreshDevice(device.id);
-            },
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: _buildPropertyField(
-                  'X Position',
-                  device.position.dx.toStringAsFixed(0),
-                  readOnly: true,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildPropertyField(
-                  'Y Position',
-                  device.position.dy.toStringAsFixed(0),
-                  readOnly: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
 
           // Network Properties Section
           if (networkDevice != null) ...[
@@ -754,16 +731,24 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
             ),
             const SizedBox(height: 12),
 
-            // Display all properties
+            // Display properties based on permission level
             ...networkDevice.properties.map((property) {
-              // Check if property editing is allowed in simulation mode
-              final canEdit =
-                  !simulationMode ||
-                  scenarioNotifier.isActionAllowed(
-                    device.id,
-                    DeviceActionType.editProperty,
-                    propertyId: property.id,
-                  );
+              // Get permission level for this property
+              final permission = simulationMode
+                  ? scenarioNotifier.getPropertyPermission(
+                      device.id,
+                      DeviceActionType.editProperty,
+                      propertyId: property.id,
+                    )
+                  : PropertyPermission.editable;
+
+              // Hide denied properties in simulation mode
+              if (simulationMode && permission == PropertyPermission.denied) {
+                return const SizedBox.shrink();
+              }
+
+              // Determine if property can be edited
+              final canEdit = permission == PropertyPermission.editable;
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -795,18 +780,18 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                     : Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.grey.withValues(alpha: 0.1),
+                          color: Colors.orange.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: Colors.grey.withValues(alpha: 0.3),
+                            color: Colors.orange.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
                           children: [
                             Icon(
-                              Icons.lock_outline,
+                              Icons.visibility,
                               size: 16,
-                              color: Colors.grey,
+                              color: Colors.orange.shade700,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
@@ -815,25 +800,25 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                                 children: [
                                   Text(
                                     property.label,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
-                                      color: Colors.grey,
+                                      color: Colors.orange.shade700,
                                     ),
                                   ),
                                   Text(
                                     property.value.toString(),
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: Colors.grey.shade600,
+                                      color: Colors.grey.shade700,
                                     ),
                                   ),
                                   Text(
-                                    'Locked in simulation',
+                                    'Read-only in simulation',
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontStyle: FontStyle.italic,
-                                      color: Colors.grey.shade500,
+                                      color: Colors.orange.shade600,
                                     ),
                                   ),
                                 ],
@@ -1206,21 +1191,416 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     }
   }
 
-  Widget _buildPropertyField(
-    String label,
-    String value, {
-    bool readOnly = false,
-    Function(String)? onChanged,
-  }) {
-    return TextField(
-      controller: TextEditingController(text: value),
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        isDense: true,
+  Widget _buildCompactPropertyCard(
+    BuildContext context,
+    CanvasDevice device,
+    CanvasState canvasState,
+    CanvasNotifier canvasNotifier,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
       ),
-      readOnly: readOnly,
-      onChanged: onChanged,
+      child: Column(
+        children: [
+          // Device ID Row
+          InkWell(
+            onTap: () =>
+                _showEditDeviceIdDialog(device, canvasState, canvasNotifier),
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.tag, size: 16, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Device ID',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        Text(
+                          device.id,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.edit, size: 16, color: Colors.grey.shade500),
+                ],
+              ),
+            ),
+          ),
+          Divider(height: 16, color: Colors.grey.withValues(alpha: 0.2)),
+
+          // Device Name Row
+          InkWell(
+            onTap: () =>
+                _showEditNameDialog(device, canvasState, canvasNotifier),
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.label, size: 16, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Name',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        Text(
+                          device.name,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.edit, size: 16, color: Colors.grey.shade500),
+                ],
+              ),
+            ),
+          ),
+          Divider(height: 16, color: Colors.grey.withValues(alpha: 0.2)),
+
+          // Position Row
+          InkWell(
+            onTap: () => _showEditPositionDialog(device, canvasNotifier),
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    size: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Position',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        Text(
+                          'X: ${device.position.dx.toStringAsFixed(0)}, Y: ${device.position.dy.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.edit, size: 16, color: Colors.grey.shade500),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDeviceIdDialog(
+    CanvasDevice device,
+    CanvasState canvasState,
+    CanvasNotifier canvasNotifier,
+  ) {
+    final controller = TextEditingController(text: device.id);
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Edit Device ID'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Device ID must be exactly 13 digits',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: 'Device ID',
+                    border: const OutlineInputBorder(),
+                    errorText: errorText,
+                    counterText: '${controller.text.length}/13',
+                  ),
+                  keyboardType: TextInputType.number,
+                  maxLength: 13,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      // Validate format
+                      if (value.isEmpty) {
+                        errorText = 'Device ID cannot be empty';
+                      } else if (value.length != 13) {
+                        errorText = 'Must be exactly 13 digits';
+                      } else if (!RegExp(r'^\d+$').hasMatch(value)) {
+                        errorText = 'Must contain only digits';
+                      } else if (value != device.id &&
+                          canvasState.devices.any((d) => d.id == value)) {
+                        errorText = 'Device ID already exists';
+                      } else {
+                        errorText = null;
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: errorText == null && controller.text.length == 13
+                    ? () {
+                        final newId = controller.text;
+                        canvasNotifier.updateDeviceId(device.id, newId);
+                        setState(() {});
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Device ID updated to $newId'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showEditNameDialog(
+    CanvasDevice device,
+    CanvasState canvasState,
+    CanvasNotifier canvasNotifier,
+  ) {
+    final controller = TextEditingController(text: device.name);
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Edit Device Name'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Choose a unique name for this device',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: 'Device Name',
+                    border: const OutlineInputBorder(),
+                    errorText: errorText,
+                  ),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      // Validate
+                      if (value.trim().isEmpty) {
+                        errorText = 'Device name cannot be empty';
+                      } else if (value.trim() != device.name &&
+                          canvasState.devices.any(
+                            (d) => d.name.trim() == value.trim(),
+                          )) {
+                        errorText = 'Device name already exists';
+                      } else {
+                        errorText = null;
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    errorText == null && controller.text.trim().isNotEmpty
+                    ? () {
+                        final newName = controller.text.trim();
+                        canvasNotifier.updateDeviceName(device.id, newName);
+                        setState(() {});
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Device name updated to $newName'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showEditPositionDialog(
+    CanvasDevice device,
+    CanvasNotifier canvasNotifier,
+  ) {
+    final xController = TextEditingController(
+      text: device.position.dx.toStringAsFixed(0),
+    );
+    final yController = TextEditingController(
+      text: device.position.dy.toStringAsFixed(0),
+    );
+    String? xError;
+    String? yError;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Edit Position'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Position must be between 0 and 2000 for both X and Y',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: xController,
+                  decoration: InputDecoration(
+                    labelText: 'X Position',
+                    border: const OutlineInputBorder(),
+                    errorText: xError,
+                    suffixText: 'px',
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      final x = double.tryParse(value);
+                      if (value.isEmpty) {
+                        xError = 'X position cannot be empty';
+                      } else if (x == null) {
+                        xError = 'Must be a valid number';
+                      } else if (x < 0 || x > 2000) {
+                        xError = 'Must be between 0 and 2000';
+                      } else {
+                        xError = null;
+                      }
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: yController,
+                  decoration: InputDecoration(
+                    labelText: 'Y Position',
+                    border: const OutlineInputBorder(),
+                    errorText: yError,
+                    suffixText: 'px',
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      final y = double.tryParse(value);
+                      if (value.isEmpty) {
+                        yError = 'Y position cannot be empty';
+                      } else if (y == null) {
+                        yError = 'Must be a valid number';
+                      } else if (y < 0 || y > 2000) {
+                        yError = 'Must be between 0 and 2000';
+                      } else {
+                        yError = null;
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: xError == null && yError == null
+                    ? () {
+                        final x = double.parse(xController.text);
+                        final y = double.parse(yController.text);
+                        canvasNotifier.updateDevicePosition(
+                          device.id,
+                          Offset(x, y),
+                        );
+                        setState(() {});
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Position updated to X: ${x.toStringAsFixed(0)}, Y: ${y.toStringAsFixed(0)}',
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Update'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

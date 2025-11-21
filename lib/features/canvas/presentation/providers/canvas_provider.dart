@@ -122,6 +122,65 @@ class CanvasNotifier extends Notifier<CanvasState> {
     ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
   }
 
+  /// Update a device's ID
+  void updateDeviceId(String oldDeviceId, String newDeviceId) {
+    // Update device in devices list
+    final updatedDevices = state.devices.map((device) {
+      if (device.id == oldDeviceId) {
+        return device.copyWith(id: newDeviceId);
+      }
+      return device;
+    }).toList();
+
+    // Update links that reference this device
+    final updatedLinks = state.links.map((link) {
+      if (link.fromDeviceId == oldDeviceId || link.toDeviceId == oldDeviceId) {
+        return link.copyWith(
+          fromDeviceId: link.fromDeviceId == oldDeviceId
+              ? newDeviceId
+              : link.fromDeviceId,
+          toDeviceId: link.toDeviceId == oldDeviceId
+              ? newDeviceId
+              : link.toDeviceId,
+        );
+      }
+      return link;
+    }).toList();
+
+    // Update network device cache
+    final updatedNetworkDevices = Map<String, NetworkDevice>.from(
+      state.networkDevices,
+    );
+    final networkDevice = updatedNetworkDevices.remove(oldDeviceId);
+    if (networkDevice != null) {
+      updatedNetworkDevices[newDeviceId] = networkDevice;
+    }
+
+    state = state.copyWith(
+      devices: updatedDevices,
+      links: updatedLinks,
+      networkDevices: updatedNetworkDevices,
+    );
+
+    // Trigger condition check after ID update
+    ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
+  }
+
+  /// Update a device's name
+  void updateDeviceName(String deviceId, String newName) {
+    final updatedDevices = state.devices.map((device) {
+      if (device.id == deviceId) {
+        return device.copyWith(name: newName);
+      }
+      return device;
+    }).toList();
+
+    state = state.copyWith(devices: updatedDevices);
+
+    // Trigger condition check after name update
+    ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
+  }
+
   /// Select a device
   void selectDevice(String deviceId) {
     final updatedDevices = state.devices.map((device) {
