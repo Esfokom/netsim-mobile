@@ -404,6 +404,9 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
     // Enter simulation mode
     ref.read(scenarioProvider.notifier).enterSimulationMode();
 
+    // PHASE 2 FIX: Initialize all device connections from links
+    ref.read(canvasProvider.notifier).initializeAllConnections();
+
     // Trigger initial condition check
     ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
 

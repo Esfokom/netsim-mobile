@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canva
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_minimap.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
+import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/game_timer.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/success_screen.dart';
@@ -86,6 +87,9 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
 
       // Enter simulation mode
       ref.read(scenarioProvider.notifier).enterSimulationMode();
+
+      // PHASE 2 FIX: Initialize all device connections from links
+      ref.read(canvasProvider.notifier).initializeAllConnections();
 
       // Start the game timer
       _startGameTimer();

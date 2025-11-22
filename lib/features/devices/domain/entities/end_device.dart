@@ -97,6 +97,9 @@ class EndDevice extends NetworkDevice
         ),
       );
     }
+
+    // Ensure interface status is correct (especially important when loading from JSON)
+    _ensureInterfaceOperational();
   }
 
   @override
@@ -182,6 +185,25 @@ class EndDevice extends NetworkDevice
     arpCache = arpCacheStructured.toLegacyFormat();
   }
 
+  /// Ensure interface operational status is correct
+  /// Brings interface UP if link is UP and has IP configured
+  void _ensureInterfaceOperational() {
+    if (interfaces.isNotEmpty) {
+      final iface = defaultInterface;
+
+      // If link is UP and interface has IP but is not UP, bring it UP
+      if (_linkState == 'UP' &&
+          iface.ipAddress != null &&
+          iface.ipAddress!.isNotEmpty &&
+          iface.status != InterfaceStatus.up) {
+        iface.bringUp();
+        appLogger.d(
+          '[EndDevice] Auto-brought interface ${iface.name} UP (link UP + IP configured)',
+        );
+      }
+    }
+  }
+
   // IPowerable implementation
   @override
   bool get isPoweredOn => _isPoweredOn;
@@ -230,6 +252,9 @@ class EndDevice extends NetworkDevice
     iface.ipAddress = ip;
     iface.subnetMask = subnet;
     iface.defaultGateway = gateway;
+
+    // Ensure interface is brought UP if link is UP and IP is configured
+    _ensureInterfaceOperational();
 
     // Clear old routes for this interface
     routingTable.removeRoutesForInterface(iface.name);

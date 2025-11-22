@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 
 /// Interface for disposable resources
@@ -203,6 +204,26 @@ class CanvasNotifier extends Notifier<CanvasState> {
   void addLink(DeviceLink link) {
     state = state.copyWith(links: [...state.links, link]);
 
+    // PHASE 2 FIX: Call connectCable on both devices to set link state to UP
+    final fromDevice = state.networkDevices[link.fromDeviceId];
+    final toDevice = state.networkDevices[link.toDeviceId];
+
+    if (fromDevice != null && fromDevice is IConnectable) {
+      (fromDevice as IConnectable).connectCable(
+        link.toDeviceId,
+        0,
+      ); // Default port 0 for now
+      appLogger.d('[Canvas] Connected cable for device ${link.fromDeviceId}');
+    }
+
+    if (toDevice != null && toDevice is IConnectable) {
+      (toDevice as IConnectable).connectCable(
+        link.fromDeviceId,
+        0,
+      ); // Default port 0 for now
+      appLogger.d('[Canvas] Connected cable for device ${link.toDeviceId}');
+    }
+
     // Trigger condition check after link added
     ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
   }
@@ -214,6 +235,22 @@ class CanvasNotifier extends Notifier<CanvasState> {
       orElse: () => DeviceLink(id: '', fromDeviceId: '', toDeviceId: ''),
     );
     if (link.id.isEmpty) return;
+
+    // PHASE 2 FIX: Call disconnectCable on both devices
+    final fromDevice = state.networkDevices[link.fromDeviceId];
+    final toDevice = state.networkDevices[link.toDeviceId];
+
+    if (fromDevice != null && fromDevice is IConnectable) {
+      (fromDevice as IConnectable).disconnectCable();
+      appLogger.d(
+        '[Canvas] Disconnected cable for device ${link.fromDeviceId}',
+      );
+    }
+
+    if (toDevice != null && toDevice is IConnectable) {
+      (toDevice as IConnectable).disconnectCable();
+      appLogger.d('[Canvas] Disconnected cable for device ${link.toDeviceId}');
+    }
 
     // Handle Switch Port Disconnection
     _disconnectSwitchPort(link.fromDeviceId, linkId);
@@ -411,6 +448,82 @@ class CanvasNotifier extends Notifier<CanvasState> {
 
     // Trigger condition check after device refresh (properties changed)
     ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
+  }
+
+  /// Initialize all device connections from existing links
+  /// Call this after loading a scenario or when devices are fully initialized
+  void initializeAllConnections() {
+    appLogger.i(
+      '[Canvas] Initializing all device connections from ${state.links.length} links',
+    );
+
+    int successCount = 0;
+    int failCount = 0;
+
+    for (final link in state.links) {
+      try {
+        final fromDevice = state.networkDevices[link.fromDeviceId];
+        final toDevice = state.networkDevices[link.toDeviceId];
+
+        if (fromDevice == null) {
+          appLogger.w(
+            '[Canvas] Device ${link.fromDeviceId} not found in cache for link ${link.id}',
+          );
+          failCount++;
+          continue;
+        }
+
+        if (toDevice == null) {
+          appLogger.w(
+            '[Canvas] Device ${link.toDeviceId} not found in cache for link ${link.id}',
+          );
+          failCount++;
+          continue;
+        }
+
+        // Connect both ends
+        if (fromDevice is IConnectable) {
+          (fromDevice as IConnectable).connectCable(link.toDeviceId, 0);
+          appLogger.d(
+            '[Canvas] Connected ${link.fromDeviceId} -> ${link.toDeviceId}',
+          );
+        }
+
+        if (toDevice is IConnectable) {
+          (toDevice as IConnectable).connectCable(link.fromDeviceId, 0);
+          appLogger.d(
+            '[Canvas] Connected ${link.toDeviceId} -> ${link.fromDeviceId}',
+          );
+        }
+
+        successCount++;
+      } catch (e) {
+        appLogger.e(
+          '[Canvas] Error initializing connection for link ${link.id}',
+          error: e,
+        );
+        failCount++;
+      }
+    }
+
+    appLogger.i(
+      '[Canvas] Connection initialization complete: $successCount succeeded, $failCount failed',
+    );
+  }
+
+  /// Refresh device cache - ensures all canvas devices have network device instances
+  void refreshDeviceCache() {
+    appLogger.d(
+      '[Canvas] Refreshing device cache for ${state.devices.length} devices',
+    );
+
+    for (final canvasDevice in state.devices) {
+      if (!state.networkDevices.containsKey(canvasDevice.id)) {
+        appLogger.w(
+          '[Canvas] Device ${canvasDevice.id} missing from network devices cache',
+        );
+      }
+    }
   }
 }
 
