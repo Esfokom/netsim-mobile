@@ -702,36 +702,13 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                     errorText == null && controller.text.trim().isNotEmpty
                     ? () {
                         final targetIp = controller.text.trim();
-                        Navigator.pop(ctx);
-
-                        // Check if ARP cache has the target
-                        final arpEntry = device.arpCache.firstWhere(
-                          (entry) => entry['ip'] == targetIp,
-                          orElse: () => {},
-                        );
-
-                        final needsArp = arpEntry.isEmpty;
 
                         // Trigger ping
                         final engine = ref.read(simulationEngineProvider);
                         device.ping(targetIp, engine);
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              needsArp
-                                  ? 'Sending ARP request for $targetIp...'
-                                  : 'Pinging $targetIp...',
-                            ),
-                            duration: const Duration(seconds: 3),
-                            action: SnackBarAction(
-                              label: 'View ARP',
-                              onPressed: () {
-                                _showArpCacheDialog(context, device);
-                              },
-                            ),
-                          ),
-                        );
+                        // Close the dialog (using ctx from builder)
+                        Navigator.pop(ctx);
                       }
                     : null,
                 child: const Text('Ping'),
