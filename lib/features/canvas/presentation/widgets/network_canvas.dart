@@ -65,12 +65,21 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas>
     // Initialize ticker for animation loop
     _ticker = createTicker(_onTick);
     _ticker.start();
+    print('[NetworkCanvas] Ticker started: ${_ticker.isActive}');
 
     // Subscribe to packet stream
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final simulationEngine = ref.read(simulationEngineProvider);
+      print('[NetworkCanvas] Subscribing to packet stream');
       _packetSubscription = simulationEngine.packetStream.listen(
         _handlePacketEvent,
+        onError: (error, stackTrace) {
+          print('[NetworkCanvas] Stream error: $error');
+          print(stackTrace);
+        },
+        onDone: () {
+          print('[NetworkCanvas] Stream closed');
+        },
       );
 
       // Initialize the canvas centered on the grid
@@ -124,53 +133,108 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas>
 
     if (_packetAnimations.isEmpty) return;
 
+    // Log before update
+    if (_packetAnimations.isNotEmpty) {
+      print(
+        '[NetworkCanvas] Tick: ${_packetAnimations.length} animations, dt: $dt',
+      );
+    }
+
     setState(() {
+      int removedCount = 0;
       _packetAnimations.removeWhere((anim) {
-        // Update progress based on duration (default 0.5s for end device, 0.2s for switch)
-        // We'll assume 0.5s for simplicity or store duration in animation
-        const duration = 0.5;
+        // Update progress based on duration (1.0s for better visibility)
+        const duration = 1.0; // Increased from 0.5 to 1.0 second
+        final oldProgress = anim.progress;
         anim.progress += dt / duration;
-        return anim.progress >= 1.0;
+
+        if (anim.progress >= 1.0) {
+          print(
+            '[NetworkCanvas] Removing animation ${anim.id}: ${anim.fromDeviceId} -> ${anim.toDeviceId}, progress: $oldProgress -> ${anim.progress}',
+          );
+          removedCount++;
+          return true;
+        }
+
+        // Log progress for first few frames
+        if (oldProgress < 0.1) {
+          print(
+            '[NetworkCanvas] Animation ${anim.id} progress: $oldProgress -> ${anim.progress}',
+          );
+        }
+
+        return false;
       });
+
+      if (removedCount > 0) {
+        print(
+          '[NetworkCanvas] Removed $removedCount animations, ${_packetAnimations.length} remaining',
+        );
+      }
+
+      // Always trigger rebuild when animations are active to ensure CustomPaint repaints
+      if (_packetAnimations.isNotEmpty) {
+        print(
+          '[NetworkCanvas] Triggering rebuild for ${_packetAnimations.length} active animations',
+        );
+      }
     });
   }
 
   void _handlePacketEvent(PacketEvent event) {
-    final canvasState = ref.read(canvasProvider);
+    try {
+      print(
+        '[NetworkCanvas] Received packet event: ${event.type} - ${event.packet.type}',
+      );
+      final canvasState = ref.read(canvasProvider);
 
-    if (event.type == PacketEventType.sent) {
-      // Packet sent from a device (usually EndDevice)
-      // It goes to all connected links
-      // SimulationEngine uses 500ms delay
-      if (event.sourceDeviceId != null) {
-        final connectedLinks = canvasState.links.where(
-          (l) =>
-              l.fromDeviceId == event.sourceDeviceId ||
-              l.toDeviceId == event.sourceDeviceId,
-        );
+      if (event.type == PacketEventType.sent) {
+        // Packet sent from a device (usually EndDevice)
+        // It goes to all connected links
+        // SimulationEngine uses 500ms delay
+        if (event.sourceDeviceId != null) {
+          final connectedLinks = canvasState.links.where(
+            (l) =>
+                l.fromDeviceId == event.sourceDeviceId ||
+                l.toDeviceId == event.sourceDeviceId,
+          );
 
-        for (final link in connectedLinks) {
-          final targetId = link.fromDeviceId == event.sourceDeviceId
-              ? link.toDeviceId
-              : link.fromDeviceId;
+          print(
+            '[NetworkCanvas] Found ${connectedLinks.length} connected links for ${event.sourceDeviceId}',
+          );
 
+          for (final link in connectedLinks) {
+            final targetId = link.fromDeviceId == event.sourceDeviceId
+                ? link.toDeviceId
+                : link.fromDeviceId;
+
+            print(
+              '[NetworkCanvas] Adding animation: ${event.sourceDeviceId} -> $targetId',
+            );
+            _addPacketAnimation(
+              event.sourceDeviceId!,
+              targetId,
+              event.packet.type,
+            );
+          }
+        }
+      } else if (event.type == PacketEventType.forwarded) {
+        // Packet forwarded by a switch on a specific link
+        // SimulationEngine uses 200ms delay
+        if (event.sourceDeviceId != null && event.targetDeviceId != null) {
+          print(
+            '[NetworkCanvas] Adding forwarded animation: ${event.sourceDeviceId} -> ${event.targetDeviceId}',
+          );
           _addPacketAnimation(
             event.sourceDeviceId!,
-            targetId,
+            event.targetDeviceId!,
             event.packet.type,
           );
         }
       }
-    } else if (event.type == PacketEventType.forwarded) {
-      // Packet forwarded by a switch on a specific link
-      // SimulationEngine uses 200ms delay
-      if (event.sourceDeviceId != null && event.targetDeviceId != null) {
-        _addPacketAnimation(
-          event.sourceDeviceId!,
-          event.targetDeviceId!,
-          event.packet.type,
-        );
-      }
+    } catch (e, stackTrace) {
+      print('[NetworkCanvas] Error handling packet event: $e');
+      print(stackTrace);
     }
   }
 
@@ -189,6 +253,12 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas>
         color = Colors.purple;
     }
 
+    print(
+      '[NetworkCanvas] Creating packet animation: $fromId -> $toId, type: $type, color: $color',
+    );
+
+    print('[NetworkCanvas] Ticker is active: ${_ticker.isActive}');
+
     setState(() {
       _packetAnimations.add(
         PacketAnimation(
@@ -198,6 +268,20 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas>
           color: color,
         ),
       );
+      print(
+        '[NetworkCanvas] Total animations now: ${_packetAnimations.length}',
+      );
+    });
+
+    // Force another frame to ensure repaint
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          print(
+            '[NetworkCanvas] Post-frame callback: ${_packetAnimations.length} animations',
+          );
+        });
+      }
     });
   }
 

@@ -31,6 +31,12 @@ class LinksPainter extends CustomPainter {
     }
 
     // Draw packets
+    if (packetAnimations.isNotEmpty) {
+      print(
+        '[LinksPainter] paint() called with ${packetAnimations.length} animations',
+      );
+    }
+
     for (final anim in packetAnimations) {
       final fromDevice = devices
           .where((d) => d.id == anim.fromDeviceId)
@@ -40,7 +46,14 @@ class LinksPainter extends CustomPainter {
           .firstOrNull;
 
       if (fromDevice != null && toDevice != null) {
+        print(
+          '[LinksPainter] Drawing packet ${anim.id}: progress ${anim.progress}',
+        );
         _drawPacket(canvas, anim, fromDevice, toDevice);
+      } else {
+        print(
+          '[LinksPainter] WARNING: Devices not found for animation ${anim.id}',
+        );
       }
     }
   }
@@ -225,10 +238,15 @@ class LinksPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(LinksPainter oldDelegate) {
+    // Always repaint if there are any packet animations (they're continuously updating)
+    if (packetAnimations.isNotEmpty ||
+        oldDelegate.packetAnimations.isNotEmpty) {
+      return true;
+    }
+
     return oldDelegate.devices != devices ||
         oldDelegate.links != links ||
-        oldDelegate.hoveredLinkId != hoveredLinkId ||
-        oldDelegate.packetAnimations != packetAnimations;
+        oldDelegate.hoveredLinkId != hoveredLinkId;
   }
 }
 

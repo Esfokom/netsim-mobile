@@ -48,6 +48,9 @@ class EndDevice extends NetworkDevice
   // Display preference
   bool showIpOnCanvas;
 
+  // Pending pings waiting for ARP resolution
+  final Map<String, int> _pendingPings = {}; // targetIp -> sequence number
+
   EndDevice({
     required super.deviceId,
     required super.position,
@@ -59,11 +62,13 @@ class EndDevice extends NetworkDevice
     String linkState = 'DOWN',
     this.installedTools = const ['ipconfig', 'ping', 'nslookup', 'traceroute'],
     this.statusMessage = 'Not connected',
-    this.currentDnsServers = const [],
-    this.arpCache = const [],
+    List<String>? currentDnsServers,
+    List<Map<String, String>>? arpCache,
     this.showIpOnCanvas = false,
   }) : _isPoweredOn = isPoweredOn,
        _linkState = linkState,
+       currentDnsServers = currentDnsServers ?? [],
+       arpCache = arpCache ?? [],
        super();
 
   @override
@@ -265,6 +270,13 @@ class EndDevice extends NetworkDevice
         onExecute: () {}, // UI will trigger ping dialog
         isEnabled: _isPoweredOn && currentIpAddress != null,
       ),
+      DeviceAction(
+        id: 'view_arp_cache',
+        label: 'View ARP Cache',
+        icon: Icons.table_chart,
+        onExecute: () {}, // UI will trigger ARP cache dialog
+        isEnabled: _isPoweredOn,
+      ),
       if (_linkState == 'DOWN')
         DeviceAction(
           id: 'connect_cable',
@@ -292,6 +304,8 @@ class EndDevice extends NetworkDevice
           break;
         case PacketType.arpReply:
           // Already updated cache above
+          // Check if there's a pending ping for this IP
+          _handleArpReply(packet, engine);
           break;
         case PacketType.icmpEchoRequest:
           _handleIcmpEchoRequest(packet, engine);
@@ -313,7 +327,8 @@ class EndDevice extends NetworkDevice
     final existingIndex = arpCache.indexWhere((entry) => entry['ip'] == ip);
     if (existingIndex != -1) {
       if (arpCache[existingIndex]['mac'] != mac) {
-        arpCache[existingIndex]['mac'] = mac;
+        // Replace the entire entry to avoid immutability issues
+        arpCache[existingIndex] = {'ip': ip, 'mac': mac};
       }
     } else {
       arpCache.add({'ip': ip, 'mac': mac});
@@ -323,6 +338,7 @@ class EndDevice extends NetworkDevice
   void _handleArpRequest(Packet packet, SimulationEngine engine) {
     final targetIp = packet.payload['targetIp'];
     if (targetIp == currentIpAddress) {
+      appLogger.d('[EndDevice] Received ARP request for my IP: $targetIp');
       // Send ARP Reply
       final reply = Packet(
         sourceMac: macAddress,
@@ -332,7 +348,49 @@ class EndDevice extends NetworkDevice
         type: PacketType.arpReply,
         payload: {'targetIp': packet.sourceIp, 'targetMac': packet.sourceMac},
       );
+      appLogger.d('[EndDevice] Sending ARP reply to ${packet.sourceIp}');
       engine.sendPacket(reply, deviceId);
+    }
+  }
+
+  void _handleArpReply(Packet packet, SimulationEngine engine) {
+    final sourceIp = packet.sourceIp;
+    if (sourceIp == null) return;
+
+    appLogger.i('[EndDevice] Received ARP reply from $sourceIp');
+
+    // Check if we have a pending ping for this IP
+    if (_pendingPings.containsKey(sourceIp)) {
+      appLogger.i(
+        '[EndDevice] Found pending ping for $sourceIp, sending ICMP now',
+      );
+
+      // Get MAC from ARP cache (already updated above)
+      final arpEntry = arpCache.firstWhere(
+        (entry) => entry['ip'] == sourceIp,
+        orElse: () => {},
+      );
+
+      if (arpEntry.isNotEmpty) {
+        // Send the queued ICMP Echo Request
+        final sequence = _pendingPings[sourceIp] ?? 1;
+        final icmpPacket = Packet(
+          sourceMac: macAddress,
+          destMac: arpEntry['mac']!,
+          sourceIp: currentIpAddress,
+          destIp: sourceIp,
+          type: PacketType.icmpEchoRequest,
+          payload: {'sequence': sequence, 'data': 'PingData'},
+        );
+
+        appLogger.d(
+          '[EndDevice] Sending queued ICMP Echo Request to $sourceIp',
+        );
+        engine.sendPacket(icmpPacket, deviceId);
+
+        // Remove from pending queue
+        _pendingPings.remove(sourceIp);
+      }
     }
   }
 
@@ -355,6 +413,10 @@ class EndDevice extends NetworkDevice
   void ping(String targetIp, SimulationEngine engine) {
     if (!_isPoweredOn || currentIpAddress == null) return;
 
+    appLogger.i(
+      '[EndDevice] Initiating ping to $targetIp from $hostname ($currentIpAddress)',
+    );
+
     // Check ARP cache
     final arpEntry = arpCache.firstWhere(
       (entry) => entry['ip'] == targetIp,
@@ -362,7 +424,8 @@ class EndDevice extends NetworkDevice
     );
 
     if (arpEntry.isNotEmpty) {
-      // Send ICMP Echo Request directly
+      // MAC address known, send ICMP Echo Request directly
+      appLogger.d('[EndDevice] MAC found in ARP cache, sending ICMP directly');
       final packet = Packet(
         sourceMac: macAddress,
         destMac: arpEntry['mac']!,
@@ -373,13 +436,19 @@ class EndDevice extends NetworkDevice
       );
       engine.sendPacket(packet, deviceId);
     } else {
-      // Send ARP Request
-      final packet = Packet(
+      // MAC address unknown, send ARP Request first
+      appLogger.i(
+        '[EndDevice] MAC not in cache, sending ARP request for $targetIp',
+      );
+
+      // Queue this ping to be sent after ARP reply is received
+      _pendingPings[targetIp] = 1; // sequence number
+
+      final arpPacket = Packet(
         sourceMac: macAddress,
         destMac: 'FF:FF:FF:FF:FF:FF', // Broadcast
         sourceIp: currentIpAddress,
-        destIp:
-            targetIp, // ARP packet doesn't really have dest IP in header usually, but for sim we can put it
+        destIp: targetIp,
         type: PacketType.arpRequest,
         payload: {
           'targetIp': targetIp,
@@ -387,12 +456,10 @@ class EndDevice extends NetworkDevice
           'senderMac': macAddress,
         },
       );
-      engine.sendPacket(packet, deviceId);
-
-      // Queue the ping to run after ARP resolution?
-      // For simplicity, we'll just send ARP for now.
-      // The user might need to ping again or we can implement a wait queue.
-      appLogger.i('[EndDevice] ARP Request sent for $targetIp');
+      engine.sendPacket(arpPacket, deviceId);
+      appLogger.d(
+        '[EndDevice] ARP request sent, ping queued for after resolution',
+      );
     }
   }
 }

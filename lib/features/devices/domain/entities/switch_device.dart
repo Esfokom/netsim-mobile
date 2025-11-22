@@ -11,7 +11,7 @@ class SwitchDevice extends NetworkDevice
     implements IPowerable, ISwitchable, IConfigurable {
   String name;
   bool _isPoweredOn;
-  final int portCount;
+  int portCount;
   List<SwitchPort> ports;
   final List<MacTableEntry> _macAddressTable;
   bool isManaged;
@@ -117,6 +117,41 @@ class SwitchDevice extends NetworkDevice
     if (config.containsKey('isManaged')) {
       isManaged = config['isManaged'];
     }
+    if (config.containsKey('portCount')) {
+      setPortCount(config['portCount']);
+    }
+  }
+
+  /// Set the number of ports on the switch (min 3, max 12)
+  /// Disconnects devices on ports that are removed
+  void setPortCount(int newCount) {
+    if (newCount < 3 || newCount > 12) {
+      appLogger.w('Invalid port count: $newCount. Must be between 3 and 12.');
+      return;
+    }
+
+    if (newCount < portCount) {
+      // Removing ports - disconnect links on removed ports
+      for (int i = newCount + 1; i <= portCount; i++) {
+        final port = ports.firstWhere(
+          (p) => p.portId == i,
+          orElse: () => SwitchPort(portId: -1),
+        );
+        if (port.portId != -1 && port.connectedLinkId != null) {
+          port.connectedLinkId = null;
+          port.linkState = 'DOWN';
+        }
+      }
+      // Remove excess ports
+      ports.removeWhere((p) => p.portId > newCount);
+    } else if (newCount > portCount) {
+      // Adding ports
+      for (int i = portCount + 1; i <= newCount; i++) {
+        ports.add(SwitchPort(portId: i, linkState: 'DOWN', vlanId: 1));
+      }
+    }
+
+    portCount = newCount;
   }
 
   @override
@@ -200,6 +235,20 @@ class SwitchDevice extends NetworkDevice
         onExecute: () {}, // UI will handle this
         isEnabled: _isPoweredOn,
       ),
+      DeviceAction(
+        id: 'view_cam_table',
+        label: 'View CAM Table',
+        icon: Icons.table_rows,
+        onExecute: () {}, // UI will handle this
+        isEnabled: _isPoweredOn,
+      ),
+      DeviceAction(
+        id: 'adjust_port_count',
+        label: 'Adjust Port Count',
+        icon: Icons.add_box,
+        onExecute: () {}, // UI will handle this
+        isEnabled: true, // Always enabled for configuration
+      ),
       if (isManaged)
         DeviceAction(
           id: 'configure',
@@ -233,6 +282,10 @@ class SwitchDevice extends NetworkDevice
   ) {
     if (!_isPoweredOn) return;
 
+    appLogger.d(
+      '[Switch $name] Received ${packet.type} packet: ${packet.sourceMac} -> ${packet.destMac}',
+    );
+
     // 1. Determine Ingress Port
     int ingressPortId = -1;
     for (var port in ports) {
@@ -244,23 +297,33 @@ class SwitchDevice extends NetworkDevice
 
     if (ingressPortId == -1) {
       appLogger.w(
-        '[Switch] Could not find ingress port for link $incomingLinkId',
+        '[Switch $name] Could not find ingress port for link $incomingLinkId',
       );
       return;
     }
 
     final ingressPort = ports.firstWhere((p) => p.portId == ingressPortId);
     if (!ingressPort.isEnabled) {
-      appLogger.d('[Switch] Port $ingressPortId is disabled. Dropping packet.');
+      appLogger.d(
+        '[Switch $name] Port $ingressPortId is disabled. Dropping packet.',
+      );
       return;
     }
 
+    appLogger.d('[Switch $name] Packet received on port $ingressPortId');
+
     // 2. Learn Source MAC
     learnMacAddress(packet.sourceMac, ingressPortId);
+    appLogger.d(
+      '[Switch $name] Learned MAC ${packet.sourceMac} on port $ingressPortId',
+    );
 
     // 3. Forwarding Decision
     if (packet.destMac == 'FF:FF:FF:FF:FF:FF') {
       // Broadcast to all ports except ingress
+      appLogger.i(
+        '[Switch $name] Broadcasting packet to all ports except port $ingressPortId',
+      );
       _floodPacket(packet, ingressPortId, engine);
     } else {
       // Unicast
@@ -275,9 +338,15 @@ class SwitchDevice extends NetworkDevice
 
       if (entry.portId != -1) {
         // Known destination
+        appLogger.i(
+          '[Switch $name] Forwarding to known destination on port ${entry.portId}',
+        );
         _forwardToPort(packet, entry.portId, engine);
       } else {
         // Unknown destination -> Flood
+        appLogger.i(
+          '[Switch $name] Unknown destination, flooding to all ports except port $ingressPortId',
+        );
         _floodPacket(packet, ingressPortId, engine);
       }
     }
@@ -295,13 +364,22 @@ class SwitchDevice extends NetworkDevice
   }
 
   void _floodPacket(Packet packet, int ingressPortId, SimulationEngine engine) {
+    appLogger.d(
+      '[Switch $name] Flooding packet to all enabled ports except port $ingressPortId',
+    );
+    int forwardCount = 0;
     for (var port in ports) {
       if (port.portId != ingressPortId &&
           port.isEnabled &&
           port.connectedLinkId != null) {
+        appLogger.d(
+          '[Switch $name] Flooding to port ${port.portId} via link ${port.connectedLinkId}',
+        );
         engine.deliverPacketOnLinkFrom(packet, port.connectedLinkId!, deviceId);
+        forwardCount++;
       }
     }
+    appLogger.d('[Switch $name] Flooded packet to $forwardCount ports');
   }
 }
 

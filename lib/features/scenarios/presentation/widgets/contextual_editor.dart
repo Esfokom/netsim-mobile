@@ -488,6 +488,14 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                               networkDevice is SwitchDevice) {
                             _showCamTableDialog(context, networkDevice);
                             return;
+                          } else if (action.id == 'adjust_port_count' &&
+                              networkDevice is SwitchDevice) {
+                            _showAdjustPortCountDialog(
+                              context,
+                              networkDevice,
+                              canvasNotifier,
+                            );
+                            return;
                           }
 
                           // Execute the action
@@ -696,14 +704,32 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                         final targetIp = controller.text.trim();
                         Navigator.pop(ctx);
 
+                        // Check if ARP cache has the target
+                        final arpEntry = device.arpCache.firstWhere(
+                          (entry) => entry['ip'] == targetIp,
+                          orElse: () => {},
+                        );
+
+                        final needsArp = arpEntry.isEmpty;
+
                         // Trigger ping
                         final engine = ref.read(simulationEngineProvider);
                         device.ping(targetIp, engine);
 
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Pinging $targetIp...'),
-                            duration: const Duration(seconds: 2),
+                            content: Text(
+                              needsArp
+                                  ? 'Sending ARP request for $targetIp...'
+                                  : 'Pinging $targetIp...',
+                            ),
+                            duration: const Duration(seconds: 3),
+                            action: SnackBarAction(
+                              label: 'View ARP',
+                              onPressed: () {
+                                _showArpCacheDialog(context, device);
+                              },
+                            ),
                           ),
                         );
                       }
@@ -720,43 +746,163 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   void _showArpCacheDialog(BuildContext context, EndDevice device) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('ARP Cache - ${device.displayName}'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: device.arpCache.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('ARP Cache is empty'),
-                  ),
-                )
-              : ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: device.arpCache.length,
-                  itemBuilder: (context, index) {
-                    final entry = device.arpCache[index];
-                    return ListTile(
-                      leading: const Icon(Icons.link),
-                      title: Text(entry['ip'] ?? ''),
-                      subtitle: Text(entry['mac'] ?? ''),
-                      trailing: Text(
-                        'Dynamic',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    );
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                Expanded(child: Text('ARP Cache - ${device.displayName}')),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  tooltip: 'Refresh',
+                  onPressed: () {
+                    setDialogState(() {
+                      // Force rebuild to show updated cache
+                    });
                   },
                 ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: device.arpCache.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.inbox_outlined,
+                            size: 48,
+                            color: Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'ARP Cache is empty',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Ping a device to populate the cache',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'IP Address',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  'MAC Address',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  'Type',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: device.arpCache.length,
+                            itemBuilder: (context, index) {
+                              final entry = device.arpCache[index];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        entry['ip'] ?? '',
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        entry['mac'] ?? '',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 12,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Dynamic',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.green.shade700,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -764,104 +910,407 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   void _showCamTableDialog(BuildContext context, SwitchDevice device) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('CAM Table - ${device.displayName}'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: device.macAddressTable.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('MAC Address Table is empty'),
-                  ),
-                )
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: const [
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              'MAC Address',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                Expanded(child: Text('CAM Table - ${device.displayName}')),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  tooltip: 'Refresh',
+                  onPressed: () {
+                    setDialogState(() {
+                      // Force rebuild to show updated table
+                    });
+                  },
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: device.macAddressTable.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.inbox_outlined,
+                            size: 48,
+                            color: Colors.grey.shade400,
                           ),
-                          Expanded(
-                            child: Text(
-                              'Port',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'MAC Address Table is empty',
+                            style: TextStyle(color: Colors.grey.shade600),
                           ),
-                          Expanded(
-                            child: Text(
-                              'Type',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Connect devices and send traffic to populate',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
                             ),
                           ),
                         ],
                       ),
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Info banner
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 20,
+                                color: Colors.green.shade700,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Learned MAC addresses from incoming frames',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.green.shade800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  'MAC Address',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  'Port',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  'Type',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: device.macAddressTable.length,
+                            itemBuilder: (context, index) {
+                              final entry = device.macAddressTable[index];
+                              final timestamp = entry['timestamp'] != null
+                                  ? DateTime.tryParse(entry['timestamp'])
+                                  : null;
+                              final age = timestamp != null
+                                  ? DateTime.now()
+                                        .difference(timestamp)
+                                        .inSeconds
+                                  : null;
+
+                              return Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: age != null && age < 10
+                                      ? Colors.green.withValues(alpha: 0.05)
+                                      : Colors.grey.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: age != null && age < 10
+                                        ? Colors.green.withValues(alpha: 0.2)
+                                        : Colors.grey.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            entry['macAddress'] ?? '',
+                                            style: const TextStyle(
+                                              fontFamily: 'monospace',
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          if (age != null)
+                                            Text(
+                                              '${age}s ago',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'P${entry['portId']}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue.shade700,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Dynamic',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.green.shade700,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    const Divider(),
-                    Flexible(
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: device.macAddressTable.length,
-                        itemBuilder: (context, index) {
-                          final entry = device.macAddressTable[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    entry['macAddress'] ?? '',
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text('Port ${entry['portId']}'),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    'Dynamic',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+            ),
+            actions: [
+              if (device.macAddressTable.isNotEmpty)
+                TextButton(
+                  onPressed: () {
+                    device.clearMacAddressTable();
+                    setDialogState(() {
+                      // Refresh to show empty table
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('CAM table cleared'),
+                        duration: Duration(seconds: 2),
                       ),
-                    ),
-                  ],
+                    );
+                  },
+                  child: const Text('Clear Table'),
                 ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  // ... (rest of existing methods)
+  void _showAdjustPortCountDialog(
+    BuildContext context,
+    SwitchDevice device,
+    CanvasNotifier canvasNotifier,
+  ) {
+    int selectedCount = device.portCount;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final willDisconnect =
+              selectedCount < device.portCount &&
+              device.ports
+                  .where(
+                    (p) =>
+                        p.portId > selectedCount && p.connectedLinkId != null,
+                  )
+                  .isNotEmpty;
+
+          return AlertDialog(
+            title: const Text('Adjust Port Count'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Configure the number of ports (3-12)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: selectedCount > 3
+                          ? () {
+                              setDialogState(() {
+                                selectedCount--;
+                              });
+                            }
+                          : null,
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            '$selectedCount',
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Text('Ports', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline),
+                      onPressed: selectedCount < 12
+                          ? () {
+                              setDialogState(() {
+                                selectedCount++;
+                              });
+                            }
+                          : null,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Slider(
+                  value: selectedCount.toDouble(),
+                  min: 3,
+                  max: 12,
+                  divisions: 9,
+                  label: '$selectedCount ports',
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedCount = value.toInt();
+                    });
+                  },
+                ),
+                if (willDisconnect)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.orange.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber,
+                          size: 20,
+                          color: Colors.orange.shade700,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Reducing ports will disconnect devices on removed ports',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange.shade800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: selectedCount != device.portCount
+                    ? () {
+                        device.setPortCount(selectedCount);
+                        canvasNotifier.refreshDevice(device.deviceId);
+                        setState(() {});
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Port count updated to $selectedCount',
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Apply'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ...existing code...
 
   Widget _buildCompactNetworkProperties(
     CanvasDevice device,
@@ -1908,32 +2357,114 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                       itemCount: switchDevice.ports.length,
                       itemBuilder: (context, index) {
                         final port = switchDevice.ports[index];
-                        return SwitchListTile(
-                          title: Text('Port ${port.portId}'),
-                          subtitle: Text(
-                            port.connectedLinkId != null
-                                ? 'Connected (Link: ${port.connectedLinkId!.substring(0, 8)}...)'
-                                : 'Disconnected',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: port.connectedLinkId != null
+                        final isConnected = port.connectedLinkId != null;
+                        final isUp = port.linkState == 'UP';
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 4,
+                          ),
+                          elevation: 0,
+                          color: !port.isEnabled
+                              ? Colors.red.withValues(alpha: 0.05)
+                              : isConnected && isUp
+                              ? Colors.green.withValues(alpha: 0.05)
+                              : Colors.grey.withValues(alpha: 0.05),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(
+                              color: !port.isEnabled
+                                  ? Colors.red.withValues(alpha: 0.2)
+                                  : isConnected && isUp
+                                  ? Colors.green.withValues(alpha: 0.2)
+                                  : Colors.grey.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: SwitchListTile(
+                            title: Row(
+                              children: [
+                                Text(
+                                  'Port ${port.portId}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (isConnected && isUp)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'UP',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.green.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                if (!port.isEnabled)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'DISABLED',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red.shade700,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                isConnected
+                                    ? 'Connected • VLAN ${port.vlanId}'
+                                    : 'No device connected',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isConnected
+                                      ? Colors.green.shade700
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                            value: port.isEnabled,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                port.isEnabled = value;
+                              });
+                              // Update canvas immediately to reflect state if needed
+                              canvasNotifier.refreshDevice(
+                                switchDevice.deviceId,
+                              );
+                              // Force rebuild of parent widget to update UI if needed
+                              setState(() {});
+                            },
+                            secondary: Icon(
+                              Icons.settings_input_component,
+                              color: port.isEnabled
                                   ? Colors.green
                                   : Colors.grey,
                             ),
-                          ),
-                          value: port.isEnabled,
-                          onChanged: (value) {
-                            setDialogState(() {
-                              port.isEnabled = value;
-                            });
-                            // Update canvas immediately to reflect state if needed
-                            canvasNotifier.refreshDevice(switchDevice.deviceId);
-                            // Force rebuild of parent widget to update UI if needed
-                            setState(() {});
-                          },
-                          secondary: Icon(
-                            Icons.settings_input_component,
-                            color: port.isEnabled ? Colors.green : Colors.grey,
                           ),
                         );
                       },
