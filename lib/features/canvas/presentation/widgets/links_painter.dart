@@ -6,11 +6,13 @@ class LinksPainter extends CustomPainter {
   final List<CanvasDevice> devices;
   final List<DeviceLink> links;
   final String? hoveredLinkId;
+  final List<PacketAnimation> packetAnimations;
 
   LinksPainter({
     required this.devices,
     required this.links,
     this.hoveredLinkId,
+    this.packetAnimations = const [],
   });
 
   @override
@@ -27,6 +29,52 @@ class LinksPainter extends CustomPainter {
         _drawLink(canvas, link, fromDevice, toDevice);
       }
     }
+
+    // Draw packets
+    for (final anim in packetAnimations) {
+      final fromDevice = devices
+          .where((d) => d.id == anim.fromDeviceId)
+          .firstOrNull;
+      final toDevice = devices
+          .where((d) => d.id == anim.toDeviceId)
+          .firstOrNull;
+
+      if (fromDevice != null && toDevice != null) {
+        _drawPacket(canvas, anim, fromDevice, toDevice);
+      }
+    }
+  }
+
+  void _drawPacket(
+    Canvas canvas,
+    PacketAnimation anim,
+    CanvasDevice fromDevice,
+    CanvasDevice toDevice,
+  ) {
+    final start = Offset(
+      fromDevice.position.dx + 40,
+      fromDevice.position.dy + 40,
+    );
+    final end = Offset(toDevice.position.dx + 40, toDevice.position.dy + 40);
+
+    // Calculate current position
+    final currentPos = Offset.lerp(start, end, anim.progress)!;
+
+    final paint = Paint()
+      ..color = anim.color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    // Draw packet (circle)
+    canvas.drawCircle(currentPos, 6, paint);
+
+    // Draw glow
+    final glowPaint = Paint()
+      ..color = anim.color.withValues(alpha: 0.4)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    canvas.drawCircle(currentPos, 10, glowPaint);
   }
 
   void _drawLink(
@@ -35,6 +83,7 @@ class LinksPainter extends CustomPainter {
     CanvasDevice fromDevice,
     CanvasDevice toDevice,
   ) {
+    // ... existing _drawLink implementation ...
     // Calculate center points of devices (40 is half of device width/height)
     final start = Offset(
       fromDevice.position.dx + 40,
@@ -86,15 +135,13 @@ class LinksPainter extends CustomPainter {
       canvas.drawLine(start, end, paint);
     }
 
-    // Draw bidirectional arrows
-    _drawBidirectionalArrows(canvas, start, end, paint);
-
     // Draw link info label if hovered or selected
     if (isHovered || isSelected) {
       _drawLinkInfo(canvas, start, end, link);
     }
   }
 
+  // ... existing helper methods ...
   void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
     const dashWidth = 8.0;
     const dashSpace = 6.0;
@@ -114,55 +161,6 @@ class LinksPainter extends CustomPainter {
       )!;
       canvas.drawLine(startDash, endDash, paint);
     }
-  }
-
-  void _drawBidirectionalArrows(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint,
-  ) {
-    const arrowSize = 8.0;
-    final direction = (end - start);
-    final angle = direction.direction;
-
-    // Calculate midpoint
-    final mid = Offset.lerp(start, end, 0.5)!;
-
-    // Arrow paint
-    final arrowPaint = Paint()
-      ..color = paint.color
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    // Draw arrow pointing towards end
-    canvas.save();
-    canvas.translate(
-      mid.dx + direction.dx * 0.15,
-      mid.dy + direction.dy * 0.15,
-    );
-    canvas.rotate(angle);
-    _drawArrowHead(canvas, arrowPaint, arrowSize);
-    canvas.restore();
-
-    // Draw arrow pointing towards start
-    canvas.save();
-    canvas.translate(
-      mid.dx - direction.dx * 0.15,
-      mid.dy - direction.dy * 0.15,
-    );
-    canvas.rotate(angle + 3.14159); // Rotate 180 degrees
-    _drawArrowHead(canvas, arrowPaint, arrowSize);
-    canvas.restore();
-  }
-
-  void _drawArrowHead(Canvas canvas, Paint paint, double size) {
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(-size, -size * 0.5)
-      ..lineTo(-size, size * 0.5)
-      ..close();
-    canvas.drawPath(path, paint);
   }
 
   void _drawLinkInfo(Canvas canvas, Offset start, Offset end, DeviceLink link) {
@@ -229,6 +227,23 @@ class LinksPainter extends CustomPainter {
   bool shouldRepaint(LinksPainter oldDelegate) {
     return oldDelegate.devices != devices ||
         oldDelegate.links != links ||
-        oldDelegate.hoveredLinkId != hoveredLinkId;
+        oldDelegate.hoveredLinkId != hoveredLinkId ||
+        oldDelegate.packetAnimations != packetAnimations;
   }
+}
+
+class PacketAnimation {
+  final String id;
+  final String fromDeviceId;
+  final String toDeviceId;
+  final Color color;
+  double progress; // 0.0 to 1.0
+
+  PacketAnimation({
+    required this.id,
+    required this.fromDeviceId,
+    required this.toDeviceId,
+    required this.color,
+    this.progress = 0.0,
+  });
 }

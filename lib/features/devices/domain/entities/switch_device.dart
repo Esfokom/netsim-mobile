@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
+import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
+import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Layer 2 Switch - Connects devices on the same local network
 class SwitchDevice extends NetworkDevice
@@ -190,6 +193,13 @@ class SwitchDevice extends NetworkDevice
         onExecute: clearMacAddressTable,
         isEnabled: _isPoweredOn,
       ),
+      DeviceAction(
+        id: 'configure_ports',
+        label: 'Configure Ports',
+        icon: Icons.settings_input_component,
+        onExecute: () {}, // UI will handle this
+        isEnabled: _isPoweredOn,
+      ),
       if (isManaged)
         DeviceAction(
           id: 'configure',
@@ -214,15 +224,95 @@ class SwitchDevice extends NetworkDevice
       ),
     );
   }
+
+  /// Handle incoming packet
+  void handlePacket(
+    Packet packet,
+    String incomingLinkId,
+    SimulationEngine engine,
+  ) {
+    if (!_isPoweredOn) return;
+
+    // 1. Determine Ingress Port
+    int ingressPortId = -1;
+    for (var port in ports) {
+      if (port.connectedLinkId == incomingLinkId) {
+        ingressPortId = port.portId;
+        break;
+      }
+    }
+
+    if (ingressPortId == -1) {
+      appLogger.w(
+        '[Switch] Could not find ingress port for link $incomingLinkId',
+      );
+      return;
+    }
+
+    final ingressPort = ports.firstWhere((p) => p.portId == ingressPortId);
+    if (!ingressPort.isEnabled) {
+      appLogger.d('[Switch] Port $ingressPortId is disabled. Dropping packet.');
+      return;
+    }
+
+    // 2. Learn Source MAC
+    learnMacAddress(packet.sourceMac, ingressPortId);
+
+    // 3. Forwarding Decision
+    if (packet.destMac == 'FF:FF:FF:FF:FF:FF') {
+      // Broadcast to all ports except ingress
+      _floodPacket(packet, ingressPortId, engine);
+    } else {
+      // Unicast
+      final entry = _macAddressTable.firstWhere(
+        (e) => e.macAddress == packet.destMac,
+        orElse: () => MacTableEntry(
+          macAddress: '',
+          portId: -1,
+          timestamp: DateTime.now(),
+        ),
+      );
+
+      if (entry.portId != -1) {
+        // Known destination
+        _forwardToPort(packet, entry.portId, engine);
+      } else {
+        // Unknown destination -> Flood
+        _floodPacket(packet, ingressPortId, engine);
+      }
+    }
+  }
+
+  void _forwardToPort(Packet packet, int portId, SimulationEngine engine) {
+    final port = ports.firstWhere((p) => p.portId == portId);
+    if (port.isEnabled && port.connectedLinkId != null) {
+      engine.deliverPacketOnLinkFrom(packet, port.connectedLinkId!, deviceId);
+    } else {
+      appLogger.d(
+        '[Switch] Cannot forward to port $portId (disabled or disconnected)',
+      );
+    }
+  }
+
+  void _floodPacket(Packet packet, int ingressPortId, SimulationEngine engine) {
+    for (var port in ports) {
+      if (port.portId != ingressPortId &&
+          port.isEnabled &&
+          port.connectedLinkId != null) {
+        engine.deliverPacketOnLinkFrom(packet, port.connectedLinkId!, deviceId);
+      }
+    }
+  }
 }
 
-/// Switch port configuration
 class SwitchPort {
   final int portId;
   String linkState; // "UP" | "DOWN"
   String? connectedToMac;
   int vlanId;
   String mode; // "Access" | "Trunk"
+  bool isEnabled;
+  String? connectedLinkId; // Link ID connected to this port
 
   SwitchPort({
     required this.portId,
@@ -230,6 +320,8 @@ class SwitchPort {
     this.connectedToMac,
     this.vlanId = 1,
     this.mode = 'Access',
+    this.isEnabled = true,
+    this.connectedLinkId,
   });
 
   Map<String, dynamic> toMap() => {
@@ -238,6 +330,8 @@ class SwitchPort {
     'connectedToMac': connectedToMac,
     'vlanId': vlanId,
     'mode': mode,
+    'isEnabled': isEnabled,
+    'connectedLinkId': connectedLinkId,
   };
 }
 

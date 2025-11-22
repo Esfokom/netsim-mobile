@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_device_widget.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/links_painter.dart';
+import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
+import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
 
 /// Notifier for the canvas transformation controller
 class CanvasTransformationNotifier extends Notifier<TransformationController?> {
@@ -35,12 +39,19 @@ class NetworkCanvas extends ConsumerStatefulWidget {
   ConsumerState<NetworkCanvas> createState() => _NetworkCanvasState();
 }
 
-class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
+class _NetworkCanvasState extends ConsumerState<NetworkCanvas>
+    with SingleTickerProviderStateMixin {
   final TransformationController _transformationController =
       TransformationController();
 
   // Save the notifier reference to use safely during disposal
   CanvasTransformationNotifier? _transformationNotifier;
+
+  // Animation state
+  late Ticker _ticker;
+  final List<PacketAnimation> _packetAnimations = [];
+  StreamSubscription? _packetSubscription;
+  DateTime? _lastFrameTime;
 
   @override
   void initState() {
@@ -51,8 +62,18 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
       canvasTransformationControllerProvider.notifier,
     );
 
-    // Initialize the canvas centered on the grid
+    // Initialize ticker for animation loop
+    _ticker = createTicker(_onTick);
+    _ticker.start();
+
+    // Subscribe to packet stream
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final simulationEngine = ref.read(simulationEngineProvider);
+      _packetSubscription = simulationEngine.packetStream.listen(
+        _handlePacketEvent,
+      );
+
+      // Initialize the canvas centered on the grid
       // Get the screen size
       final renderBox = context.findRenderObject() as RenderBox?;
       if (renderBox != null) {
@@ -78,6 +99,9 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
 
   @override
   void dispose() {
+    _packetSubscription?.cancel();
+    _ticker.dispose();
+
     // Clear the controller from the provider after dispose completes
     // Use Future to delay the modification as recommended by Riverpod
     Future(() {
@@ -86,6 +110,95 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
 
     _transformationController.dispose();
     super.dispose();
+  }
+
+  void _onTick(Duration elapsed) {
+    final now = DateTime.now();
+    if (_lastFrameTime == null) {
+      _lastFrameTime = now;
+      return;
+    }
+
+    final dt = now.difference(_lastFrameTime!).inMilliseconds / 1000.0;
+    _lastFrameTime = now;
+
+    if (_packetAnimations.isEmpty) return;
+
+    setState(() {
+      _packetAnimations.removeWhere((anim) {
+        // Update progress based on duration (default 0.5s for end device, 0.2s for switch)
+        // We'll assume 0.5s for simplicity or store duration in animation
+        const duration = 0.5;
+        anim.progress += dt / duration;
+        return anim.progress >= 1.0;
+      });
+    });
+  }
+
+  void _handlePacketEvent(PacketEvent event) {
+    final canvasState = ref.read(canvasProvider);
+
+    if (event.type == PacketEventType.sent) {
+      // Packet sent from a device (usually EndDevice)
+      // It goes to all connected links
+      // SimulationEngine uses 500ms delay
+      if (event.sourceDeviceId != null) {
+        final connectedLinks = canvasState.links.where(
+          (l) =>
+              l.fromDeviceId == event.sourceDeviceId ||
+              l.toDeviceId == event.sourceDeviceId,
+        );
+
+        for (final link in connectedLinks) {
+          final targetId = link.fromDeviceId == event.sourceDeviceId
+              ? link.toDeviceId
+              : link.fromDeviceId;
+
+          _addPacketAnimation(
+            event.sourceDeviceId!,
+            targetId,
+            event.packet.type,
+          );
+        }
+      }
+    } else if (event.type == PacketEventType.forwarded) {
+      // Packet forwarded by a switch on a specific link
+      // SimulationEngine uses 200ms delay
+      if (event.sourceDeviceId != null && event.targetDeviceId != null) {
+        _addPacketAnimation(
+          event.sourceDeviceId!,
+          event.targetDeviceId!,
+          event.packet.type,
+        );
+      }
+    }
+  }
+
+  void _addPacketAnimation(String fromId, String toId, PacketType type) {
+    Color color;
+    switch (type) {
+      case PacketType.arpRequest:
+      case PacketType.arpReply:
+        color = Colors.orange;
+        break;
+      case PacketType.icmpEchoRequest:
+      case PacketType.icmpEchoReply:
+        color = Colors.cyan;
+        break;
+      default:
+        color = Colors.purple;
+    }
+
+    setState(() {
+      _packetAnimations.add(
+        PacketAnimation(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          fromDeviceId: fromId,
+          toDeviceId: toId,
+          color: color,
+        ),
+      );
+    });
   }
 
   /// Get the next number for a device type
@@ -183,6 +296,7 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas> {
                       painter: LinksPainter(
                         devices: canvasState.devices,
                         links: canvasState.links,
+                        packetAnimations: _packetAnimations,
                       ),
                     ),
                     // Devices

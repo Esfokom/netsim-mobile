@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
+import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
+import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// End Device (PC/Workstation) - Player's main interaction point
 class EndDevice extends NetworkDevice
@@ -255,6 +258,13 @@ class EndDevice extends NetworkDevice
         onExecute: enableDhcp,
         isEnabled: _isPoweredOn && ipConfigMode == 'DHCP',
       ),
+      DeviceAction(
+        id: 'ping_test',
+        label: 'Ping Test',
+        icon: Icons.network_check,
+        onExecute: () {}, // UI will trigger ping dialog
+        isEnabled: _isPoweredOn && currentIpAddress != null,
+      ),
       if (_linkState == 'DOWN')
         DeviceAction(
           id: 'connect_cable',
@@ -263,5 +273,126 @@ class EndDevice extends NetworkDevice
           onExecute: () {}, // UI will handle drag/drop
         ),
     ];
+  }
+
+  /// Handle incoming packet
+  void handlePacket(Packet packet, SimulationEngine engine) {
+    if (!_isPoweredOn) return;
+
+    // Update ARP cache if we see a packet from a known IP
+    if (packet.sourceIp != null && packet.sourceMac.isNotEmpty) {
+      _updateArpCache(packet.sourceIp!, packet.sourceMac);
+    }
+
+    // Process packet based on type
+    if (packet.destMac == macAddress || packet.destMac == 'FF:FF:FF:FF:FF:FF') {
+      switch (packet.type) {
+        case PacketType.arpRequest:
+          _handleArpRequest(packet, engine);
+          break;
+        case PacketType.arpReply:
+          // Already updated cache above
+          break;
+        case PacketType.icmpEchoRequest:
+          _handleIcmpEchoRequest(packet, engine);
+          break;
+        case PacketType.icmpEchoReply:
+          // Handle ping reply (log success)
+          appLogger.i(
+            '[EndDevice] Ping reply received from ${packet.sourceIp}',
+          );
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  void _updateArpCache(String ip, String mac) {
+    // Check if entry exists and is different, or doesn't exist
+    final existingIndex = arpCache.indexWhere((entry) => entry['ip'] == ip);
+    if (existingIndex != -1) {
+      if (arpCache[existingIndex]['mac'] != mac) {
+        arpCache[existingIndex]['mac'] = mac;
+      }
+    } else {
+      arpCache.add({'ip': ip, 'mac': mac});
+    }
+  }
+
+  void _handleArpRequest(Packet packet, SimulationEngine engine) {
+    final targetIp = packet.payload['targetIp'];
+    if (targetIp == currentIpAddress) {
+      // Send ARP Reply
+      final reply = Packet(
+        sourceMac: macAddress,
+        destMac: packet.sourceMac,
+        sourceIp: currentIpAddress,
+        destIp: packet.sourceIp,
+        type: PacketType.arpReply,
+        payload: {'targetIp': packet.sourceIp, 'targetMac': packet.sourceMac},
+      );
+      engine.sendPacket(reply, deviceId);
+    }
+  }
+
+  void _handleIcmpEchoRequest(Packet packet, SimulationEngine engine) {
+    if (packet.destIp == currentIpAddress) {
+      // Send Echo Reply
+      final reply = Packet(
+        sourceMac: macAddress,
+        destMac: packet.sourceMac,
+        sourceIp: currentIpAddress,
+        destIp: packet.sourceIp,
+        type: PacketType.icmpEchoReply,
+        payload: packet.payload,
+      );
+      engine.sendPacket(reply, deviceId);
+    }
+  }
+
+  /// Initiate a ping
+  void ping(String targetIp, SimulationEngine engine) {
+    if (!_isPoweredOn || currentIpAddress == null) return;
+
+    // Check ARP cache
+    final arpEntry = arpCache.firstWhere(
+      (entry) => entry['ip'] == targetIp,
+      orElse: () => {},
+    );
+
+    if (arpEntry.isNotEmpty) {
+      // Send ICMP Echo Request directly
+      final packet = Packet(
+        sourceMac: macAddress,
+        destMac: arpEntry['mac']!,
+        sourceIp: currentIpAddress,
+        destIp: targetIp,
+        type: PacketType.icmpEchoRequest,
+        payload: {'sequence': 1, 'data': 'PingData'},
+      );
+      engine.sendPacket(packet, deviceId);
+    } else {
+      // Send ARP Request
+      final packet = Packet(
+        sourceMac: macAddress,
+        destMac: 'FF:FF:FF:FF:FF:FF', // Broadcast
+        sourceIp: currentIpAddress,
+        destIp:
+            targetIp, // ARP packet doesn't really have dest IP in header usually, but for sim we can put it
+        type: PacketType.arpRequest,
+        payload: {
+          'targetIp': targetIp,
+          'senderIp': currentIpAddress,
+          'senderMac': macAddress,
+        },
+      );
+      engine.sendPacket(packet, deviceId);
+
+      // Queue the ping to run after ARP resolution?
+      // For simplicity, we'll just send ARP for now.
+      // The user might need to ping again or we can implement a wait queue.
+      appLogger.i('[EndDevice] ARP Request sent for $targetIp');
+    }
   }
 }

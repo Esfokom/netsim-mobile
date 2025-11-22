@@ -5,6 +5,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
 import 'package:netsim_mobile/features/devices/domain/factories/device_factory.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/scenario_bottom_panel.dart';
@@ -122,8 +123,7 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
       child: GestureDetector(
         onTap: () {
           if (canvasState.isLinkingMode) {
-            // Complete linking
-            canvasNotifier.completeLinking(widget.device.id);
+            _handleLinkingTap(context, canvasState, canvasNotifier);
           } else {
             // Select device in canvas
             canvasNotifier.selectDevice(widget.device.id);
@@ -328,6 +328,166 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _handleLinkingTap(
+    BuildContext context,
+    CanvasState canvasState,
+    CanvasNotifier canvasNotifier,
+  ) {
+    final sourceId = canvasState.linkingFromDeviceId;
+    final targetId = widget.device.id;
+
+    if (sourceId == null || sourceId == targetId) {
+      canvasNotifier.completeLinking(targetId);
+      return;
+    }
+
+    final sourceDevice = canvasNotifier.getNetworkDevice(sourceId);
+    final targetDevice = canvasNotifier.getNetworkDevice(targetId);
+
+    final sourceIsSwitch = sourceDevice?.deviceType == 'Switch';
+    final targetIsSwitch = targetDevice?.deviceType == 'Switch';
+
+    if (sourceIsSwitch || targetIsSwitch) {
+      _showPortSelectionDialog(
+        context,
+        canvasNotifier,
+        sourceId,
+        targetId,
+        sourceDevice,
+        targetDevice,
+        sourceIsSwitch,
+        targetIsSwitch,
+      );
+    } else {
+      canvasNotifier.completeLinking(targetId);
+    }
+  }
+
+  void _showPortSelectionDialog(
+    BuildContext context,
+    CanvasNotifier canvasNotifier,
+    String sourceId,
+    String targetId,
+    NetworkDevice? sourceDevice,
+    NetworkDevice? targetDevice,
+    bool sourceIsSwitch,
+    bool targetIsSwitch,
+  ) {
+    // We need to import SwitchDevice to access ports, but we can't easily here without circular deps or type issues if not careful.
+    // However, we can use dynamic or check properties if we are careful.
+    // Or better, assume we can access 'ports' if it's a switch.
+    // Since we are in the widget, we can try to cast if we import SwitchDevice.
+    // Let's assume we can access the ports list.
+
+    // Helper to get available ports
+    List<SwitchPort> getAvailablePorts(NetworkDevice? device) {
+      if (device == null || device is! SwitchDevice) return [];
+      return device.ports.where((p) => p.connectedLinkId == null).toList();
+    }
+
+    List<SwitchPort> sourcePorts = sourceIsSwitch
+        ? getAvailablePorts(sourceDevice)
+        : [];
+    List<SwitchPort> targetPorts = targetIsSwitch
+        ? getAvailablePorts(targetDevice)
+        : [];
+
+    int? selectedSourcePortId;
+    int? selectedTargetPortId;
+
+    // Pre-select first available port
+    if (sourcePorts.isNotEmpty) {
+      selectedSourcePortId = sourcePorts.first.portId;
+    }
+    if (targetPorts.isNotEmpty) {
+      selectedTargetPortId = targetPorts.first.portId;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Select Ports'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (sourceIsSwitch) ...[
+                  Text('Source: ${sourceDevice?.displayName ?? "Switch"}'),
+                  const SizedBox(height: 8),
+                  if (sourcePorts.isEmpty)
+                    const Text(
+                      'No available ports',
+                      style: TextStyle(color: Colors.red),
+                    )
+                  else
+                    DropdownButton<int>(
+                      value: selectedSourcePortId,
+                      isExpanded: true,
+                      items: sourcePorts.map((p) {
+                        return DropdownMenuItem<int>(
+                          value: p.portId,
+                          child: Text('Port ${p.portId}'),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() => selectedSourcePortId = val);
+                      },
+                    ),
+                  const SizedBox(height: 16),
+                ],
+                if (targetIsSwitch) ...[
+                  Text('Target: ${targetDevice?.displayName ?? "Switch"}'),
+                  const SizedBox(height: 8),
+                  if (targetPorts.isEmpty)
+                    const Text(
+                      'No available ports',
+                      style: TextStyle(color: Colors.red),
+                    )
+                  else
+                    DropdownButton<int>(
+                      value: selectedTargetPortId,
+                      isExpanded: true,
+                      items: targetPorts.map((p) {
+                        return DropdownMenuItem<int>(
+                          value: p.portId,
+                          child: Text('Port ${p.portId}'),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() => selectedTargetPortId = val);
+                      },
+                    ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    (sourceIsSwitch && selectedSourcePortId == null) ||
+                        (targetIsSwitch && selectedTargetPortId == null)
+                    ? null
+                    : () {
+                        Navigator.pop(ctx);
+                        canvasNotifier.completeLinkingWithPort(
+                          targetId,
+                          selectedSourcePortId,
+                          selectedTargetPortId,
+                        );
+                      },
+                child: const Text('Connect'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

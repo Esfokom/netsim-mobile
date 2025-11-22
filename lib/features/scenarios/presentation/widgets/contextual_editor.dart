@@ -12,6 +12,9 @@ import 'package:netsim_mobile/features/devices/domain/entities/router_device.dar
 import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/firewall_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/wireless_access_point.dart';
+import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
+import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
 
 /// Contextual editor that shows scenario metadata or device properties
 class ContextualEditor extends ConsumerStatefulWidget {
@@ -464,6 +467,29 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                   label: Text(action.label),
                   onPressed: action.isEnabled && isAllowed
                       ? () {
+                          // Handle special UI actions
+                          if (action.id == 'configure_ports' &&
+                              networkDevice is SwitchDevice) {
+                            _showPortConfigurationDialog(
+                              context,
+                              networkDevice,
+                              canvasNotifier,
+                            );
+                            return;
+                          } else if (action.id == 'ping_test' &&
+                              networkDevice is EndDevice) {
+                            _showPingDialog(context, networkDevice);
+                            return;
+                          } else if (action.id == 'view_arp_cache' &&
+                              networkDevice is EndDevice) {
+                            _showArpCacheDialog(context, networkDevice);
+                            return;
+                          } else if (action.id == 'view_cam_table' &&
+                              networkDevice is SwitchDevice) {
+                            _showCamTableDialog(context, networkDevice);
+                            return;
+                          }
+
                           // Execute the action
                           action.onExecute();
 
@@ -533,104 +559,12 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
             ),
             const SizedBox(height: 12),
 
-            // Display properties based on permission level
-            ...networkDevice.properties.map((property) {
-              // Get permission level for this property
-              final permission = simulationMode
-                  ? scenarioNotifier.getPropertyPermission(
-                      device.id,
-                      DeviceActionType.editProperty,
-                      propertyId: property.id,
-                    )
-                  : PropertyPermission.editable;
-
-              // Hide denied properties in simulation mode
-              if (simulationMode && permission == PropertyPermission.denied) {
-                return const SizedBox.shrink();
-              }
-
-              // Determine if property can be edited
-              final canEdit = permission == PropertyPermission.editable;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: canEdit
-                    ? (property.buildEditWidget((newValue) {
-                            // Update property value
-                            property.value = newValue;
-
-                            // Handle special case for showIpOnCanvas toggle
-                            if (property.id == 'showIpOnCanvas' &&
-                                newValue is bool) {
-                              // Update the actual device field based on device type
-                              if (networkDevice is RouterDevice) {
-                                networkDevice.showIpOnCanvas = newValue;
-                              } else if (networkDevice is EndDevice) {
-                                networkDevice.showIpOnCanvas = newValue;
-                              } else if (networkDevice is FirewallDevice) {
-                                networkDevice.showIpOnCanvas = newValue;
-                              } else if (networkDevice is WirelessAccessPoint) {
-                                networkDevice.showIpOnCanvas = newValue;
-                              }
-                            }
-
-                            // Refresh canvas to update display
-                            canvasNotifier.refreshDevice(device.id);
-                            setState(() {});
-                          }) ??
-                          property.buildDisplayWidget())
-                    : Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.orange.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.visibility,
-                              size: 16,
-                              color: Colors.orange.shade700,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    property.label,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.orange.shade700,
-                                    ),
-                                  ),
-                                  Text(
-                                    property.value.toString(),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey.shade700,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Read-only in simulation',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontStyle: FontStyle.italic,
-                                      color: Colors.orange.shade600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-              );
-            }),
+            _buildCompactNetworkProperties(
+              device,
+              networkDevice,
+              canvasNotifier,
+              simulationMode: simulationMode,
+            ),
 
             const SizedBox(height: 16),
 
@@ -695,6 +629,527 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  // ... (existing methods)
+
+  void _showPingDialog(BuildContext context, EndDevice device) {
+    final controller = TextEditingController();
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Ping Test'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enter the IP address of the target device:',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: 'Target IP Address',
+                    border: const OutlineInputBorder(),
+                    errorText: errorText,
+                    hintText: 'e.g., 192.168.1.2',
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      if (value.trim().isEmpty) {
+                        errorText = 'IP address cannot be empty';
+                      } else {
+                        // Simple IP validation regex
+                        final ipRegex = RegExp(
+                          r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$',
+                        );
+                        if (!ipRegex.hasMatch(value.trim())) {
+                          errorText = 'Invalid IP address format';
+                        } else {
+                          errorText = null;
+                        }
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    errorText == null && controller.text.trim().isNotEmpty
+                    ? () {
+                        final targetIp = controller.text.trim();
+                        Navigator.pop(ctx);
+
+                        // Trigger ping
+                        final engine = ref.read(simulationEngineProvider);
+                        device.ping(targetIp, engine);
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Pinging $targetIp...'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Ping'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showArpCacheDialog(BuildContext context, EndDevice device) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('ARP Cache - ${device.displayName}'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: device.arpCache.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('ARP Cache is empty'),
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: device.arpCache.length,
+                  itemBuilder: (context, index) {
+                    final entry = device.arpCache[index];
+                    return ListTile(
+                      leading: const Icon(Icons.link),
+                      title: Text(entry['ip'] ?? ''),
+                      subtitle: Text(entry['mac'] ?? ''),
+                      trailing: Text(
+                        'Dynamic',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCamTableDialog(BuildContext context, SwitchDevice device) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('CAM Table - ${device.displayName}'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: device.macAddressTable.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('MAC Address Table is empty'),
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: const [
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'MAC Address',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'Port',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'Type',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: device.macAddressTable.length,
+                        itemBuilder: (context, index) {
+                          final entry = device.macAddressTable[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    entry['macAddress'] ?? '',
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text('Port ${entry['portId']}'),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    'Dynamic',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ... (rest of existing methods)
+
+  Widget _buildCompactNetworkProperties(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    CanvasNotifier canvasNotifier, {
+    bool simulationMode = false,
+  }) {
+    final scenarioNotifier = ref.read(scenarioProvider.notifier);
+
+    // Filter out properties we don't want to show or show separately
+    final filteredProperties = networkDevice.properties.where((prop) {
+      // Skip device name (already in basic properties)
+      if (prop.id == 'name') return false;
+
+      // Skip showIpOnCanvas (we'll show it separately as compact toggle)
+      if (prop.id == 'showIpOnCanvas') return false;
+
+      // Check permission in simulation mode
+      if (simulationMode) {
+        final permission = scenarioNotifier.getPropertyPermission(
+          device.id,
+          DeviceActionType.editProperty,
+          propertyId: prop.id,
+        );
+        if (permission == PropertyPermission.denied) return false;
+      }
+
+      return true;
+    }).toList();
+
+    // Get showIpOnCanvas property separately
+    final showIpProperty = networkDevice.properties
+        .where((p) => p.id == 'showIpOnCanvas')
+        .firstOrNull;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Compact Show IP Toggle (if property exists and not denied)
+          if (showIpProperty != null) ...[
+            InkWell(
+              onTap: () {
+                final permission = simulationMode
+                    ? scenarioNotifier.getPropertyPermission(
+                        device.id,
+                        DeviceActionType.editProperty,
+                        propertyId: showIpProperty.id,
+                      )
+                    : PropertyPermission.editable;
+
+                if (permission == PropertyPermission.editable) {
+                  final currentValue = showIpProperty.value as bool;
+                  final newValue = !currentValue;
+                  showIpProperty.value = newValue;
+
+                  // Update the actual device field
+                  if (networkDevice is RouterDevice) {
+                    networkDevice.showIpOnCanvas = newValue;
+                  } else if (networkDevice is EndDevice) {
+                    networkDevice.showIpOnCanvas = newValue;
+                  } else if (networkDevice is FirewallDevice) {
+                    networkDevice.showIpOnCanvas = newValue;
+                  } else if (networkDevice is WirelessAccessPoint) {
+                    networkDevice.showIpOnCanvas = newValue;
+                  }
+
+                  canvasNotifier.refreshDevice(device.id);
+                  setState(() {});
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.label, size: 14, color: Colors.grey.shade600),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Show IP on Canvas',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                    Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: showIpProperty.value as bool,
+                        onChanged: (value) {
+                          final permission = simulationMode
+                              ? scenarioNotifier.getPropertyPermission(
+                                  device.id,
+                                  DeviceActionType.editProperty,
+                                  propertyId: showIpProperty.id,
+                                )
+                              : PropertyPermission.editable;
+
+                          if (permission == PropertyPermission.editable) {
+                            showIpProperty.value = value;
+
+                            // Update the actual device field
+                            if (networkDevice is RouterDevice) {
+                              networkDevice.showIpOnCanvas = value;
+                            } else if (networkDevice is EndDevice) {
+                              networkDevice.showIpOnCanvas = value;
+                            } else if (networkDevice is FirewallDevice) {
+                              networkDevice.showIpOnCanvas = value;
+                            } else if (networkDevice is WirelessAccessPoint) {
+                              networkDevice.showIpOnCanvas = value;
+                            }
+
+                            canvasNotifier.refreshDevice(device.id);
+                            setState(() {});
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (filteredProperties.isNotEmpty)
+              Divider(height: 16, color: Colors.grey.withValues(alpha: 0.2)),
+          ],
+
+          // Compact property rows - tap to expand in dialog
+          ...filteredProperties.asMap().entries.map((entry) {
+            final index = entry.key;
+            final property = entry.value;
+
+            final permission = simulationMode
+                ? scenarioNotifier.getPropertyPermission(
+                    device.id,
+                    DeviceActionType.editProperty,
+                    propertyId: property.id,
+                  )
+                : PropertyPermission.editable;
+
+            final canEdit = permission == PropertyPermission.editable;
+
+            return Column(
+              children: [
+                InkWell(
+                  onTap: canEdit
+                      ? () => _showPropertyEditDialog(
+                          device,
+                          networkDevice,
+                          property,
+                          canvasNotifier,
+                        )
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _getPropertyIcon(property),
+                          size: 14,
+                          color: permission == PropertyPermission.readonly
+                              ? Colors.orange.shade600
+                              : Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                property.label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              Text(
+                                property.value.toString(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color:
+                                      permission == PropertyPermission.readonly
+                                      ? Colors.orange.shade700
+                                      : Colors.grey.shade900,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (canEdit)
+                          Icon(
+                            Icons.edit,
+                            size: 14,
+                            color: Colors.grey.shade500,
+                          )
+                        else if (permission == PropertyPermission.readonly)
+                          Icon(
+                            Icons.visibility,
+                            size: 14,
+                            color: Colors.orange.shade600,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (index < filteredProperties.length - 1)
+                  Divider(height: 8, color: Colors.grey.withValues(alpha: 0.2)),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  IconData _getPropertyIcon(DeviceProperty property) {
+    if (property.id.contains('ip') || property.id.contains('Ip')) {
+      return Icons.lan;
+    } else if (property.id.contains('mac') || property.id.contains('Mac')) {
+      return Icons.fingerprint;
+    } else if (property.id == 'powerState') {
+      return Icons.power_settings_new;
+    } else if (property.id == 'linkState') {
+      return Icons.link;
+    } else if (property.id.contains('hostname')) {
+      return Icons.dns;
+    } else if (property.id.contains('enabled') ||
+        property.id.contains('Enabled')) {
+      return Icons.toggle_on;
+    } else if (property.id.contains('count') || property.id.contains('Count')) {
+      return Icons.numbers;
+    }
+    return Icons.settings;
+  }
+
+  void _showPropertyEditDialog(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    DeviceProperty property,
+    CanvasNotifier canvasNotifier,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit ${property.label}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Current value:',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            property.buildEditWidget((newValue) {
+                  property.value = newValue;
+                  canvasNotifier.refreshDevice(device.id);
+                }) ??
+                property.buildDisplayWidget(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {});
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${property.label} updated'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Done'),
+          ),
         ],
       ),
     );
@@ -1408,6 +1863,97 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
 
   /// Maps NetworkDevice DeviceStatus to CanvasDevice DeviceStatus
   /// Since both now use the same DeviceStatus enum from devices domain, just return as-is
+  void _showPortConfigurationDialog(
+    BuildContext context,
+    SwitchDevice switchDevice,
+    CanvasNotifier canvasNotifier,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Text('Configure Ports - ${switchDevice.displayName}'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 20, color: Colors.blue),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Disable unused ports to simulate network segmentation or failure scenarios.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: switchDevice.ports.length,
+                      itemBuilder: (context, index) {
+                        final port = switchDevice.ports[index];
+                        return SwitchListTile(
+                          title: Text('Port ${port.portId}'),
+                          subtitle: Text(
+                            port.connectedLinkId != null
+                                ? 'Connected (Link: ${port.connectedLinkId!.substring(0, 8)}...)'
+                                : 'Disconnected',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: port.connectedLinkId != null
+                                  ? Colors.green
+                                  : Colors.grey,
+                            ),
+                          ),
+                          value: port.isEnabled,
+                          onChanged: (value) {
+                            setDialogState(() {
+                              port.isEnabled = value;
+                            });
+                            // Update canvas immediately to reflect state if needed
+                            canvasNotifier.refreshDevice(switchDevice.deviceId);
+                            // Force rebuild of parent widget to update UI if needed
+                            setState(() {});
+                          },
+                          secondary: Icon(
+                            Icons.settings_input_component,
+                            color: port.isEnabled ? Colors.green : Colors.grey,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   network.DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
     return networkStatus;
   }
