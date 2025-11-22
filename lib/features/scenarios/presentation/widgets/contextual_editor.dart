@@ -27,6 +27,9 @@ class ContextualEditor extends ConsumerStatefulWidget {
 }
 
 class _ContextualEditorState extends ConsumerState<ContextualEditor> {
+  bool _showingPingSheet = false;
+  EndDevice? _pingSourceDevice;
+
   @override
   Widget build(BuildContext context) {
     final scenarioState = ref.watch(scenarioProvider);
@@ -48,13 +51,14 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
         }
       }
 
+      Widget content;
       if (selectedDevice != null) {
-        return _buildDevicePropertiesEditor(
+        content = _buildDevicePropertiesEditor(
           selectedDevice,
           simulationMode: true,
         );
       } else {
-        return Center(
+        content = Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
@@ -64,6 +68,15 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
           ),
         );
       }
+
+      // Wrap with Stack to show ping sheet overlay if needed
+      return Stack(
+        children: [
+          content,
+          if (_showingPingSheet && _pingSourceDevice != null)
+            _buildPingBottomSheet(),
+        ],
+      );
     }
 
     // Edit mode: show full editor
@@ -81,12 +94,13 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       }
     }
 
+    Widget content;
     if (selectedDevice != null) {
       // Show device properties editor
-      return _buildDevicePropertiesEditor(selectedDevice);
+      content = _buildDevicePropertiesEditor(selectedDevice);
     } else {
       // Show "no device selected" message
-      return Center(
+      content = Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -113,6 +127,15 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
         ),
       );
     }
+
+    // Wrap with Stack to show ping sheet overlay if needed
+    return Stack(
+      children: [
+        content,
+        if (_showingPingSheet && _pingSourceDevice != null)
+          _buildPingBottomSheet(),
+      ],
+    );
   }
 
   Widget _buildDevicePropertiesEditor(
@@ -478,7 +501,10 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                             return;
                           } else if (action.id == 'ping_test' &&
                               networkDevice is EndDevice) {
-                            _showPingDialog(context, networkDevice);
+                            setState(() {
+                              _showingPingSheet = true;
+                              _pingSourceDevice = networkDevice;
+                            });
                             return;
                           } else if (action.id == 'view_arp_cache' &&
                               networkDevice is EndDevice) {
@@ -643,82 +669,6 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   }
 
   // ... (existing methods)
-
-  void _showPingDialog(BuildContext context, EndDevice device) {
-    final controller = TextEditingController();
-    String? errorText;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text('Ping Test'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Enter the IP address of the target device:',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  decoration: InputDecoration(
-                    labelText: 'Target IP Address',
-                    border: const OutlineInputBorder(),
-                    errorText: errorText,
-                    hintText: 'e.g., 192.168.1.2',
-                  ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      if (value.trim().isEmpty) {
-                        errorText = 'IP address cannot be empty';
-                      } else {
-                        // Simple IP validation regex
-                        final ipRegex = RegExp(
-                          r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$',
-                        );
-                        if (!ipRegex.hasMatch(value.trim())) {
-                          errorText = 'Invalid IP address format';
-                        } else {
-                          errorText = null;
-                        }
-                      }
-                    });
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed:
-                    errorText == null && controller.text.trim().isNotEmpty
-                    ? () {
-                        final targetIp = controller.text.trim();
-
-                        // Trigger ping
-                        final engine = ref.read(simulationEngineProvider);
-                        device.ping(targetIp, engine);
-
-                        // Close the dialog (using ctx from builder)
-                        Navigator.pop(ctx);
-                      }
-                    : null,
-                child: const Text('Ping'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
 
   void _showArpCacheDialog(BuildContext context, EndDevice device) {
     showDialog(
@@ -2464,5 +2414,368 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
 
   network.DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
     return networkStatus;
+  }
+
+  Widget _buildPingBottomSheet() {
+    final canvasState = ref.watch(canvasProvider);
+    final canvasNotifier = ref.read(canvasProvider.notifier);
+
+    // Get all devices that can be pinged (EndDevices with IP addresses)
+    final availableTargets = canvasState.devices.where((device) {
+      final networkDevice = canvasNotifier.getNetworkDevice(device.id);
+      if (networkDevice is EndDevice &&
+          networkDevice.currentIpAddress != null &&
+          device.id != _pingSourceDevice!.deviceId) {
+        return true;
+      }
+      return false;
+    }).toList();
+
+    // State for the bottom sheet
+    EndDevice? selectedSource = _pingSourceDevice;
+    String? selectedTargetIp;
+    bool customIpMode = false;
+    String? errorText;
+
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: () {
+          // Close sheet when tapping outside
+          setState(() {
+            _showingPingSheet = false;
+            _pingSourceDevice = null;
+          });
+        },
+        child: Container(
+          color: Colors.black54,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: GestureDetector(
+              onTap: () {}, // Prevent closing when tapping inside
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.7,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: StatefulBuilder(
+                  builder: (context, setSheetState) {
+                    return Column(
+                      children: [
+                        // Header
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.grey.shade300,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.network_ping,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 12),
+                              const Text(
+                                'Ping Test',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () {
+                                  setState(() {
+                                    _showingPingSheet = false;
+                                    _pingSourceDevice = null;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Content
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Source Device Selection
+                                Text(
+                                  'Source Device',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                DropdownButtonFormField<String>(
+                                  initialValue: selectedSource?.deviceId,
+                                  decoration: const InputDecoration(
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                  items: canvasState.devices
+                                      .where((device) {
+                                        final networkDevice = canvasNotifier
+                                            .getNetworkDevice(device.id);
+                                        return networkDevice is EndDevice &&
+                                            networkDevice.currentIpAddress !=
+                                                null;
+                                      })
+                                      .map((device) {
+                                        final networkDevice =
+                                            canvasNotifier.getNetworkDevice(
+                                                  device.id,
+                                                )
+                                                as EndDevice;
+                                        return DropdownMenuItem(
+                                          value: device.id,
+                                          child: Text(
+                                            '${device.name} (${networkDevice.currentIpAddress})',
+                                          ),
+                                        );
+                                      })
+                                      .toList(),
+                                  onChanged: (deviceId) {
+                                    if (deviceId != null) {
+                                      final networkDevice = canvasNotifier
+                                          .getNetworkDevice(deviceId);
+                                      if (networkDevice is EndDevice) {
+                                        setSheetState(() {
+                                          selectedSource = networkDevice;
+                                        });
+                                      }
+                                    }
+                                  },
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                // Target Selection Mode Toggle
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Target',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        setSheetState(() {
+                                          customIpMode = !customIpMode;
+                                          selectedTargetIp = null;
+                                          errorText = null;
+                                        });
+                                      },
+                                      icon: Icon(
+                                        customIpMode ? Icons.list : Icons.edit,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        customIpMode
+                                            ? 'Select from list'
+                                            : 'Enter custom IP',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+
+                                // Target Selection
+                                if (!customIpMode) ...[
+                                  // List of available devices
+                                  if (availableTargets.isEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: Colors.orange.shade200,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            color: Colors.orange.shade700,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              'No other devices with IP addresses available',
+                                              style: TextStyle(
+                                                color: Colors.orange.shade700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    ...availableTargets.map((device) {
+                                      final networkDevice =
+                                          canvasNotifier.getNetworkDevice(
+                                                device.id,
+                                              )
+                                              as EndDevice;
+                                      final isSelected =
+                                          selectedTargetIp ==
+                                          networkDevice.currentIpAddress;
+
+                                      return Card(
+                                        margin: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
+                                        color: isSelected
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.primaryContainer
+                                            : null,
+                                        child: ListTile(
+                                          leading: Icon(
+                                            Icons.computer,
+                                            color: isSelected
+                                                ? Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary
+                                                : null,
+                                          ),
+                                          title: Text(device.name),
+                                          subtitle: Text(
+                                            networkDevice.currentIpAddress!,
+                                          ),
+                                          trailing: isSelected
+                                              ? Icon(
+                                                  Icons.check_circle,
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary,
+                                                )
+                                              : null,
+                                          onTap: () {
+                                            setSheetState(() {
+                                              selectedTargetIp = networkDevice
+                                                  .currentIpAddress;
+                                              errorText = null;
+                                            });
+                                          },
+                                        ),
+                                      );
+                                    }).toList(),
+                                ] else ...[
+                                  // Custom IP input
+                                  TextField(
+                                    decoration: InputDecoration(
+                                      labelText: 'Target IP Address',
+                                      border: const OutlineInputBorder(),
+                                      errorText: errorText,
+                                      hintText: 'e.g., 192.168.1.2',
+                                      prefixIcon: const Icon(Icons.input),
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (value) {
+                                      setSheetState(() {
+                                        if (value.trim().isEmpty) {
+                                          errorText =
+                                              'IP address cannot be empty';
+                                        } else {
+                                          // Simple IP validation
+                                          final ipRegex = RegExp(
+                                            r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$',
+                                          );
+                                          if (!ipRegex.hasMatch(value.trim())) {
+                                            errorText =
+                                                'Invalid IP address format';
+                                          } else {
+                                            errorText = null;
+                                            selectedTargetIp = value.trim();
+                                          }
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Bottom Action Button
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color: Colors.grey.shade300,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  selectedSource != null &&
+                                      selectedTargetIp != null &&
+                                      errorText == null
+                                  ? () {
+                                      // Trigger ping
+                                      final engine = ref.read(
+                                        simulationEngineProvider,
+                                      );
+                                      selectedSource!.ping(
+                                        selectedTargetIp!,
+                                        engine,
+                                      );
+
+                                      // Close the sheet
+                                      setState(() {
+                                        _showingPingSheet = false;
+                                        _pingSourceDevice = null;
+                                      });
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.send),
+                              label: const Text('Ping'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
