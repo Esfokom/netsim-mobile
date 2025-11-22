@@ -158,7 +158,7 @@ class SelectionProperty extends DeviceProperty<String> {
       decoration: InputDecoration(labelText: label),
       initialValue: value,
       items: options.map((option) {
-        return DropdownMenuItem(value: option, child: Text(option));
+        return DropdownMenuItem<String>(value: option, child: Text(option));
       }).toList(),
       onChanged: (val) {
         if (val != null) onChanged(val);
