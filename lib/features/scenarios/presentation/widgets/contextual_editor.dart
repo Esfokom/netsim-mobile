@@ -542,6 +542,110 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                             );
                             return;
                           }
+                          // Router-specific actions
+                          else if (action.id == 'view_routing_table' &&
+                              networkDevice is RouterDevice) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) =>
+                                  RoutingTableDialog(router: networkDevice),
+                            );
+                            return;
+                          } else if (action.id == 'view_interfaces' &&
+                              networkDevice is RouterDevice) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) =>
+                                  RouterInterfacesDialog(router: networkDevice),
+                            );
+                            return;
+                          } else if (action.id == 'view_arp_eth0' &&
+                              networkDevice is RouterDevice) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => RouterArpCacheDialog(
+                                router: networkDevice,
+                                interfaceName: 'eth0',
+                              ),
+                            );
+                            return;
+                          } else if (action.id == 'view_arp_eth1' &&
+                              networkDevice is RouterDevice) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => RouterArpCacheDialog(
+                                router: networkDevice,
+                                interfaceName: 'eth1',
+                              ),
+                            );
+                            return;
+                          }
+                          // Router configuration actions
+                          else if (action.id == 'add_static_route' &&
+                              networkDevice is RouterDevice) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AddStaticRouteDialog(
+                                router: networkDevice,
+                                onRouteAdded: () {
+                                  setState(() {});
+                                  canvasNotifier.refreshDevice(device.id);
+                                },
+                              ),
+                            );
+                            return;
+                          } else if (action.id == 'configure_interface' &&
+                              networkDevice is RouterDevice) {
+                            // Show dialog to select which interface
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Select Interface'),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: networkDevice.interfaces.keys.map((
+                                    ifaceName,
+                                  ) {
+                                    return ListTile(
+                                      leading: const Icon(
+                                        Icons.settings_ethernet,
+                                      ),
+                                      title: Text(ifaceName.toUpperCase()),
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        showDialog(
+                                          context: context,
+                                          builder: (ctx2) =>
+                                              ConfigureInterfaceDialog(
+                                                router: networkDevice,
+                                                interfaceName: ifaceName,
+                                                onConfigured: () {
+                                                  setState(() {});
+                                                  canvasNotifier.refreshDevice(
+                                                    device.id,
+                                                  );
+                                                },
+                                              ),
+                                        );
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          // EndDevice routing table action
+                          else if (action.id == 'view_routing_table' &&
+                              networkDevice is EndDevice) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => EndDeviceNetworkInfoDialog(
+                                device: networkDevice,
+                              ),
+                            );
+                            return;
+                          }
 
                           // Execute the action
                           action.onExecute();

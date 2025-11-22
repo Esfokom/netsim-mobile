@@ -368,6 +368,7 @@ class RouterDevice extends NetworkDevice
   @override
   List<DeviceAction> getAvailableActions() {
     return [
+      // Power Management
       DeviceAction(
         id: 'power_toggle',
         label: _isPoweredOn ? 'Power Off' : 'Power On',
@@ -375,24 +376,93 @@ class RouterDevice extends NetworkDevice
         onExecute: _isPoweredOn ? powerOff : powerOn,
       ),
       DeviceAction(
-        id: 'configure',
-        label: 'Configure Router',
-        icon: Icons.settings,
-        onExecute: () {},
+        id: 'reboot',
+        label: 'Reboot Router',
+        icon: Icons.restart_alt,
+        onExecute: reboot,
+        isEnabled: _isPoweredOn,
+      ),
+
+      // Interface Management
+      DeviceAction(
+        id: 'view_interfaces',
+        label: 'View Interfaces',
+        icon: Icons.settings_ethernet,
+        onExecute: () {}, // UI will handle this
         isEnabled: _isPoweredOn,
       ),
       DeviceAction(
-        id: 'routing_table',
-        label: 'View Routing Table',
-        icon: Icons.table_chart,
-        onExecute: () {},
+        id: 'configure_interface',
+        label: 'Configure Interface',
+        icon: Icons.edit_road,
+        onExecute: () {}, // UI will handle this
         isEnabled: _isPoweredOn,
       ),
+
+      // Routing
+      DeviceAction(
+        id: 'view_routing_table',
+        label: 'View Routing Table',
+        icon: Icons.table_chart,
+        onExecute: () {}, // UI will handle this
+        isEnabled: _isPoweredOn,
+      ),
+      DeviceAction(
+        id: 'add_static_route',
+        label: 'Add Static Route',
+        icon: Icons.add_road,
+        onExecute: () {}, // UI will handle this
+        isEnabled: _isPoweredOn,
+      ),
+
+      // ARP Cache
+      DeviceAction(
+        id: 'view_arp_eth0',
+        label: 'View eth0 ARP Cache',
+        icon: Icons.list_alt,
+        onExecute: () {}, // UI will handle this
+        isEnabled: _isPoweredOn && interfaces.containsKey('eth0'),
+      ),
+      DeviceAction(
+        id: 'view_arp_eth1',
+        label: 'View eth1 ARP Cache',
+        icon: Icons.list_alt,
+        onExecute: () {}, // UI will handle this
+        isEnabled: _isPoweredOn && interfaces.containsKey('eth1'),
+      ),
+
+      // Services
       DeviceAction(
         id: 'nat_toggle',
         label: natEnabled ? 'Disable NAT' : 'Enable NAT',
         icon: Icons.swap_horiz,
         onExecute: () => natEnabled ? stopService('NAT') : startService('NAT'),
+        isEnabled: _isPoweredOn,
+      ),
+      DeviceAction(
+        id: 'dhcp_toggle',
+        label: dhcpServiceEnabled ? 'Disable DHCP' : 'Enable DHCP',
+        icon: Icons.dns,
+        onExecute: () =>
+            dhcpServiceEnabled ? stopService('DHCP') : startService('DHCP'),
+        isEnabled: _isPoweredOn,
+      ),
+      DeviceAction(
+        id: 'firewall_toggle',
+        label: firewallEnabled ? 'Disable Firewall' : 'Enable Firewall',
+        icon: Icons.security,
+        onExecute: () => firewallEnabled
+            ? stopService('FIREWALL')
+            : startService('FIREWALL'),
+        isEnabled: _isPoweredOn,
+      ),
+
+      // Diagnostics
+      DeviceAction(
+        id: 'ping_test',
+        label: 'Ping Test',
+        icon: Icons.network_check,
+        onExecute: () {}, // UI will handle this
         isEnabled: _isPoweredOn,
       ),
     ];

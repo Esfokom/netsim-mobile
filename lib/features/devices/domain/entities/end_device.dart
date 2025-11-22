@@ -453,8 +453,15 @@ class EndDevice extends NetworkDevice
       DeviceAction(
         id: 'view_arp_cache',
         label: 'View ARP Cache',
-        icon: Icons.table_chart,
+        icon: Icons.list_alt,
         onExecute: () {}, // UI will trigger ARP cache dialog
+        isEnabled: _isPoweredOn,
+      ),
+      DeviceAction(
+        id: 'view_routing_table',
+        label: 'View Routing Table',
+        icon: Icons.table_chart,
+        onExecute: () {}, // UI will trigger routing table dialog
         isEnabled: _isPoweredOn,
       ),
       if (_linkState == 'DOWN')
