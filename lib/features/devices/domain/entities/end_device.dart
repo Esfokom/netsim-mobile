@@ -225,7 +225,39 @@ class EndDevice extends NetworkDevice
     currentSubnetMask = subnet;
     currentDefaultGateway = gateway;
 
+    // PHASE 2: Update interface and create routing entries
+    final iface = defaultInterface;
+    iface.ipAddress = ip;
+    iface.subnetMask = subnet;
+    iface.defaultGateway = gateway;
+
+    // Clear old routes for this interface
+    routingTable.removeRoutesForInterface(iface.name);
+
+    // Calculate network address for directly connected route
+    final networkAddr = iface.networkAddress;
+    if (networkAddr != null && subnet.isNotEmpty) {
+      // Add directly connected route for local subnet
+      routingTable.addDirectlyConnectedRoute(
+        network: networkAddr,
+        subnetMask: subnet,
+        interfaceName: iface.name,
+      );
+      appLogger.d(
+        '[EndDevice] Added directly connected route: $networkAddr/$subnet on ${iface.name}',
+      );
+    }
+
+    // Add default route if gateway is specified
+    if (gateway.isNotEmpty && gateway != '0.0.0.0') {
+      routingTable.addDefaultRoute(gateway: gateway, interfaceName: iface.name);
+      appLogger.d(
+        '[EndDevice] Added default route via $gateway on ${iface.name}',
+      );
+    }
+
     statusMessage = 'Static IP configured';
+    _syncNewToLegacy();
   }
 
   @override
@@ -243,14 +275,42 @@ class EndDevice extends NetworkDevice
   @override
   void connectCable(String targetDeviceId, int targetPort) {
     _linkState = 'UP';
+
+    // PHASE 2: Bring interface up and track connection
+    final iface = defaultInterface;
+    iface.bringUp();
+    iface.connectedDeviceId = targetDeviceId;
+    iface.connectedPort = targetPort;
+
     statusMessage = 'Cable connected';
+    _syncNewToLegacy();
+
+    appLogger.d(
+      '[EndDevice] Cable connected: ${iface.name} -> $targetDeviceId:$targetPort',
+    );
   }
 
   @override
   void disconnectCable() {
     _linkState = 'DOWN';
+
+    // PHASE 2: Bring interface down and clear connection info
+    final iface = defaultInterface;
+    iface.bringDown();
+    iface.connectedDeviceId = null;
+    iface.connectedPort = null;
+
+    // Clear routes for this interface
+    routingTable.removeRoutesForInterface(iface.name);
+
+    // Clear ARP entries for this interface
+    arpCacheStructured.clearInterface(iface.name);
+
     currentIpAddress = null;
     statusMessage = 'Cable disconnected';
+    _syncNewToLegacy();
+
+    appLogger.d('[EndDevice] Cable disconnected: ${iface.name}');
   }
 
   // ITerminalAccessible implementation
@@ -418,11 +478,14 @@ class EndDevice extends NetworkDevice
   }
 
   void _updateArpCache(String ip, String mac) {
-    // Check if entry exists and is different, or doesn't exist
+    // PHASE 2: Use structured ARP cache
+    final iface = defaultInterface;
+    arpCacheStructured.addDynamic(ip, mac, iface.name);
+
+    // Also update legacy format for backward compatibility
     final existingIndex = arpCache.indexWhere((entry) => entry['ip'] == ip);
     if (existingIndex != -1) {
       if (arpCache[existingIndex]['mac'] != mac) {
-        // Replace the entire entry to avoid immutability issues
         arpCache[existingIndex] = {'ip': ip, 'mac': mac};
       }
     } else {
@@ -454,37 +517,48 @@ class EndDevice extends NetworkDevice
 
     appLogger.i('[EndDevice] Received ARP reply from $sourceIp');
 
-    // Check if we have a pending ping for this IP
-    if (_pendingPings.containsKey(sourceIp)) {
-      appLogger.i(
-        '[EndDevice] Found pending ping for $sourceIp, sending ICMP now',
-      );
+    // PHASE 2: Check if this is for a pending ping
+    // Note: We may have pinged a destination but got ARP reply from next-hop
+    // Need to check if ANY pending ping needs this next-hop
 
-      // Get MAC from ARP cache (already updated above)
-      final arpEntry = arpCache.firstWhere(
-        (entry) => entry['ip'] == sourceIp,
-        orElse: () => {},
-      );
+    for (final targetIp in _pendingPings.keys.toList()) {
+      // Try to find route for this pending ping
+      final route = routingTable.longestPrefixMatch(targetIp);
+      if (route == null) continue;
 
-      if (arpEntry.isNotEmpty) {
-        // Send the queued ICMP Echo Request
-        final sequence = _pendingPings[sourceIp] ?? 1;
-        final icmpPacket = Packet(
-          sourceMac: macAddress,
-          destMac: arpEntry['mac']!,
-          sourceIp: currentIpAddress,
-          destIp: sourceIp,
-          type: PacketType.icmpEchoRequest,
-          payload: {'sequence': sequence, 'data': 'PingData'},
+      final nextHopIp = route.gateway ?? targetIp;
+
+      // If this ARP reply is for the next-hop we need
+      if (nextHopIp == sourceIp) {
+        appLogger.i(
+          '[EndDevice] Found pending ping for $targetIp (next-hop: $nextHopIp), sending ICMP now',
         );
 
-        appLogger.d(
-          '[EndDevice] Sending queued ICMP Echo Request to $sourceIp',
-        );
-        engine.sendPacket(icmpPacket, deviceId);
+        // Get next-hop MAC from structured cache
+        final nextHopMac = arpCacheStructured.lookup(nextHopIp);
+        final iface = getInterface(route.interfaceName);
 
-        // Remove from pending queue
-        _pendingPings.remove(sourceIp);
+        if (nextHopMac != null && iface != null && iface.isOperational) {
+          // Send the queued ICMP Echo Request
+          final sequence = _pendingPings[targetIp] ?? 1;
+          final icmpPacket = Packet(
+            sourceMac: iface.macAddress, // Interface MAC
+            destMac: nextHopMac, // Next-hop MAC
+            sourceIp: iface.ipAddress,
+            destIp: targetIp, // Final destination
+            type: PacketType.icmpEchoRequest,
+            payload: {'sequence': sequence, 'data': 'PingData'},
+          );
+
+          appLogger.d(
+            '[EndDevice] Sending queued ICMP Echo Request to $targetIp via $nextHopIp',
+          );
+          engine.sendPacket(icmpPacket, deviceId);
+          iface.recordPacketSent(icmpPacket.payload.toString().length);
+
+          // Remove from pending queue
+          _pendingPings.remove(targetIp);
+        }
       }
     }
   }
@@ -504,56 +578,100 @@ class EndDevice extends NetworkDevice
     }
   }
 
-  /// Initiate a ping
+  /// Initiate a ping (PHASE 2: Uses routing table and proper next-hop resolution)
   void ping(String targetIp, SimulationEngine engine) {
-    if (!_isPoweredOn || currentIpAddress == null) return;
+    // Step 1: Basic checks
+    if (!_isPoweredOn) {
+      appLogger.w('[EndDevice] Cannot ping: device is powered off');
+      return;
+    }
+
+    if (currentIpAddress == null) {
+      appLogger.w('[EndDevice] Cannot ping: no IP address configured');
+      return;
+    }
 
     appLogger.i(
       '[EndDevice] Initiating ping to $targetIp from $hostname ($currentIpAddress)',
     );
 
-    // Check ARP cache
-    final arpEntry = arpCache.firstWhere(
-      (entry) => entry['ip'] == targetIp,
-      orElse: () => {},
+    // Step 2: Routing table lookup (longest prefix match)
+    final route = routingTable.longestPrefixMatch(targetIp);
+    if (route == null) {
+      appLogger.w('[EndDevice] No route to destination $targetIp');
+      // TODO: Return structured error
+      return;
+    }
+
+    appLogger.d(
+      '[EndDevice] Route found: ${route.destinationNetwork}/${route.prefixLength} via ${route.gateway ?? "direct"} on ${route.interfaceName}',
     );
 
-    if (arpEntry.isNotEmpty) {
-      // MAC address known, send ICMP Echo Request directly
-      appLogger.d('[EndDevice] MAC found in ARP cache, sending ICMP directly');
+    // Step 3: Get outgoing interface
+    final interface = getInterface(route.interfaceName);
+    if (interface == null) {
+      appLogger.w('[EndDevice] Interface ${route.interfaceName} not found');
+      return;
+    }
+
+    if (!interface.isOperational) {
+      appLogger.w(
+        '[EndDevice] Interface ${route.interfaceName} is not operational (status: ${interface.status})',
+      );
+      return;
+    }
+
+    // Step 4: Determine next hop (KEY: gateway or destination!)
+    final nextHopIp = route.gateway ?? targetIp;
+    appLogger.d('[EndDevice] Next hop: $nextHopIp');
+
+    // Step 5: ARP resolution for NEXT HOP (not destination!)
+    String? nextHopMac = arpCacheStructured.lookup(nextHopIp);
+
+    if (nextHopMac != null) {
+      // Next hop MAC known, send ICMP Echo Request
+      appLogger.d(
+        '[EndDevice] Next hop MAC found in cache: $nextHopMac, sending ICMP',
+      );
+
       final packet = Packet(
-        sourceMac: macAddress,
-        destMac: arpEntry['mac']!,
-        sourceIp: currentIpAddress,
-        destIp: targetIp,
+        sourceMac: interface.macAddress, // Use interface MAC!
+        destMac: nextHopMac, // Next hop MAC!
+        sourceIp: interface.ipAddress, // Interface IP
+        destIp: targetIp, // Final destination IP
         type: PacketType.icmpEchoRequest,
         payload: {'sequence': 1, 'data': 'PingData'},
       );
+
       engine.sendPacket(packet, deviceId);
+      interface.recordPacketSent(packet.payload.toString().length);
     } else {
-      // MAC address unknown, send ARP Request first
+      // Next hop MAC unknown, send ARP Request for NEXT HOP
       appLogger.i(
-        '[EndDevice] MAC not in cache, sending ARP request for $targetIp',
+        '[EndDevice] Next hop MAC not in cache, sending ARP request for $nextHopIp',
       );
 
       // Queue this ping to be sent after ARP reply is received
       _pendingPings[targetIp] = 1; // sequence number
 
       final arpPacket = Packet(
-        sourceMac: macAddress,
+        sourceMac: interface.macAddress, // Use interface MAC!
         destMac: 'FF:FF:FF:FF:FF:FF', // Broadcast
-        sourceIp: currentIpAddress,
-        destIp: targetIp,
+        sourceIp: interface.ipAddress, // Interface IP
+        destIp: nextHopIp, // Next hop IP (for ARP)
         type: PacketType.arpRequest,
         payload: {
-          'targetIp': targetIp,
-          'senderIp': currentIpAddress,
-          'senderMac': macAddress,
+          'targetIp': nextHopIp, // Ask for NEXT HOP MAC
+          'senderIp': interface.ipAddress,
+          'senderMac': interface.macAddress,
         },
       );
+
       engine.sendPacket(arpPacket, deviceId);
+      interface.recordPacketSent(arpPacket.payload.toString().length);
+
       appLogger.d(
-        '[EndDevice] ARP request sent, ping queued for after resolution',
+        '[EndDevice] ARP request sent for next hop $nextHopIp, ping queued',
       );
     }
   }
