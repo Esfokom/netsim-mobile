@@ -1,15 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/routing_table.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
+import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
+import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
+import 'package:netsim_mobile/core/utils/app_logger.dart';
 
-/// Layer 3 Router - Connects different networks
+/// Layer 3 Router - Connects different networks via routing
+/// Implements full Phase 3 requirements:
+/// - Multiple interfaces with independent ARP caches
+/// - Packet forwarding between subnets
+/// - TTL management
+/// - Route lookup with longest prefix match
+/// - Interface lifecycle management
 class RouterDevice extends NetworkDevice
     implements IPowerable, IRoutable, IConfigurable, IServiceHost {
   String name;
   bool _isPoweredOn;
-  List<RouterInterface> interfaces;
-  final List<RouteEntry> _routingTable;
+
+  /// Multiple interfaces (key = interface name, e.g., "eth0", "eth1")
+  final Map<String, RouterInterface> interfaces;
+
+  /// Routing table (shared across all interfaces)
+  final RoutingTable _routingTable;
+
   bool natEnabled;
   bool dhcpServiceEnabled;
   bool firewallEnabled;
@@ -20,51 +35,90 @@ class RouterDevice extends NetworkDevice
     required super.position,
     String? name,
     bool isPoweredOn = true,
-    List<RouterInterface>? interfaces,
+    Map<String, RouterInterface>? interfaces,
     this.natEnabled = false,
     this.dhcpServiceEnabled = false,
     this.firewallEnabled = false,
     this.showIpOnCanvas = false,
   }) : name = name ?? deviceId,
        _isPoweredOn = isPoweredOn,
-       interfaces =
-           interfaces ??
-           [
-             RouterInterface(
-               interfaceId: 'LAN',
-               ipAddress: '192.168.1.1',
-               subnetMask: '255.255.255.0',
-               status: 'UP',
-             ),
-             RouterInterface(
-               interfaceId: 'WAN',
-               ipAddress: '203.0.113.2',
-               subnetMask: '255.255.255.252',
-               status: 'UP',
-             ),
-           ],
-       _routingTable = [],
+       interfaces = interfaces ?? _createDefaultInterfaces(),
+       _routingTable = RoutingTable(),
        super(deviceType: 'Router') {
     _initializeRoutingTable();
   }
 
+  /// Create default 2 interfaces (eth0 LAN, eth1 WAN)
+  static Map<String, RouterInterface> _createDefaultInterfaces() {
+    return {
+      'eth0': RouterInterface(
+        name: 'eth0',
+        ipAddress: '192.168.1.1',
+        subnetMask: '255.255.255.0',
+        macAddress: _generateMac(),
+        status: InterfaceStatus.down,
+        linkState: 'DOWN',
+      ),
+      'eth1': RouterInterface(
+        name: 'eth1',
+        ipAddress: '10.0.0.1',
+        subnetMask: '255.255.255.0',
+        macAddress: _generateMac(),
+        status: InterfaceStatus.down,
+        linkState: 'DOWN',
+      ),
+    };
+  }
+
+  static String _generateMac() {
+    final random = DateTime.now().microsecondsSinceEpoch;
+    return '00:00:${(random & 0xFF).toRadixString(16).padLeft(2, '0')}:'
+        '${((random >> 8) & 0xFF).toRadixString(16).padLeft(2, '0')}:'
+        '${((random >> 16) & 0xFF).toRadixString(16).padLeft(2, '0')}:'
+        '${((random >> 24) & 0xFF).toRadixString(16).padLeft(2, '0')}';
+  }
+
   void _initializeRoutingTable() {
-    for (var iface in interfaces) {
-      _routingTable.add(
-        RouteEntry(
-          destination: _getNetworkAddress(iface.ipAddress, iface.subnetMask),
+    // Add directly connected routes for each interface
+    for (var iface in interfaces.values) {
+      if (iface.ipAddress.isNotEmpty && iface.subnetMask.isNotEmpty) {
+        final networkAddr = _calculateNetworkAddress(
+          iface.ipAddress,
+          iface.subnetMask,
+        );
+
+        _routingTable.addDirectlyConnectedRoute(
+          network: networkAddr,
           subnetMask: iface.subnetMask,
-          gateway: '0.0.0.0',
-          interface: iface.interfaceId,
-          type: 'Connected',
-        ),
-      );
+          interfaceName: iface.name,
+        );
+
+        appLogger.d(
+          '[Router $name] Added connected route: $networkAddr/${iface.subnetMask} via ${iface.name}',
+        );
+      }
     }
   }
 
-  String _getNetworkAddress(String ip, String mask) {
-    // Simplified - in real implementation, do actual subnet calculation
-    return '${ip.substring(0, ip.lastIndexOf('.'))}.0';
+  String _calculateNetworkAddress(String ip, String mask) {
+    try {
+      final ipParts = ip.split('.').map(int.parse).toList();
+      final maskParts = mask.split('.').map(int.parse).toList();
+
+      if (ipParts.length != 4 || maskParts.length != 4) {
+        return '0.0.0.0';
+      }
+
+      final networkParts = <int>[];
+      for (int i = 0; i < 4; i++) {
+        networkParts.add(ipParts[i] & maskParts[i]);
+      }
+
+      return networkParts.join('.');
+    } catch (e) {
+      appLogger.e('[Router $name] Error calculating network address', error: e);
+      return '0.0.0.0';
+    }
   }
 
   @override
@@ -75,8 +129,13 @@ class RouterDevice extends NetworkDevice
 
   @override
   String get displayName => showIpOnCanvas && interfaces.isNotEmpty
-      ? interfaces.first.ipAddress
+      ? interfaces.values.first.ipAddress
       : name;
+
+  // IRoutable implementation - routing table getter
+  @override
+  List<Map<String, dynamic>> get routingTable =>
+      _routingTable.entries.map((r) => r.toJson()).toList();
 
   @override
   DeviceStatus get status {
@@ -94,8 +153,9 @@ class RouterDevice extends NetworkDevice
   @override
   void powerOff() {
     _isPoweredOn = false;
-    for (var iface in interfaces) {
-      iface.status = 'DOWN';
+    for (var iface in interfaces.values) {
+      iface.status = InterfaceStatus.down;
+      iface.linkState = 'DOWN';
     }
   }
 
@@ -104,54 +164,72 @@ class RouterDevice extends NetworkDevice
     powerOff();
     Future.delayed(const Duration(milliseconds: 500), () {
       powerOn();
-      for (var iface in interfaces) {
-        iface.status = 'UP';
+      for (var iface in interfaces.values) {
+        if (iface.connectedLinkId != null) {
+          iface.status = InterfaceStatus.up;
+          iface.linkState = 'UP';
+        }
       }
     });
   }
 
-  // IRoutable implementation
-  @override
-  List<Map<String, dynamic>> get routingTable =>
-      _routingTable.map((r) => r.toMap()).toList();
-
   @override
   void addStaticRoute(String destination, String mask, String gateway) {
-    final existingIndex = _routingTable.indexWhere(
-      (r) => r.destination == destination && r.subnetMask == mask,
+    final interfaceName = _findInterfaceForGateway(gateway);
+
+    _routingTable.addRoute(
+      RoutingEntry(
+        destinationNetwork: destination,
+        subnetMask: mask,
+        gateway: gateway,
+        interfaceName: interfaceName,
+        metric: 1, // Static routes have metric 1
+      ),
     );
 
-    final route = RouteEntry(
-      destination: destination,
-      subnetMask: mask,
-      gateway: gateway,
-      interface: _findInterfaceForGateway(gateway),
-      type: 'Static',
+    appLogger.d(
+      '[Router $name] Added static route: $destination/$mask via $gateway on $interfaceName',
     );
-
-    if (existingIndex != -1) {
-      _routingTable[existingIndex] = route;
-    } else {
-      _routingTable.add(route);
-    }
   }
 
   @override
   void removeStaticRoute(String destination) {
-    _routingTable.removeWhere(
-      (r) => r.destination == destination && r.type == 'Static',
-    );
+    final toRemove = _routingTable.entries
+        .where((e) => e.destinationNetwork == destination && e.gateway != null)
+        .toList();
+
+    for (var entry in toRemove) {
+      _routingTable.removeRoute(entry.destinationNetwork, entry.subnetMask);
+      appLogger.d('[Router $name] Removed static route: $destination');
+    }
   }
 
   String _findInterfaceForGateway(String gateway) {
-    // Find which interface this gateway is on
-    for (var iface in interfaces) {
-      // Simplified check
-      if (gateway.startsWith(iface.ipAddress.substring(0, 10))) {
-        return iface.interfaceId;
+    // Find which interface can reach this gateway (same subnet)
+    for (var iface in interfaces.values) {
+      if (_isInSameSubnet(gateway, iface.ipAddress, iface.subnetMask)) {
+        return iface.name;
       }
     }
-    return interfaces.first.interfaceId;
+    // Default to first interface if no match
+    return interfaces.values.first.name;
+  }
+
+  bool _isInSameSubnet(String ip1, String ip2, String mask) {
+    try {
+      final ip1Parts = ip1.split('.').map(int.parse).toList();
+      final ip2Parts = ip2.split('.').map(int.parse).toList();
+      final maskParts = mask.split('.').map(int.parse).toList();
+
+      for (int i = 0; i < 4; i++) {
+        if ((ip1Parts[i] & maskParts[i]) != (ip2Parts[i] & maskParts[i])) {
+          return false;
+        }
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   // IServiceHost implementation
@@ -202,7 +280,7 @@ class RouterDevice extends NetworkDevice
   // IConfigurable implementation
   @override
   Map<String, dynamic> get configuration => {
-    'interfaces': interfaces.map((i) => i.toMap()).toList(),
+    'interfaces': interfaces.values.map((i) => i.toMap()).toList(),
     'routingTable': routingTable,
     'natEnabled': natEnabled,
     'dhcpServiceEnabled': dhcpServiceEnabled,
@@ -249,17 +327,17 @@ class RouterDevice extends NetworkDevice
       IntegerProperty(
         id: 'routeCount',
         label: 'Routes',
-        value: _routingTable.length,
+        value: _routingTable.entries.length,
         isReadOnly: true,
       ),
     ];
 
     // Add IP addresses for each interface (read-only)
-    for (var iface in interfaces) {
+    for (var iface in interfaces.values) {
       props.add(
         IpAddressProperty(
-          id: 'ip_${iface.interfaceId}',
-          label: '${iface.interfaceId} IP',
+          id: 'ip_${iface.name}',
+          label: '${iface.name} IP',
           value: iface.ipAddress,
           isReadOnly: true,
         ),
@@ -320,62 +398,340 @@ class RouterDevice extends NetworkDevice
     ];
   }
 
-  void setInterfaceIp(String interfaceId, String ip, String subnet) {
-    final iface = interfaces.firstWhere((i) => i.interfaceId == interfaceId);
+  /// Set IP address for an interface
+  void setInterfaceIp(String interfaceName, String ip, String subnet) {
+    final iface = interfaces[interfaceName];
+    if (iface == null) {
+      appLogger.w('[Router $name] Interface $interfaceName not found');
+      return;
+    }
+
     iface.ipAddress = ip;
     iface.subnetMask = subnet;
-    _initializeRoutingTable(); // Rebuild connected routes
+
+    // Rebuild routing table
+    _routingTable.clear();
+    _initializeRoutingTable();
+
+    appLogger.d('[Router $name] Set $interfaceName IP to $ip/$subnet');
   }
 
-  void setInterfaceStatus(String interfaceId, String status) {
-    final iface = interfaces.firstWhere((i) => i.interfaceId == interfaceId);
+  /// Set interface operational status
+  void setInterfaceStatus(String interfaceName, InterfaceStatus status) {
+    final iface = interfaces[interfaceName];
+    if (iface == null) {
+      appLogger.w('[Router $name] Interface $interfaceName not found');
+      return;
+    }
+
     iface.status = status;
+    appLogger.d('[Router $name] Set $interfaceName status to $status');
+  }
+
+  /// Connect a cable to an interface (brings interface UP)
+  void connectCable(String interfaceName) {
+    final iface = interfaces[interfaceName];
+    if (iface == null) {
+      appLogger.w('[Router $name] Interface $interfaceName not found');
+      return;
+    }
+
+    iface.linkState = 'UP';
+    iface.status = InterfaceStatus.up;
+
+    appLogger.d(
+      '[Router $name] Interface $interfaceName cable connected, bringing UP',
+    );
+  }
+
+  /// Disconnect cable from an interface (brings interface DOWN)
+  void disconnectCable(String interfaceName) {
+    final iface = interfaces[interfaceName];
+    if (iface == null) {
+      appLogger.w('[Router $name] Interface $interfaceName not found');
+      return;
+    }
+
+    iface.linkState = 'DOWN';
+    iface.status = InterfaceStatus.down;
+    iface.arpCache.clear();
+
+    appLogger.d(
+      '[Router $name] Interface $interfaceName cable disconnected, bringing DOWN',
+    );
+  }
+
+  /// Get interface by name
+  RouterInterface? getInterface(String interfaceName) {
+    return interfaces[interfaceName];
+  }
+
+  /// Check if packet is destined for this router
+  bool isPacketForMe(String destIp) {
+    return interfaces.values.any((iface) => iface.ipAddress == destIp);
+  }
+
+  /// Handle incoming packet on a specific interface
+  /// This is the core Phase 3 packet forwarding logic
+  void handlePacket(
+    Packet packet,
+    String incomingInterfaceName,
+    SimulationEngine engine,
+  ) {
+    if (!_isPoweredOn) {
+      appLogger.d('[Router $name] Router is powered off, dropping packet');
+      return;
+    }
+
+    final incomingInterface = interfaces[incomingInterfaceName];
+    if (incomingInterface == null || !incomingInterface.isOperational) {
+      appLogger.w(
+        '[Router $name] Incoming interface $incomingInterfaceName not operational',
+      );
+      return;
+    }
+
+    appLogger.d(
+      '[Router $name] Received ${packet.type} packet on $incomingInterfaceName: ${packet.sourceIp} → ${packet.destIp}',
+    );
+
+    // Check if packet is for this router
+    if (isPacketForMe(packet.destIp ?? '')) {
+      _handleLocalPacket(packet, incomingInterface, engine);
+      return;
+    }
+
+    // Forward packet
+    _forwardPacket(packet, incomingInterface, engine);
+  }
+
+  /// Handle packet destined for the router itself
+  void _handleLocalPacket(
+    Packet packet,
+    RouterInterface incomingInterface,
+    SimulationEngine engine,
+  ) {
+    appLogger.d(
+      '[Router $name] Packet is for me (${incomingInterface.ipAddress}), processing locally',
+    );
+
+    // Handle different packet types
+    switch (packet.type) {
+      case PacketType.arpRequest:
+        _handleArpRequest(packet, incomingInterface, engine);
+        break;
+      case PacketType.icmpEchoRequest:
+        _handleIcmpEchoRequest(packet, incomingInterface, engine);
+        break;
+      default:
+        appLogger.d(
+          '[Router $name] Unsupported packet type for local processing: ${packet.type}',
+        );
+    }
+  }
+
+  /// Forward packet to next hop
+  void _forwardPacket(
+    Packet packet,
+    RouterInterface incomingInterface,
+    SimulationEngine engine,
+  ) {
+    // Decrement TTL
+    final newTtl = packet.ttl - 1;
+    if (newTtl <= 0) {
+      appLogger.w('[Router $name] TTL expired, dropping packet');
+      // TODO: Send ICMP Time Exceeded
+      return;
+    }
+
+    final destIp = packet.destIp ?? '';
+
+    appLogger.d(
+      '[Router $name] Forwarding packet (TTL: $newTtl): ${packet.sourceIp} → $destIp',
+    );
+
+    // Look up route
+    final route = _routingTable.longestPrefixMatch(destIp);
+    if (route == null) {
+      appLogger.w('[Router $name] No route to $destIp, dropping packet');
+      // TODO: Send ICMP Destination Unreachable
+      return;
+    }
+
+    appLogger.d(
+      '[Router $name] Found route: ${route.destinationNetwork}/${route.subnetMask} via ${route.gateway ?? "direct"} on ${route.interfaceName}',
+    );
+
+    // Get output interface
+    final outputInterface = interfaces[route.interfaceName];
+    if (outputInterface == null || !outputInterface.isOperational) {
+      appLogger.w(
+        '[Router $name] Output interface ${route.interfaceName} not operational',
+      );
+      return;
+    }
+
+    // Determine next-hop IP
+    final nextHopIp = route.gateway ?? destIp;
+    appLogger.d('[Router $name] Next hop: $nextHopIp');
+
+    // Look up next-hop MAC in output interface's ARP cache
+    final nextHopMac = outputInterface.arpCache[nextHopIp];
+    if (nextHopMac == null) {
+      appLogger.d(
+        '[Router $name] No ARP entry for $nextHopIp, need ARP resolution',
+      );
+      // TODO: Queue packet and send ARP request
+      return;
+    }
+
+    // Create new packet with decremented TTL and rewritten MAC addresses
+    final forwardedPacket = packet.copyWith(
+      ttl: newTtl,
+      sourceMac: outputInterface.macAddress,
+      destMac: nextHopMac,
+    );
+
+    appLogger.d(
+      '[Router $name] Forwarding packet out ${outputInterface.name}: ${outputInterface.macAddress} → $nextHopMac',
+    );
+
+    // Send packet out the output interface
+    engine.sendPacket(forwardedPacket, deviceId);
+  }
+
+  /// Handle ARP request received on an interface
+  void _handleArpRequest(
+    Packet packet,
+    RouterInterface incomingInterface,
+    SimulationEngine engine,
+  ) {
+    final requestedIp = packet.destIp ?? '';
+    appLogger.d(
+      '[Router $name] Received ARP request for $requestedIp on ${incomingInterface.name}',
+    );
+
+    // Send ARP reply
+    final replyPacket = Packet(
+      type: PacketType.arpReply,
+      sourceIp: incomingInterface.ipAddress,
+      destIp: packet.sourceIp,
+      sourceMac: incomingInterface.macAddress,
+      destMac: packet.sourceMac,
+      ttl: 64,
+    );
+
+    appLogger.d('[Router $name] Sending ARP reply to ${packet.sourceIp}');
+    engine.sendPacket(replyPacket, deviceId);
+
+    // Also learn the requester's MAC
+    if (packet.sourceIp != null) {
+      incomingInterface.arpCache[packet.sourceIp!] = packet.sourceMac;
+    }
+  }
+
+  /// Handle ICMP echo request (ping) received on an interface
+  void _handleIcmpEchoRequest(
+    Packet packet,
+    RouterInterface incomingInterface,
+    SimulationEngine engine,
+  ) {
+    appLogger.d(
+      '[Router $name] Received ICMP echo request from ${packet.sourceIp} on ${incomingInterface.name}',
+    );
+
+    // Send ICMP echo reply
+    final replyPacket = Packet(
+      type: PacketType.icmpEchoReply,
+      sourceIp: incomingInterface.ipAddress,
+      destIp: packet.sourceIp,
+      sourceMac: incomingInterface.macAddress,
+      destMac: packet.sourceMac,
+      ttl: 64,
+    );
+
+    appLogger.d('[Router $name] Sending ICMP echo reply to ${packet.sourceIp}');
+    engine.sendPacket(replyPacket, deviceId);
   }
 }
 
-/// Router Interface
+/// Router Interface with lifecycle management
+/// Each interface has its own ARP cache and can be independently configured
 class RouterInterface {
-  final String interfaceId;
+  /// Interface name (e.g., "eth0", "eth1")
+  final String name;
+
+  /// IP address assigned to this interface
   String ipAddress;
+
+  /// Subnet mask
   String subnetMask;
-  String status; // "UP" | "DOWN"
+
+  /// MAC address (unique per interface)
+  final String macAddress;
+
+  /// Interface administrative status (UP/DOWN)
+  InterfaceStatus status;
+
+  /// Link state - physical connection status
+  String linkState; // "UP" | "DOWN"
+
+  /// ARP cache for this interface (IP → MAC)
+  final Map<String, String> arpCache;
+
+  /// Connected link ID (if cable is connected)
+  String? connectedLinkId;
 
   RouterInterface({
-    required this.interfaceId,
+    required this.name,
     required this.ipAddress,
     required this.subnetMask,
-    this.status = 'UP',
-  });
+    required this.macAddress,
+    this.status = InterfaceStatus.down,
+    this.linkState = 'DOWN',
+    this.connectedLinkId,
+  }) : arpCache = {};
+
+  /// Is interface operational? (both administratively UP and physically connected)
+  bool get isOperational =>
+      linkState == 'UP' && status == InterfaceStatus.up && ipAddress.isNotEmpty;
 
   Map<String, dynamic> toMap() => {
-    'interfaceId': interfaceId,
+    'name': name,
     'ipAddress': ipAddress,
     'subnetMask': subnetMask,
-    'status': status,
+    'macAddress': macAddress,
+    'status': status.toString(),
+    'linkState': linkState,
+    'connectedLinkId': connectedLinkId,
+    'arpCacheSize': arpCache.length,
   };
+
+  factory RouterInterface.fromMap(Map<String, dynamic> map) {
+    return RouterInterface(
+      name: map['name'] as String,
+      ipAddress: map['ipAddress'] as String,
+      subnetMask: map['subnetMask'] as String,
+      macAddress: map['macAddress'] as String,
+      status: _parseInterfaceStatus(map['status'] as String?),
+      linkState: map['linkState'] as String? ?? 'DOWN',
+      connectedLinkId: map['connectedLinkId'] as String?,
+    );
+  }
+
+  static InterfaceStatus _parseInterfaceStatus(String? status) {
+    if (status == null) return InterfaceStatus.down;
+
+    switch (status) {
+      case 'InterfaceStatus.up':
+        return InterfaceStatus.up;
+      case 'InterfaceStatus.down':
+        return InterfaceStatus.down;
+      default:
+        return InterfaceStatus.down;
+    }
+  }
 }
 
-/// Routing Table Entry
-class RouteEntry {
-  final String destination;
-  final String subnetMask;
-  final String gateway;
-  final String interface;
-  final String type; // "Connected" | "Static" | "Dynamic"
-
-  RouteEntry({
-    required this.destination,
-    required this.subnetMask,
-    required this.gateway,
-    required this.interface,
-    required this.type,
-  });
-
-  Map<String, dynamic> toMap() => {
-    'destination': destination,
-    'subnetMask': subnetMask,
-    'gateway': gateway,
-    'interface': interface,
-    'type': type,
-  };
-}
+/// Interface status enumeration
+enum InterfaceStatus { up, down }
