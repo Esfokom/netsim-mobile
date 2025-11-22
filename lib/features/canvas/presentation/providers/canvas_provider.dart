@@ -266,30 +266,18 @@ class CanvasNotifier extends Notifier<CanvasState> {
 
   void _disconnectSwitchPort(String deviceId, String linkId) {
     final networkDevice = state.networkDevices[deviceId];
-    // We need to check if it's a SwitchDevice, but we can't import SwitchDevice here easily
-    // without circular deps if not careful, or just use dynamic or check properties.
-    // Better to use the 'type' from CanvasDevice or check capabilities.
-    // But NetworkDevice is the domain entity.
-    // Let's assume we can cast or check properties.
-    // Actually, we can just check if it has 'ports' property or similar.
-    // Or better, let's import SwitchDevice in the implementation file if needed,
-    // but here we are in the provider.
-    // Let's use dynamic for now to avoid excessive imports/casts if we want to be generic,
-    // or better, check if it implements a specific interface.
-    // For now, let's try to access it safely.
-
-    if (networkDevice != null && networkDevice.deviceType == 'Switch') {
-      // It's a switch. We need to find the port with this linkId.
-      // Since we can't easily access SwitchDevice specific methods without casting,
-      // and we want to avoid importing the concrete class if possible to keep this clean...
-      // BUT, we really need to update the port state.
-      // Let's assume we can cast it if we import it.
-      // Let's try to do it without importing SwitchDevice if possible,
-      // but realistically we need to import it.
-      // Let's skip the import for now and assume the caller handles it?
-      // No, removeLink is called from UI.
-      // Let's rely on the fact that we can import it.
-      // I will add the import.
+    if (networkDevice is SwitchDevice) {
+      try {
+        appLogger.d(
+          '[Canvas] Disconnecting switch port on device $deviceId for link $linkId',
+        );
+        networkDevice.disconnectPortByLinkId(linkId);
+      } catch (e) {
+        appLogger.e(
+          'Failed to disconnect switch port on device $deviceId',
+          error: e,
+        );
+      }
     }
   }
 
@@ -357,9 +345,10 @@ class CanvasNotifier extends Notifier<CanvasState> {
     final networkDevice = state.networkDevices[deviceId];
     if (networkDevice is SwitchDevice) {
       try {
-        final port = networkDevice.ports.firstWhere((p) => p.portId == portId);
-        port.connectedLinkId = linkId;
-        port.linkState = 'UP';
+        appLogger.d(
+          '[Canvas] Connecting switch port $portId on device $deviceId to link $linkId',
+        );
+        networkDevice.connectPort(portId, linkId);
       } catch (e) {
         appLogger.e(
           'Failed to connect switch port $portId on device $deviceId',

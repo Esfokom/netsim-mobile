@@ -274,6 +274,68 @@ class SwitchDevice extends NetworkDevice
     );
   }
 
+  /// Get list of available (unconnected) ports
+  List<SwitchPort> getAvailablePorts() {
+    return ports
+        .where(
+          (p) =>
+              p.isEnabled && p.connectedLinkId == null && p.linkState == 'DOWN',
+        )
+        .toList();
+  }
+
+  /// Get port by port ID
+  SwitchPort? getPortById(int portId) {
+    try {
+      return ports.firstWhere((p) => p.portId == portId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Disconnect a port by link ID
+  void disconnectPortByLinkId(String linkId) {
+    final portIndex = ports.indexWhere((p) => p.connectedLinkId == linkId);
+    if (portIndex != -1) {
+      final port = ports[portIndex];
+      appLogger.d('[Switch $name] Disconnecting port ${port.portId}');
+
+      port.connectedLinkId = null;
+      port.linkState = 'DOWN';
+      port.connectedToMac = null;
+
+      // Remove MAC entries learned on this port
+      _macAddressTable.removeWhere((entry) => entry.portId == port.portId);
+
+      appLogger.d('[Switch $name] Port ${port.portId} is now available');
+    }
+  }
+
+  /// Connect a port to a link
+  void connectPort(int portId, String linkId) {
+    final port = getPortById(portId);
+    if (port == null) {
+      appLogger.w('[Switch $name] Port $portId not found');
+      return;
+    }
+
+    if (port.connectedLinkId != null) {
+      appLogger.w(
+        '[Switch $name] Port $portId is already connected to ${port.connectedLinkId}',
+      );
+      return;
+    }
+
+    if (!port.isEnabled) {
+      appLogger.w('[Switch $name] Port $portId is disabled');
+      return;
+    }
+
+    port.connectedLinkId = linkId;
+    port.linkState = 'UP';
+    appLogger.d('[Switch $name] Port $portId connected to link $linkId');
+  }
+
   /// Handle incoming packet
   void handlePacket(
     Packet packet,
