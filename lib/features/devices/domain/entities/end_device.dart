@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/network_interface.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/routing_table.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/arp_cache.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
@@ -34,12 +37,17 @@ class EndDevice extends NetworkDevice
   DateTime? dhcpLeaseObtained;
   DateTime? dhcpLeaseExpires;
 
-  // Current active configuration
+  // Current active configuration (legacy, kept for backward compatibility)
   String? currentIpAddress;
   String? currentSubnetMask;
   String? currentDefaultGateway;
   List<String> currentDnsServers;
-  List<Map<String, String>> arpCache;
+  List<Map<String, String>> arpCache; // Legacy format
+
+  // NEW: Network infrastructure (PHASE 1 implementation)
+  List<NetworkInterface> interfaces;
+  RoutingTable routingTable;
+  ArpCache arpCacheStructured;
 
   // Tools and state
   List<String> installedTools;
@@ -65,11 +73,31 @@ class EndDevice extends NetworkDevice
     List<String>? currentDnsServers,
     List<Map<String, String>>? arpCache,
     this.showIpOnCanvas = false,
+    List<NetworkInterface>? interfaces,
+    RoutingTable? routingTable,
+    ArpCache? arpCacheStructured,
   }) : _isPoweredOn = isPoweredOn,
        _linkState = linkState,
        currentDnsServers = currentDnsServers ?? [],
        arpCache = arpCache ?? [],
-       super();
+       interfaces = interfaces ?? [],
+       routingTable = routingTable ?? RoutingTable(),
+       arpCacheStructured = arpCacheStructured ?? ArpCache(),
+       super() {
+    // Initialize default interface if none provided
+    if (this.interfaces.isEmpty) {
+      this.interfaces.add(
+        NetworkInterface(
+          name: 'eth0',
+          macAddress: macAddress,
+          ipAddress: currentIpAddress,
+          subnetMask: currentSubnetMask,
+          defaultGateway: currentDefaultGateway,
+          status: linkState == 'UP' ? InterfaceStatus.up : InterfaceStatus.down,
+        ),
+      );
+    }
+  }
 
   @override
   IconData get icon => Icons.computer;
@@ -85,6 +113,73 @@ class EndDevice extends NetworkDevice
   DeviceStatus get status {
     // Simple two-state model: online when powered on, offline when powered off
     return _isPoweredOn ? DeviceStatus.online : DeviceStatus.offline;
+  }
+
+  // NEW: Network infrastructure helper methods
+
+  /// Get the default network interface (usually eth0)
+  NetworkInterface get defaultInterface {
+    if (interfaces.isEmpty) {
+      // Create default interface if none exists
+      final iface = NetworkInterface(
+        name: 'eth0',
+        macAddress: macAddress,
+        ipAddress: currentIpAddress,
+        subnetMask: currentSubnetMask,
+        defaultGateway: currentDefaultGateway,
+        status: _linkState == 'UP' ? InterfaceStatus.up : InterfaceStatus.down,
+      );
+      interfaces.add(iface);
+      return iface;
+    }
+    return interfaces.first;
+  }
+
+  /// Get interface by name
+  NetworkInterface? getInterface(String name) {
+    try {
+      return interfaces.firstWhere((iface) => iface.name == name);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Sync legacy fields with new interface structure
+  /// Call this when legacy fields are updated to keep them in sync
+  void _syncLegacyToNew() {
+    if (interfaces.isNotEmpty) {
+      final iface = defaultInterface;
+      iface.ipAddress = currentIpAddress;
+      iface.subnetMask = currentSubnetMask;
+      iface.defaultGateway = currentDefaultGateway;
+      iface.status = _linkState == 'UP'
+          ? InterfaceStatus.up
+          : InterfaceStatus.down;
+    }
+
+    // Sync legacy ARP cache to structured cache
+    for (final entry in arpCache) {
+      final ip = entry['ip'];
+      final mac = entry['mac'];
+      if (ip != null && mac != null) {
+        arpCacheStructured.addDynamic(ip, mac, defaultInterface.name);
+      }
+    }
+  }
+
+  /// Sync new infrastructure to legacy fields
+  /// Call this when new infrastructure is updated
+  void _syncNewToLegacy() {
+    if (interfaces.isNotEmpty) {
+      final iface = defaultInterface;
+      currentIpAddress = iface.ipAddress;
+      currentSubnetMask = iface.subnetMask;
+      currentDefaultGateway = iface.defaultGateway;
+      _linkState = iface.status == InterfaceStatus.up ? 'UP' : 'DOWN';
+    }
+
+    // Sync structured ARP to legacy format
+    arpCache = arpCacheStructured.toLegacyFormat();
   }
 
   // IPowerable implementation
