@@ -444,13 +444,6 @@ class EndDevice extends NetworkDevice
         isEnabled: _isPoweredOn && ipConfigMode == 'DHCP',
       ),
       DeviceAction(
-        id: 'ping_test',
-        label: 'Ping Test',
-        icon: Icons.network_check,
-        onExecute: () {}, // UI will trigger ping dialog
-        isEnabled: _isPoweredOn && currentIpAddress != null,
-      ),
-      DeviceAction(
         id: 'view_arp_cache',
         label: 'View ARP Cache',
         icon: Icons.list_alt,

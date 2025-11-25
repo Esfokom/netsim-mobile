@@ -14,6 +14,7 @@ import 'package:netsim_mobile/features/devices/presentation/widgets/device_palet
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/conditions_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/scenario_properties_editor.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/ping_bottom_sheet.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/mode_header_widget.dart';
@@ -35,6 +36,7 @@ enum BottomPanelType {
   deviceProperties,
   scenarioProperties,
   conditionsEditor,
+  pingTest,
 }
 
 class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
@@ -789,6 +791,8 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
           icon: Icons.flag,
           child: const ConditionsEditor(),
         );
+      case BottomPanelType.pingTest:
+        return _buildPingTestPanel();
     }
   }
 
@@ -852,6 +856,65 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
           ),
           // Content
           Expanded(child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPingTestPanel() {
+    return Container(
+      height: 200, // Compact height for touch-friendly targets
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header with close button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.network_ping,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Ping Test',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _closePanel,
+                  tooltip: 'Close',
+                ),
+              ],
+            ),
+          ),
+          // Content
+          Expanded(child: CompactPingBottomSheet()),
         ],
       ),
     );

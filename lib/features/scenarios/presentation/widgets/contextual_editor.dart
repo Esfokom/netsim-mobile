@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/scenarios/domain/entities/device_rule.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_rules_editor.dart';
-import 'package:netsim_mobile/features/scenarios/presentation/widgets/ping_bottom_sheet.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_dialogs.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
@@ -28,9 +27,6 @@ class ContextualEditor extends ConsumerStatefulWidget {
 }
 
 class _ContextualEditorState extends ConsumerState<ContextualEditor> {
-  bool _showingPingSheet = false;
-  EndDevice? _pingSourceDevice;
-
   @override
   Widget build(BuildContext context) {
     final scenarioState = ref.watch(scenarioProvider);
@@ -70,14 +66,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
         );
       }
 
-      // Wrap with Stack to show ping sheet overlay if needed
-      return Stack(
-        children: [
-          content,
-          if (_showingPingSheet && _pingSourceDevice != null)
-            _buildPingBottomSheet(),
-        ],
-      );
+      return content;
     }
 
     // Edit mode: show full editor
@@ -129,14 +118,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       );
     }
 
-    // Wrap with Stack to show ping sheet overlay if needed
-    return Stack(
-      children: [
-        content,
-        if (_showingPingSheet && _pingSourceDevice != null)
-          _buildPingBottomSheet(),
-      ],
-    );
+    return content;
   }
 
   Widget _buildDevicePropertiesEditor(
@@ -503,13 +485,6 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                                 },
                               ),
                             );
-                            return;
-                          } else if (action.id == 'ping_test' &&
-                              networkDevice is EndDevice) {
-                            setState(() {
-                              _showingPingSheet = true;
-                              _pingSourceDevice = networkDevice;
-                            });
                             return;
                           } else if (action.id == 'view_arp_cache' &&
                               networkDevice is EndDevice) {
@@ -1792,17 +1767,5 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   network.DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
     // NetworkDevice and CanvasDevice both use the same DeviceStatus enum
     return networkStatus;
-  }
-
-  Widget _buildPingBottomSheet() {
-    return PingBottomSheet(
-      sourceDevice: _pingSourceDevice!,
-      onClose: () {
-        setState(() {
-          _showingPingSheet = false;
-          _pingSourceDevice = null;
-        });
-      },
-    );
   }
 }

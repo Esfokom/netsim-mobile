@@ -5,6 +5,7 @@ import 'package:netsim_mobile/features/scenarios/domain/entities/network_scenari
 import 'package:netsim_mobile/features/canvas/presentation/widgets/network_canvas.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_minimap.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/contextual_editor.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/ping_bottom_sheet.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
@@ -30,6 +31,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   bool _isGameCompleted = false;
   bool _isPaused = false;
   bool _showPropertiesPanel = false;
+  bool _showPingPanel = false;
   bool _showSpeedDial = false;
 
   @override
@@ -213,8 +215,13 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
         if (_showPropertiesPanel)
           Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomPanel()),
 
+        // Ping test panel (conditionally shown)
+        if (_showPingPanel)
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildPingPanel()),
+
         // Floating Action Button with Speed Dial
-        if (!_showPropertiesPanel) _buildFloatingActionButton(),
+        if (!_showPropertiesPanel && !_showPingPanel)
+          _buildFloatingActionButton(),
       ],
     );
   }
@@ -401,6 +408,69 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
     );
   }
 
+  Widget _buildPingPanel() {
+    return Container(
+      height: 200, // Compact height for touch-friendly targets
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header with close button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.network_ping,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Ping Test',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    setState(() {
+                      _showPingPanel = false;
+                    });
+                  },
+                  tooltip: 'Close',
+                ),
+              ],
+            ),
+          ),
+          // Content
+          const Expanded(child: CompactPingBottomSheet()),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFloatingActionButton() {
     return Positioned(
       right: 16,
@@ -418,6 +488,19 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
                 setState(() {
                   _showSpeedDial = false;
                   _showPropertiesPanel = true;
+                  _showPingPanel = false;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildSpeedDialOption(
+              icon: Icons.network_ping,
+              label: 'Ping Test',
+              onTap: () {
+                setState(() {
+                  _showSpeedDial = false;
+                  _showPropertiesPanel = false;
+                  _showPingPanel = true;
                 });
               },
             ),

@@ -456,15 +456,6 @@ class RouterDevice extends NetworkDevice
             : startService('FIREWALL'),
         isEnabled: _isPoweredOn,
       ),
-
-      // Diagnostics
-      DeviceAction(
-        id: 'ping_test',
-        label: 'Ping Test',
-        icon: Icons.network_check,
-        onExecute: () {}, // UI will handle this
-        isEnabled: _isPoweredOn,
-      ),
     ];
   }
 
@@ -773,6 +764,71 @@ class RouterDevice extends NetworkDevice
 
     appLogger.d('[Router $name] Sending ICMP echo reply to ${packet.sourceIp}');
     engine.sendPacket(replyPacket, deviceId);
+  }
+
+  /// Initiate a ping from the router to a target IP
+  void ping(String targetIp, SimulationEngine engine) {
+    if (!_isPoweredOn) {
+      appLogger.w('[Router $name] Cannot ping - router is powered off');
+      return;
+    }
+
+    // Find first operational interface to use as source
+    RouterInterface? sourceInterface;
+    for (final iface in interfaces.values) {
+      if (iface.isOperational && iface.ipAddress.isNotEmpty) {
+        sourceInterface = iface;
+        break;
+      }
+    }
+
+    if (sourceInterface == null) {
+      appLogger.w('[Router $name] Cannot ping - no operational interfaces');
+      return;
+    }
+
+    appLogger.d(
+      '[Router $name] Initiating ping from ${sourceInterface.name} (${sourceInterface.ipAddress}) to $targetIp',
+    );
+
+    // Look up route to target
+    final route = _routingTable.longestPrefixMatch(targetIp);
+    if (route == null) {
+      appLogger.w('[Router $name] Cannot ping $targetIp - no route');
+      return;
+    }
+
+    // Determine next hop
+    final nextHopIp = route.gateway ?? targetIp;
+    final outputInterface = interfaces[route.interfaceName];
+
+    if (outputInterface == null || !outputInterface.isOperational) {
+      appLogger.w('[Router $name] Output interface not operational');
+      return;
+    }
+
+    // Check ARP cache for next hop
+    final nextHopMac = outputInterface.arpCache[nextHopIp];
+    if (nextHopMac == null) {
+      appLogger.d(
+        '[Router $name] No ARP entry for $nextHopIp, need ARP resolution first',
+      );
+      // TODO: Queue ping and send ARP request
+      return;
+    }
+
+    // Create ICMP Echo Request packet
+    final packet = Packet(
+      type: PacketType.icmpEchoRequest,
+      sourceIp: sourceInterface.ipAddress,
+      destIp: targetIp,
+      sourceMac: outputInterface.macAddress,
+      destMac: nextHopMac,
+      ttl: 64,
+    );
+
+    appLogger.d('[Router $name] Sending ICMP Echo Request to $targetIp');
+    engine.sendPacket(packet, deviceId);
   }
 }
 
