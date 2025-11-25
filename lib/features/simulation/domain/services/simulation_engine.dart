@@ -4,6 +4,7 @@ import 'package:netsim_mobile/core/utils/app_logger.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
 
 enum PacketEventType { sent, delivered, dropped, forwarded }
@@ -122,7 +123,40 @@ class SimulationEngine {
       device.handlePacket(packet, this);
     } else if (device is SwitchDevice) {
       device.handlePacket(packet, linkId, this);
+    } else if (device is RouterDevice) {
+      // For routers, we need to determine which interface received the packet
+      // This is based on which interface has the link connected to it
+      final incomingInterface = _determineRouterInterface(device, linkId);
+      if (incomingInterface != null) {
+        appLogger.d(
+          '[Simulation] Router receiving packet on interface $incomingInterface',
+        );
+        device.handlePacket(packet, incomingInterface, this);
+      } else {
+        appLogger.w(
+          '[Simulation] Could not determine router interface for link $linkId',
+        );
+      }
     }
+  }
+
+  /// Determine which router interface a packet arrived on based on the link
+  String? _determineRouterInterface(RouterDevice router, String linkId) {
+    // Check each interface to see if it has this link connected
+    for (var entry in router.interfaces.entries) {
+      final interfaceName = entry.key;
+      final interface = entry.value;
+
+      if (interface.connectedLinkId == linkId) {
+        return interfaceName;
+      }
+    }
+
+    // If no interface has this link explicitly set, default to eth0
+    // This handles the case where links were created before interface tracking
+    return router.interfaces.keys.isNotEmpty
+        ? router.interfaces.keys.first
+        : null;
   }
 
   /// Allow a device (like a Switch) to forward a packet on a specific link

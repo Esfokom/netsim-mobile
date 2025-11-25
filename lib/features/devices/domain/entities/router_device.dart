@@ -565,6 +565,12 @@ class RouterDevice extends NetworkDevice
       '[Router $name] Received ${packet.type} packet on $incomingInterfaceName: ${packet.sourceIp} → ${packet.destIp}',
     );
 
+    // Handle ARP requests specially - they may need Proxy ARP
+    if (packet.type == PacketType.arpRequest) {
+      _handleArpRequest(packet, incomingInterface, engine);
+      return;
+    }
+
     // Check if packet is for this router
     if (isPacketForMe(packet.destIp ?? '')) {
       _handleLocalPacket(packet, incomingInterface, engine);
@@ -671,6 +677,7 @@ class RouterDevice extends NetworkDevice
   }
 
   /// Handle ARP request received on an interface
+  /// Implements Proxy ARP - responds to ARP requests for IPs the router can reach
   void _handleArpRequest(
     Packet packet,
     RouterInterface incomingInterface,
@@ -681,22 +688,66 @@ class RouterDevice extends NetworkDevice
       '[Router $name] Received ARP request for $requestedIp on ${incomingInterface.name}',
     );
 
-    // Send ARP reply
-    final replyPacket = Packet(
-      type: PacketType.arpReply,
-      sourceIp: incomingInterface.ipAddress,
-      destIp: packet.sourceIp,
-      sourceMac: incomingInterface.macAddress,
-      destMac: packet.sourceMac,
-      ttl: 64,
-    );
+    // Check if the requested IP is for this interface
+    if (requestedIp == incomingInterface.ipAddress) {
+      // ARP request is for the router itself
+      appLogger.d(
+        '[Router $name] ARP request is for this interface, sending reply',
+      );
 
-    appLogger.d('[Router $name] Sending ARP reply to ${packet.sourceIp}');
-    engine.sendPacket(replyPacket, deviceId);
+      final replyPacket = Packet(
+        type: PacketType.arpReply,
+        sourceIp: incomingInterface.ipAddress,
+        destIp: packet.sourceIp,
+        sourceMac: incomingInterface.macAddress,
+        destMac: packet.sourceMac,
+        ttl: 64,
+      );
 
-    // Also learn the requester's MAC
-    if (packet.sourceIp != null) {
-      incomingInterface.arpCache[packet.sourceIp!] = packet.sourceMac;
+      engine.sendPacket(replyPacket, deviceId);
+
+      // Learn the requester's MAC
+      if (packet.sourceIp != null) {
+        incomingInterface.arpCache[packet.sourceIp!] = packet.sourceMac;
+      }
+      return;
+    }
+
+    // Check if we can route to the requested IP (Proxy ARP)
+    final route = _routingTable.longestPrefixMatch(requestedIp);
+    if (route != null) {
+      appLogger.d(
+        '[Router $name] Performing Proxy ARP for $requestedIp (route exists via ${route.interfaceName})',
+      );
+
+      // Send ARP reply with THIS router interface's MAC
+      // This makes the requester think the router IS the destination
+      // The router will then forward packets appropriately
+      final replyPacket = Packet(
+        type: PacketType.arpReply,
+        sourceIp: requestedIp, // Pretend to be the requested IP
+        destIp: packet.sourceIp,
+        sourceMac: incomingInterface.macAddress, // But give router's MAC
+        destMac: packet.sourceMac,
+        ttl: 64,
+      );
+
+      appLogger.d(
+        '[Router $name] Sending Proxy ARP reply: telling ${packet.sourceIp} that $requestedIp is at ${incomingInterface.macAddress}',
+      );
+      engine.sendPacket(replyPacket, deviceId);
+
+      // Learn the requester's MAC
+      if (packet.sourceIp != null) {
+        incomingInterface.arpCache[packet.sourceIp!] = packet.sourceMac;
+        appLogger.d(
+          '[Router $name] Learned ${packet.sourceIp} -> ${packet.sourceMac} on ${incomingInterface.name}',
+        );
+      }
+    } else {
+      appLogger.w(
+        '[Router $name] Cannot proxy ARP for $requestedIp - no route exists',
+      );
     }
   }
 

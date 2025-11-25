@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/network_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 
@@ -208,7 +209,10 @@ class CanvasNotifier extends Notifier<CanvasState> {
     final fromDevice = state.networkDevices[link.fromDeviceId];
     final toDevice = state.networkDevices[link.toDeviceId];
 
-    if (fromDevice != null && fromDevice is IConnectable) {
+    // Handle RouterDevice connections specially
+    if (fromDevice != null && fromDevice is RouterDevice) {
+      _assignRouterInterface(fromDevice, link.id);
+    } else if (fromDevice != null && fromDevice is IConnectable) {
       (fromDevice as IConnectable).connectCable(
         link.toDeviceId,
         0,
@@ -216,7 +220,9 @@ class CanvasNotifier extends Notifier<CanvasState> {
       appLogger.d('[Canvas] Connected cable for device ${link.fromDeviceId}');
     }
 
-    if (toDevice != null && toDevice is IConnectable) {
+    if (toDevice != null && toDevice is RouterDevice) {
+      _assignRouterInterface(toDevice, link.id);
+    } else if (toDevice != null && toDevice is IConnectable) {
       (toDevice as IConnectable).connectCable(
         link.fromDeviceId,
         0,
@@ -226,6 +232,46 @@ class CanvasNotifier extends Notifier<CanvasState> {
 
     // Trigger condition check after link added
     ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
+  }
+
+  /// Assign a link to the first available router interface
+  void _assignRouterInterface(RouterDevice router, String linkId) {
+    // Find first interface that doesn't have a link
+    for (var entry in router.interfaces.entries) {
+      final interfaceName = entry.key;
+      final interface = entry.value;
+
+      if (interface.connectedLinkId == null) {
+        interface.connectedLinkId = linkId;
+        router.connectCable(interfaceName);
+        appLogger.d(
+          '[Canvas] Connected link $linkId to router ${router.name} interface $interfaceName',
+        );
+        return;
+      }
+    }
+
+    appLogger.w(
+      '[Canvas] Router ${router.name} has no available interfaces for link $linkId',
+    );
+  }
+
+  /// Disconnect a router interface
+  void _disconnectRouterInterface(RouterDevice router, String linkId) {
+    // Find which interface has this link
+    for (var entry in router.interfaces.entries) {
+      final interfaceName = entry.key;
+      final interface = entry.value;
+
+      if (interface.connectedLinkId == linkId) {
+        interface.connectedLinkId = null;
+        router.disconnectCable(interfaceName);
+        appLogger.d(
+          '[Canvas] Disconnected link $linkId from router ${router.name} interface $interfaceName',
+        );
+        return;
+      }
+    }
   }
 
   /// Remove a link
@@ -240,14 +286,18 @@ class CanvasNotifier extends Notifier<CanvasState> {
     final fromDevice = state.networkDevices[link.fromDeviceId];
     final toDevice = state.networkDevices[link.toDeviceId];
 
-    if (fromDevice != null && fromDevice is IConnectable) {
+    if (fromDevice != null && fromDevice is RouterDevice) {
+      _disconnectRouterInterface(fromDevice, linkId);
+    } else if (fromDevice != null && fromDevice is IConnectable) {
       (fromDevice as IConnectable).disconnectCable();
       appLogger.d(
         '[Canvas] Disconnected cable for device ${link.fromDeviceId}',
       );
     }
 
-    if (toDevice != null && toDevice is IConnectable) {
+    if (toDevice != null && toDevice is RouterDevice) {
+      _disconnectRouterInterface(toDevice, linkId);
+    } else if (toDevice != null && toDevice is IConnectable) {
       (toDevice as IConnectable).disconnectCable();
       appLogger.d('[Canvas] Disconnected cable for device ${link.toDeviceId}');
     }
