@@ -672,14 +672,26 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
     final scenarioState = ref.watch(scenarioProvider);
 
     if (scenarioState.mode == ScenarioMode.simulation) {
-      // Simulation mode: Only device properties
-      return _buildSpeedDialOption(
-        icon: Icons.settings,
-        label: 'Device Properties',
-        onTap: () => _openPanel(BottomPanelType.deviceProperties),
+      // Simulation mode: Device properties and Ping Test
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _buildSpeedDialOption(
+            icon: Icons.settings,
+            label: 'Device Properties',
+            onTap: () => _openPanel(BottomPanelType.deviceProperties),
+          ),
+          const SizedBox(height: 12),
+          _buildSpeedDialOption(
+            icon: Icons.network_ping,
+            label: 'Ping Test',
+            onTap: () => _openPanel(BottomPanelType.pingTest),
+          ),
+        ],
       );
     } else {
-      // Edit mode: All 4 options
+      // Edit mode: All options including Ping Test
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -706,6 +718,12 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
             icon: Icons.flag,
             label: 'Conditions',
             onTap: () => _openPanel(BottomPanelType.conditionsEditor),
+          ),
+          const SizedBox(height: 12),
+          _buildSpeedDialOption(
+            icon: Icons.network_ping,
+            label: 'Ping Test',
+            onTap: () => _openPanel(BottomPanelType.pingTest),
           ),
         ],
       );
