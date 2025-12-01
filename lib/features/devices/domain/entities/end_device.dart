@@ -307,6 +307,43 @@ class EndDevice extends NetworkDevice
     iface.connectedDeviceId = targetDeviceId;
     iface.connectedPort = targetPort;
 
+    // IMPORTANT: If interface has IP configured, rebuild routing table
+    // This ensures routes are available after cable connection
+    if (iface.ipAddress != null &&
+        iface.ipAddress!.isNotEmpty &&
+        iface.subnetMask != null &&
+        iface.subnetMask!.isNotEmpty) {
+      // Clear old routes for this interface
+      routingTable.removeRoutesForInterface(iface.name);
+
+      // Calculate network address for directly connected route
+      final networkAddr = iface.networkAddress;
+      if (networkAddr != null) {
+        // Add directly connected route for local subnet
+        routingTable.addDirectlyConnectedRoute(
+          network: networkAddr,
+          subnetMask: iface.subnetMask!,
+          interfaceName: iface.name,
+        );
+        appLogger.d(
+          '[EndDevice] Rebuilt directly connected route: $networkAddr/${iface.subnetMask} on ${iface.name}',
+        );
+      }
+
+      // Add default route if gateway is specified
+      if (iface.defaultGateway != null &&
+          iface.defaultGateway!.isNotEmpty &&
+          iface.defaultGateway != '0.0.0.0') {
+        routingTable.addDefaultRoute(
+          gateway: iface.defaultGateway!,
+          interfaceName: iface.name,
+        );
+        appLogger.d(
+          '[EndDevice] Rebuilt default route via ${iface.defaultGateway} on ${iface.name}',
+        );
+      }
+    }
+
     statusMessage = 'Cable connected';
     _syncNewToLegacy();
 
@@ -470,6 +507,10 @@ class EndDevice extends NetworkDevice
   /// Handle incoming packet
   void handlePacket(Packet packet, SimulationEngine engine) {
     if (!_isPoweredOn) return;
+
+    appLogger.d(
+      '[EndDevice $hostname] Received ${packet.type} packet from ${packet.sourceIp ?? packet.sourceMac}',
+    );
 
     // Update ARP cache if we see a packet from a known IP
     if (packet.sourceIp != null && packet.sourceMac.isNotEmpty) {

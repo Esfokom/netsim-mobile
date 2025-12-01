@@ -119,9 +119,15 @@ class SimulationEngine {
       ),
     );
 
+    // Handle packet delivery based on device type
     if (device is EndDevice) {
+      // EndDevice includes PC and Server - supports direct peer-to-peer connections
+      appLogger.d(
+        '[Simulation] Delivering to end device (${device.deviceType}): direct connection',
+      );
       device.handlePacket(packet, this);
     } else if (device is SwitchDevice) {
+      // Switch forwards based on MAC address table
       device.handlePacket(packet, linkId, this);
     } else if (device is RouterDevice) {
       // For routers, we need to determine which interface received the packet
