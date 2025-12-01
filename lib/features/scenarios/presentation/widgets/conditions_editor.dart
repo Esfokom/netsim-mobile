@@ -273,39 +273,89 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Condition Type Toggle Buttons
-              Row(
+              // Condition Type Selection Grid (7 types)
+              Text(
+                'Condition Type',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: _ConditionTypeButton(
-                      type: ConditionType.connectivity,
-                      isSelected: _selectedType == ConditionType.connectivity,
-                      onTap: () {
-                        setState(() {
-                          _selectedType = ConditionType.connectivity;
-                          // Reset selections when type changes
-                          _selectedSourceDeviceId = null;
-                          _selectedTargetDeviceId = null;
-                          _selectedProperty = null;
-                        });
-                      },
-                    ),
+                  _ConditionTypeChip(
+                    type: ConditionType.connectivity,
+                    isSelected: _selectedType == ConditionType.connectivity,
+                    onTap: () {
+                      setState(() {
+                        _selectedType = ConditionType.connectivity;
+                        _resetFields();
+                      });
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ConditionTypeButton(
-                      type: ConditionType.deviceProperty,
-                      isSelected: _selectedType == ConditionType.deviceProperty,
-                      onTap: () {
-                        setState(() {
-                          _selectedType = ConditionType.deviceProperty;
-                          // Reset selections when type changes
-                          _selectedSourceDeviceId = null;
-                          _selectedTargetDeviceId = null;
-                          _selectedProperty = null;
-                        });
-                      },
-                    ),
+                  _ConditionTypeChip(
+                    type: ConditionType.deviceProperty,
+                    isSelected: _selectedType == ConditionType.deviceProperty,
+                    onTap: () {
+                      setState(() {
+                        _selectedType = ConditionType.deviceProperty;
+                        _resetFields();
+                      });
+                    },
+                  ),
+                  _ConditionTypeChip(
+                    type: ConditionType.interfaceProperty,
+                    isSelected:
+                        _selectedType == ConditionType.interfaceProperty,
+                    onTap: () {
+                      setState(() {
+                        _selectedType = ConditionType.interfaceProperty;
+                        _resetFields();
+                      });
+                    },
+                  ),
+                  _ConditionTypeChip(
+                    type: ConditionType.arpCacheCheck,
+                    isSelected: _selectedType == ConditionType.arpCacheCheck,
+                    onTap: () {
+                      setState(() {
+                        _selectedType = ConditionType.arpCacheCheck;
+                        _resetFields();
+                      });
+                    },
+                  ),
+                  _ConditionTypeChip(
+                    type: ConditionType.routingTableCheck,
+                    isSelected:
+                        _selectedType == ConditionType.routingTableCheck,
+                    onTap: () {
+                      setState(() {
+                        _selectedType = ConditionType.routingTableCheck;
+                        _resetFields();
+                      });
+                    },
+                  ),
+                  _ConditionTypeChip(
+                    type: ConditionType.linkCheck,
+                    isSelected: _selectedType == ConditionType.linkCheck,
+                    onTap: () {
+                      setState(() {
+                        _selectedType = ConditionType.linkCheck;
+                        _resetFields();
+                      });
+                    },
+                  ),
+                  _ConditionTypeChip(
+                    type: ConditionType.composite,
+                    isSelected: _selectedType == ConditionType.composite,
+                    onTap: () {
+                      setState(() {
+                        _selectedType = ConditionType.composite;
+                        _resetFields();
+                      });
+                    },
                   ),
                 ],
               ),
@@ -880,6 +930,16 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     }
   }
 
+  /// Reset all field selections when condition type changes
+  void _resetFields() {
+    _selectedSourceDeviceId = null;
+    _selectedTargetDeviceId = null;
+    _selectedProperty = null;
+    _selectedPropertyDataType = null;
+    _targetAddressController.clear();
+    _expectedValueController.clear();
+  }
+
   void _saveCondition() {
     if (_descriptionController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1039,6 +1099,77 @@ class _ConditionTypeButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Compact chip for condition type selection
+class _ConditionTypeChip extends StatelessWidget {
+  final ConditionType type;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ConditionTypeChip({
+    required this.type,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  IconData _getIcon() {
+    switch (type) {
+      case ConditionType.connectivity:
+        return Icons.network_check;
+      case ConditionType.deviceProperty:
+        return Icons.settings_outlined;
+      case ConditionType.interfaceProperty:
+        return Icons.cable;
+      case ConditionType.arpCacheCheck:
+        return Icons.storage;
+      case ConditionType.routingTableCheck:
+        return Icons.route;
+      case ConditionType.linkCheck:
+        return Icons.link;
+      case ConditionType.composite:
+        return Icons.layers;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return FilterChip(
+      selected: isSelected,
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _getIcon(),
+            size: 16,
+            color: isSelected
+                ? theme.colorScheme.primary
+                : Colors.grey.shade600,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            type.displayName,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+      onSelected: (_) => onTap(),
+      backgroundColor: Colors.grey.withValues(alpha: 0.05),
+      selectedColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+      checkmarkColor: theme.colorScheme.primary,
+      side: BorderSide(
+        color: isSelected
+            ? theme.colorScheme.primary
+            : Colors.grey.withValues(alpha: 0.3),
+        width: isSelected ? 1.5 : 1,
       ),
     );
   }
