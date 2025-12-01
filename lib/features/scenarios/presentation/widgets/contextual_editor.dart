@@ -4,6 +4,7 @@ import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario
 import 'package:netsim_mobile/features/scenarios/domain/entities/device_rule.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_rules_editor.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/device_dialogs.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/ip_configuration_dialog.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
@@ -620,6 +621,31 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                                     );
                                   }).toList(),
                                 ),
+                              ),
+                            );
+                            return;
+                          }
+                          // EndDevice IP configuration action
+                          else if (action.id == 'configure_ip' &&
+                              networkDevice is EndDevice) {
+                            final endDevice = networkDevice;
+                            final allDevices = canvasState.networkDevices.values.toList();
+
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => IpConfigurationDialog(
+                                device: endDevice,
+                                allDevices: allDevices,
+                                onSave: (ip, subnet, gateway) {
+                                  // Update device configuration
+                                  endDevice.setStaticIp(ip, subnet, gateway);
+
+                                  // Refresh canvas
+                                  canvasNotifier.refreshDevice(device.id);
+
+                                  // Force rebuild
+                                  setState(() {});
+                                },
                               ),
                             );
                             return;

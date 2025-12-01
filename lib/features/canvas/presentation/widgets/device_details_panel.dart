@@ -11,6 +11,7 @@ import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dar
 import 'package:netsim_mobile/features/devices/domain/entities/wireless_access_point.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/ip_configuration_dialog.dart';
 
 /// Device Details Panel - Shows device properties and available actions
 class DeviceDetailsPanel extends ConsumerWidget {
@@ -583,6 +584,7 @@ class _ActionChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final canvasNotifier = ref.read(canvasProvider.notifier);
+    final canvasState = ref.watch(canvasProvider);
 
     return ActionChip(
       avatar: Icon(action.icon, size: 18),
@@ -597,6 +599,25 @@ class _ActionChip extends ConsumerWidget {
                   action.id.contains('link')) {
                 canvasNotifier.startLinking(device.deviceId);
                 Navigator.pop(context);
+              } else if (action.id == 'configure_ip' && device is EndDevice) {
+                // Show IP Configuration Dialog
+                final endDevice = device as EndDevice;
+                final allDevices = canvasState.networkDevices.values.toList();
+
+                showDialog(
+                  context: context,
+                  builder: (ctx) => IpConfigurationDialog(
+                    device: endDevice,
+                    allDevices: allDevices,
+                    onSave: (ip, subnet, gateway) {
+                      // Update device configuration
+                      endDevice.setStaticIp(ip, subnet, gateway);
+
+                      // Refresh canvas
+                      canvasNotifier.refreshDevice(device.deviceId);
+                    },
+                  ),
+                );
               } else {
                 // Execute the device's own action
                 action.onExecute();
