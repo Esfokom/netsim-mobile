@@ -9,6 +9,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
+import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/condition_verification_service.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Mode of the scenario editor/player
@@ -63,6 +64,8 @@ class ScenarioState {
 /// Notifier for managing scenario state
 class ScenarioNotifier extends Notifier<ScenarioState> {
   final ScenarioStorageService _storageService = ScenarioStorageService();
+  final ConditionVerificationService _verificationService =
+      ConditionVerificationService();
 
   @override
   ScenarioState build() {
@@ -536,6 +539,105 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
   /// Reset scenario state to empty initial state
   void resetToEmpty() {
     state = ScenarioState(scenario: NetworkScenario.empty());
+  }
+
+  // ============================================================================
+  // ENHANCED CONDITION VERIFICATION METHODS (NEW)
+  // ============================================================================
+
+  /// Check all success conditions using the new verification service
+  /// This uses the enhanced verifiers for device properties, interfaces, ARP, routing, links
+  void checkConditionsWithNewService() {
+    final canvasState = ref.read(canvasProvider);
+
+    appLogger.d(
+      '[ScenarioProvider] Checking ${state.scenario.successConditions.length} conditions (new service)',
+    );
+
+    // Use the verification service to check all conditions
+    final results = _verificationService.verifyAllConditions(
+      state.scenario.successConditions,
+      canvasState,
+    );
+
+    // Update state with condition results
+    state = state.copyWith(conditionResults: results);
+
+    // Log results
+    results.forEach((conditionId, passed) {
+      final condition = state.scenario.successConditions.firstWhere(
+        (c) => c.id == conditionId,
+        orElse: () => throw Exception('Condition not found'),
+      );
+      appLogger.d(
+        '[ScenarioProvider] Condition "${condition.description}": ${passed ? "PASSED" : "FAILED"}',
+      );
+    });
+
+    // Check if all conditions are satisfied
+    final allSatisfied = _verificationService.areAllConditionsSatisfied(
+      state.scenario.successConditions,
+      canvasState,
+    );
+
+    if (allSatisfied && state.scenario.successConditions.isNotEmpty) {
+      _onScenarioCompleted();
+    }
+  }
+
+  /// Get verification status for a specific condition
+  bool? getConditionStatus(String conditionId) {
+    return state.conditionResults?[conditionId];
+  }
+
+  /// Get count of satisfied conditions
+  int getSatisfiedConditionsCount() {
+    if (state.conditionResults == null) return 0;
+    return state.conditionResults!.values.where((v) => v).length;
+  }
+
+  /// Get count of total conditions
+  int getTotalConditionsCount() {
+    return state.scenario.successConditions.length;
+  }
+
+  /// Check if a specific condition is satisfied
+  bool isConditionSatisfied(String conditionId) {
+    return state.conditionResults?[conditionId] ?? false;
+  }
+
+  /// Get progress percentage (0-100)
+  double getConditionsProgress() {
+    final total = getTotalConditionsCount();
+    if (total == 0) return 0.0;
+    final satisfied = getSatisfiedConditionsCount();
+    return (satisfied / total) * 100.0;
+  }
+
+  /// Called when all conditions are satisfied (scenario completed)
+  void _onScenarioCompleted() {
+    appLogger.i(
+      '[ScenarioProvider] 🎉 All success conditions satisfied! Scenario completed!',
+    );
+
+    // TODO: Implement completion logic
+    // - Show completion dialog
+    // - Update player statistics
+    // - Award points/badges
+    // - Save completion record
+    // - Trigger celebration animation
+  }
+
+  /// Verify a single condition (for testing or preview)
+  bool verifySingleCondition(ScenarioCondition condition) {
+    final canvasState = ref.read(canvasProvider);
+    return _verificationService.verifyCondition(condition, canvasState);
+  }
+
+  /// Reset condition results (clear all verification status)
+  void resetConditionResults() {
+    state = state.copyWith(conditionResults: {});
+    appLogger.d('[ScenarioProvider] Condition results reset');
   }
 }
 
