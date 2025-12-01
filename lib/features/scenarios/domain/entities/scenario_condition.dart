@@ -1,16 +1,132 @@
 import 'package:flutter/foundation.dart';
 
 /// Types of conditions that can be checked
-enum ConditionType { connectivity, propertyCheck }
+enum ConditionType {
+  connectivity, // Ping and link checks only
+  deviceProperty, // Basic device properties (RENAMED from propertyCheck)
+  interfaceProperty, // NEW: Interface-specific checks
+  arpCacheCheck, // NEW: ARP cache validation
+  routingTableCheck, // NEW: Routing table validation
+  linkCheck, // NEW: Connection/topology validation
+  composite, // NEW: Multiple combined conditions
+}
 
 /// Protocol types for connectivity checks
-enum ConnectivityProtocol { ping, http, dnsLookup, link }
+enum ConnectivityProtocol {
+  ping,
+  link,
+  // REMOVED: http, dnsLookup (not needed)
+}
 
 /// Data types for properties
 enum PropertyDataType { string, boolean, integer, ipAddress }
 
 /// Operators for property checks
 enum PropertyOperator { equals, notEquals, contains, greaterThan, lessThan }
+
+/// NEW: Device property types
+enum DevicePropertyType {
+  // Identity
+  hostname,
+  deviceId,
+  deviceType,
+
+  // State (FIXED: powerState is now boolean)
+  powerState, // boolean: true/false (not "ON"/"OFF")
+  linkState, // boolean: true/false (not "UP"/"DOWN")
+  operationalStatus, // string: "online"/"offline"/"error"
+  // Network
+  ipAddress,
+  macAddress,
+  subnetMask,
+  defaultGateway,
+  ipConfigMode, // string: "STATIC"/"DHCP"
+  // Position
+  positionX,
+  positionY,
+
+  // Counts
+  interfaceCount,
+}
+
+/// NEW: Interface property types
+enum InterfacePropertyType {
+  interfaceName,
+  interfaceStatus, // string: "UP"/"DOWN"/"DISABLED"
+  interfaceIpAddress,
+  interfaceMacAddress,
+  interfaceSubnetMask,
+  interfaceGateway,
+  connectedDeviceId,
+  connectedDeviceName,
+}
+
+/// NEW: Link property types
+enum LinkPropertyType {
+  linkCount, // integer: total connections
+  isLinkedToDevice, // boolean: connected to specific device
+  linkedDeviceIds, // array (for internal use)
+}
+
+/// NEW: ARP cache property types
+enum ArpCachePropertyType {
+  hasArpEntry, // boolean: has entry for IP
+  arpEntryMac, // string: MAC for IP
+  arpEntryCount, // integer: total entries
+}
+
+/// NEW: Routing table property types
+enum RoutingTablePropertyType {
+  hasRoute, // boolean: has route for destination
+  routeGateway, // string: gateway IP for destination
+  routeInterface, // string: interface for destination
+  routeCount, // integer: total routes
+  hasDefaultRoute, // boolean: has 0.0.0.0/0 route
+}
+
+/// NEW: Composite logic
+enum CompositeLogic {
+  and, // All sub-conditions must be true
+  or, // At least one sub-condition must be true
+}
+
+/// Sub-condition for composite conditions
+@immutable
+class SubCondition {
+  final String id;
+  final ConditionType type;
+  final Map<String, dynamic> parameters;
+  final bool isHidden; // Don't show to students in UI
+
+  const SubCondition({
+    required this.id,
+    required this.type,
+    required this.parameters,
+    this.isHidden = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type.name.toUpperCase(),
+    'parameters': parameters,
+    'isHidden': isHidden,
+  };
+
+  factory SubCondition.fromJson(Map<String, dynamic> json) {
+    final typeStr = json['type'].toString().toLowerCase();
+    final type = ConditionType.values.firstWhere(
+      (e) => e.name == typeStr,
+      orElse: () => ConditionType.deviceProperty,
+    );
+
+    return SubCondition(
+      id: json['id'] as String,
+      type: type,
+      parameters: Map<String, dynamic>.from(json['parameters'] as Map),
+      isHidden: json['isHidden'] as bool? ?? false,
+    );
+  }
+}
 
 /// Represents a success condition for a scenario
 @immutable
@@ -31,6 +147,20 @@ class ScenarioCondition {
   final PropertyOperator? operator;
   final String? expectedValue;
 
+  // NEW: Interface-specific fields
+  final String? interfaceName; // e.g., "eth0"
+
+  // NEW: ARP/Routing check fields
+  final String? targetIpForCheck; // IP to check in ARP/routing
+  final String? targetNetworkForCheck; // Network for routing check
+
+  // NEW: Link check fields
+  final String? targetDeviceIdForLink; // Device to check link to
+
+  // NEW: Composite condition fields
+  final List<SubCondition>? subConditions;
+  final CompositeLogic? compositeLogic;
+
   const ScenarioCondition({
     required this.id,
     required this.description,
@@ -43,6 +173,12 @@ class ScenarioCondition {
     this.propertyDataType,
     this.operator,
     this.expectedValue,
+    this.interfaceName,
+    this.targetIpForCheck,
+    this.targetNetworkForCheck,
+    this.targetDeviceIdForLink,
+    this.subConditions,
+    this.compositeLogic,
   });
 
   ScenarioCondition copyWith({
@@ -57,6 +193,12 @@ class ScenarioCondition {
     PropertyDataType? propertyDataType,
     PropertyOperator? operator,
     String? expectedValue,
+    String? interfaceName,
+    String? targetIpForCheck,
+    String? targetNetworkForCheck,
+    String? targetDeviceIdForLink,
+    List<SubCondition>? subConditions,
+    CompositeLogic? compositeLogic,
   }) {
     return ScenarioCondition(
       id: id ?? this.id,
@@ -70,6 +212,14 @@ class ScenarioCondition {
       propertyDataType: propertyDataType ?? this.propertyDataType,
       operator: operator ?? this.operator,
       expectedValue: expectedValue ?? this.expectedValue,
+      interfaceName: interfaceName ?? this.interfaceName,
+      targetIpForCheck: targetIpForCheck ?? this.targetIpForCheck,
+      targetNetworkForCheck:
+          targetNetworkForCheck ?? this.targetNetworkForCheck,
+      targetDeviceIdForLink:
+          targetDeviceIdForLink ?? this.targetDeviceIdForLink,
+      subConditions: subConditions ?? this.subConditions,
+      compositeLogic: compositeLogic ?? this.compositeLogic,
     );
   }
 
@@ -87,27 +237,40 @@ class ScenarioCondition {
         'propertyDataType': propertyDataType!.name.toUpperCase(),
       if (operator != null) 'operator': operator!.name.toUpperCase(),
       if (expectedValue != null) 'expectedValue': expectedValue,
+      if (interfaceName != null) 'interfaceName': interfaceName,
+      if (targetIpForCheck != null) 'targetIpForCheck': targetIpForCheck,
+      if (targetNetworkForCheck != null)
+        'targetNetworkForCheck': targetNetworkForCheck,
+      if (targetDeviceIdForLink != null)
+        'targetDeviceIdForLink': targetDeviceIdForLink,
+      if (subConditions != null)
+        'subConditions': subConditions!.map((sc) => sc.toJson()).toList(),
+      if (compositeLogic != null)
+        'compositeLogic': compositeLogic!.name.toUpperCase(),
     };
   }
 
   factory ScenarioCondition.fromJson(Map<String, dynamic> json) {
+    // Parse condition type
     final typeStr = json['type'].toString().toLowerCase();
-    final type = typeStr == 'connectivity'
-        ? ConditionType.connectivity
-        : ConditionType.propertyCheck;
+    final type = ConditionType.values.firstWhere(
+      (e) => e.name == typeStr,
+      orElse: () => typeStr == 'propertycheck'
+          ? ConditionType
+                .deviceProperty // Legacy support
+          : ConditionType.deviceProperty,
+    );
 
+    // Parse connectivity protocol (removed HTTP and DNS)
     ConnectivityProtocol? protocol;
     if (json['protocol'] != null) {
       final protocolStr = json['protocol'].toString().toLowerCase();
       protocol = protocolStr == 'ping'
           ? ConnectivityProtocol.ping
-          : protocolStr == 'http'
-          ? ConnectivityProtocol.http
-          : protocolStr == 'dnslookup'
-          ? ConnectivityProtocol.dnsLookup
           : protocolStr == 'link'
           ? ConnectivityProtocol.link
-          : ConnectivityProtocol.ping;
+          : ConnectivityProtocol.ping; // Default to ping
+      // NOTE: http and dnsLookup are no longer supported
     }
 
     PropertyDataType? propertyDataType;
@@ -136,6 +299,24 @@ class ScenarioCondition {
           : PropertyOperator.lessThan;
     }
 
+    // Parse composite logic
+    CompositeLogic? compositeLogic;
+    if (json['compositeLogic'] != null) {
+      final logicStr = json['compositeLogic'].toString().toLowerCase();
+      compositeLogic = CompositeLogic.values.firstWhere(
+        (e) => e.name == logicStr,
+        orElse: () => CompositeLogic.and,
+      );
+    }
+
+    // Parse sub-conditions
+    List<SubCondition>? subConditions;
+    if (json['subConditions'] != null) {
+      subConditions = (json['subConditions'] as List)
+          .map((sc) => SubCondition.fromJson(sc as Map<String, dynamic>))
+          .toList();
+    }
+
     return ScenarioCondition(
       id: json['id'] as String,
       description: json['description'] as String,
@@ -148,6 +329,12 @@ class ScenarioCondition {
       propertyDataType: propertyDataType,
       operator: operator,
       expectedValue: json['expectedValue'] as String?,
+      interfaceName: json['interfaceName'] as String?,
+      targetIpForCheck: json['targetIpForCheck'] as String?,
+      targetNetworkForCheck: json['targetNetworkForCheck'] as String?,
+      targetDeviceIdForLink: json['targetDeviceIdForLink'] as String?,
+      subConditions: subConditions,
+      compositeLogic: compositeLogic,
     );
   }
 }
@@ -157,8 +344,18 @@ extension ConditionTypeExtension on ConditionType {
     switch (this) {
       case ConditionType.connectivity:
         return 'Connectivity';
-      case ConditionType.propertyCheck:
-        return 'Property Check';
+      case ConditionType.deviceProperty:
+        return 'Device Property';
+      case ConditionType.interfaceProperty:
+        return 'Interface Property';
+      case ConditionType.arpCacheCheck:
+        return 'ARP Cache';
+      case ConditionType.routingTableCheck:
+        return 'Routing Table';
+      case ConditionType.linkCheck:
+        return 'Link Check';
+      case ConditionType.composite:
+        return 'Composite';
     }
   }
 }
@@ -168,10 +365,6 @@ extension ConnectivityProtocolExtension on ConnectivityProtocol {
     switch (this) {
       case ConnectivityProtocol.ping:
         return 'PING';
-      case ConnectivityProtocol.http:
-        return 'HTTP';
-      case ConnectivityProtocol.dnsLookup:
-        return 'DNS Lookup';
       case ConnectivityProtocol.link:
         return 'Link/Cable';
     }

@@ -193,8 +193,10 @@ class _ConditionCard extends ConsumerWidget {
     switch (type) {
       case ConditionType.connectivity:
         return Colors.blue;
-      case ConditionType.propertyCheck:
+      case ConditionType.deviceProperty:
         return Colors.green;
+      default:
+        return Colors.grey;
     }
   }
 }
@@ -292,11 +294,11 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _ConditionTypeButton(
-                      type: ConditionType.propertyCheck,
-                      isSelected: _selectedType == ConditionType.propertyCheck,
+                      type: ConditionType.deviceProperty,
+                      isSelected: _selectedType == ConditionType.deviceProperty,
                       onTap: () {
                         setState(() {
-                          _selectedType = ConditionType.propertyCheck;
+                          _selectedType = ConditionType.deviceProperty;
                           // Reset selections when type changes
                           _selectedSourceDeviceId = null;
                           _selectedTargetDeviceId = null;
@@ -947,7 +949,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
       condition = ScenarioCondition(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         description: _descriptionController.text,
-        type: ConditionType.propertyCheck,
+        type: ConditionType.deviceProperty,
         targetDeviceID: _selectedTargetDeviceId,
         property: _selectedProperty,
         propertyDataType: _selectedPropertyDataType,
@@ -977,8 +979,18 @@ class _ConditionTypeButton extends StatelessWidget {
     switch (type) {
       case ConditionType.connectivity:
         return Icons.network_check;
-      case ConditionType.propertyCheck:
+      case ConditionType.deviceProperty:
         return Icons.settings_outlined;
+      case ConditionType.interfaceProperty:
+        return Icons.cable;
+      case ConditionType.arpCacheCheck:
+        return Icons.storage;
+      case ConditionType.routingTableCheck:
+        return Icons.route;
+      case ConditionType.linkCheck:
+        return Icons.link;
+      case ConditionType.composite:
+        return Icons.layers;
     }
   }
 

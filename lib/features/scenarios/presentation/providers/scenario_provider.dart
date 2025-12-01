@@ -383,9 +383,9 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
           );
           passed = false;
         }
-      } else if (condition.type == ConditionType.propertyCheck) {
+      } else if (condition.type == ConditionType.deviceProperty) {
         appLogger.d(
-          '[ScenarioProvider] Property check - target device: ${condition.targetDeviceID}',
+          '[ScenarioProvider] Device property check - target device: ${condition.targetDeviceID}',
         );
         appLogger.d(
           '[ScenarioProvider] Property: ${condition.property}, Expected: ${condition.expectedValue}',
