@@ -250,11 +250,29 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   PropertyOperator _selectedOperator = PropertyOperator.equals;
   final _expectedValueController = TextEditingController();
 
+  // NEW: Interface property fields
+  String? _selectedInterfaceName;
+
+  // NEW: ARP cache fields
+  final _targetIpController = TextEditingController();
+
+  // NEW: Routing table fields
+  final _targetNetworkController = TextEditingController();
+
+  // NEW: Link check fields
+  String? _targetDeviceForLink;
+
+  // NEW: Composite fields
+  final List<Map<String, dynamic>> _subConditions = [];
+  CompositeLogic _compositeLogic = CompositeLogic.and;
+
   @override
   void dispose() {
     _descriptionController.dispose();
     _targetAddressController.dispose();
     _expectedValueController.dispose();
+    _targetIpController.dispose();
+    _targetNetworkController.dispose();
     super.dispose();
   }
 
@@ -374,10 +392,26 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
               const SizedBox(height: 16),
 
               // Type-specific fields with device dropdowns
-              if (_selectedType == ConditionType.connectivity)
-                _buildConnectivityFields(devices)
-              else
-                _buildPropertyCheckFields(devices),
+              Builder(
+                builder: (context) {
+                  switch (_selectedType) {
+                    case ConditionType.connectivity:
+                      return _buildConnectivityFields(devices);
+                    case ConditionType.deviceProperty:
+                      return _buildPropertyCheckFields(devices);
+                    case ConditionType.interfaceProperty:
+                      return _buildInterfacePropertyFields(devices);
+                    case ConditionType.arpCacheCheck:
+                      return _buildArpCacheFields(devices);
+                    case ConditionType.routingTableCheck:
+                      return _buildRoutingTableFields(devices);
+                    case ConditionType.linkCheck:
+                      return _buildLinkCheckFields(devices);
+                    case ConditionType.composite:
+                      return _buildCompositeFields(devices);
+                  }
+                },
+              ),
 
               const SizedBox(height: 16),
 
@@ -930,14 +964,280 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     }
   }
 
+  // NEW BUILDER METHODS FOR ENHANCED CONDITION TYPES
+
+  Widget _buildInterfacePropertyFields(List<CanvasDevice> devices) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Check interface properties (e.g., eth0 status, IP)',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 12),
+        // Device selector
+        ShadSelectFormField<String>(
+          id: 'interfaceDevice',
+          minWidth: double.infinity,
+          label: const Text('Device'),
+          placeholder: const Text('Select device'),
+          options: devices
+              .map(
+                (device) =>
+                    ShadOption(value: device.id, child: Text(device.name)),
+              )
+              .toList(),
+          selectedOptionBuilder: (context, value) {
+            final device = devices.firstWhere((d) => d.id == value);
+            return Text(device.name);
+          },
+          onChanged: (value) => setState(() => _selectedTargetDeviceId = value),
+        ),
+        const SizedBox(height: 12),
+        // Interface name input
+        ShadInputFormField(
+          id: 'interfaceName',
+          label: const Text('Interface Name'),
+          placeholder: const Text('e.g., eth0, eth1'),
+          onChanged: (value) => setState(() => _selectedInterfaceName = value),
+        ),
+        const SizedBox(height: 12),
+        // Property input (for now, simple text field)
+        ShadInputFormField(
+          id: 'interfaceProperty',
+          label: const Text('Property'),
+          placeholder: const Text('e.g., interfaceStatus, interfaceIpAddress'),
+          onChanged: (value) => setState(() => _selectedProperty = value),
+        ),
+        const SizedBox(height: 12),
+        // Expected value
+        ShadInputFormField(
+          controller: _expectedValueController,
+          label: const Text('Expected Value'),
+          placeholder: const Text('e.g., UP, 192.168.1.10'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildArpCacheFields(List<CanvasDevice> devices) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Check ARP cache entries',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 12),
+        // Device selector
+        ShadSelectFormField<String>(
+          id: 'arpDevice',
+          minWidth: double.infinity,
+          label: const Text('Device'),
+          placeholder: const Text('Select device'),
+          options: devices
+              .map(
+                (device) =>
+                    ShadOption(value: device.id, child: Text(device.name)),
+              )
+              .toList(),
+          selectedOptionBuilder: (context, value) {
+            final device = devices.firstWhere((d) => d.id == value);
+            return Text(device.name);
+          },
+          onChanged: (value) => setState(() => _selectedTargetDeviceId = value),
+        ),
+        const SizedBox(height: 12),
+        // Property selector
+        ShadInputFormField(
+          id: 'arpProperty',
+          label: const Text('Property'),
+          placeholder: const Text('e.g., hasArpEntry, arpEntryCount'),
+          onChanged: (value) => setState(() => _selectedProperty = value),
+        ),
+        const SizedBox(height: 12),
+        // Target IP (optional, for hasArpEntry)
+        ShadInputFormField(
+          controller: _targetIpController,
+          label: const Text('Target IP (optional)'),
+          placeholder: const Text('e.g., 192.168.1.1'),
+        ),
+        const SizedBox(height: 12),
+        // Expected value
+        ShadInputFormField(
+          controller: _expectedValueController,
+          label: const Text('Expected Value'),
+          placeholder: const Text('e.g., true, 5'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoutingTableFields(List<CanvasDevice> devices) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Check routing table entries',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 12),
+        // Device selector
+        ShadSelectFormField<String>(
+          id: 'routingDevice',
+          minWidth: double.infinity,
+          label: const Text('Device'),
+          placeholder: const Text('Select device'),
+          options: devices
+              .map(
+                (device) =>
+                    ShadOption(value: device.id, child: Text(device.name)),
+              )
+              .toList(),
+          selectedOptionBuilder: (context, value) {
+            final device = devices.firstWhere((d) => d.id == value);
+            return Text(device.name);
+          },
+          onChanged: (value) => setState(() => _selectedTargetDeviceId = value),
+        ),
+        const SizedBox(height: 12),
+        // Property selector
+        ShadInputFormField(
+          id: 'routingProperty',
+          label: const Text('Property'),
+          placeholder: const Text(
+            'e.g., hasRoute, hasDefaultRoute, routeCount',
+          ),
+          onChanged: (value) => setState(() => _selectedProperty = value),
+        ),
+        const SizedBox(height: 12),
+        // Target network (optional)
+        ShadInputFormField(
+          controller: _targetNetworkController,
+          label: const Text('Target Network (optional)'),
+          placeholder: const Text('e.g., 192.168.1.0/24, 0.0.0.0/0'),
+        ),
+        const SizedBox(height: 12),
+        // Expected value
+        ShadInputFormField(
+          controller: _expectedValueController,
+          label: const Text('Expected Value'),
+          placeholder: const Text('e.g., true, 192.168.1.1'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLinkCheckFields(List<CanvasDevice> devices) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Check device connections',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 12),
+        // Device selector
+        ShadSelectFormField<String>(
+          id: 'linkDevice',
+          minWidth: double.infinity,
+          label: const Text('Device'),
+          placeholder: const Text('Select device'),
+          options: devices
+              .map(
+                (device) =>
+                    ShadOption(value: device.id, child: Text(device.name)),
+              )
+              .toList(),
+          selectedOptionBuilder: (context, value) {
+            final device = devices.firstWhere((d) => d.id == value);
+            return Text(device.name);
+          },
+          onChanged: (value) => setState(() => _selectedTargetDeviceId = value),
+        ),
+        const SizedBox(height: 12),
+        // Property selector
+        ShadInputFormField(
+          id: 'linkProperty',
+          label: const Text('Property'),
+          placeholder: const Text('e.g., linkCount, isLinkedToDevice'),
+          onChanged: (value) => setState(() => _selectedProperty = value),
+        ),
+        const SizedBox(height: 12),
+        // Target device (optional, for isLinkedToDevice)
+        ShadSelectFormField<String>(
+          id: 'targetDevice',
+          minWidth: double.infinity,
+          label: const Text('Target Device (optional)'),
+          placeholder: const Text('Select target device'),
+          options: devices
+              .map(
+                (device) =>
+                    ShadOption(value: device.id, child: Text(device.name)),
+              )
+              .toList(),
+          selectedOptionBuilder: (context, value) {
+            final device = devices.firstWhere((d) => d.id == value);
+            return Text(device.name);
+          },
+          onChanged: (value) => setState(() => _targetDeviceForLink = value),
+        ),
+        const SizedBox(height: 12),
+        // Expected value
+        ShadInputFormField(
+          controller: _expectedValueController,
+          label: const Text('Expected Value'),
+          placeholder: const Text('e.g., 2, true'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompositeFields(List<CanvasDevice> devices) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Composite conditions (Coming Soon)',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.orange.shade700),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Composite conditions allow combining multiple checks. This feature will be available soon!',
+                  style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Reset all field selections when condition type changes
   void _resetFields() {
     _selectedSourceDeviceId = null;
     _selectedTargetDeviceId = null;
     _selectedProperty = null;
     _selectedPropertyDataType = null;
+    _selectedInterfaceName = null;
+    _targetDeviceForLink = null;
     _targetAddressController.clear();
     _expectedValueController.clear();
+    _targetIpController.clear();
+    _targetNetworkController.clear();
   }
 
   void _saveCondition() {
@@ -993,7 +1293,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
           targetAddress: _targetAddressController.text,
         );
       }
-    } else {
+    } else if (_selectedType == ConditionType.deviceProperty) {
       if (_selectedTargetDeviceId == null ||
           _selectedProperty == null ||
           _selectedPropertyDataType == null ||
@@ -1016,6 +1316,101 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         operator: _selectedOperator,
         expectedValue: _expectedValueController.text,
       );
+    } else if (_selectedType == ConditionType.interfaceProperty) {
+      if (_selectedTargetDeviceId == null ||
+          _selectedInterfaceName == null ||
+          _selectedProperty == null ||
+          _expectedValueController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please fill all interface fields')),
+        );
+        return;
+      }
+
+      condition = ScenarioCondition(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        description: _descriptionController.text,
+        type: ConditionType.interfaceProperty,
+        targetDeviceID: _selectedTargetDeviceId,
+        interfaceName: _selectedInterfaceName,
+        property: _selectedProperty,
+        expectedValue: _expectedValueController.text,
+        operator: _selectedOperator,
+      );
+    } else if (_selectedType == ConditionType.arpCacheCheck) {
+      if (_selectedTargetDeviceId == null ||
+          _selectedProperty == null ||
+          _expectedValueController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please fill all ARP cache fields')),
+        );
+        return;
+      }
+
+      condition = ScenarioCondition(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        description: _descriptionController.text,
+        type: ConditionType.arpCacheCheck,
+        targetDeviceID: _selectedTargetDeviceId,
+        property: _selectedProperty,
+        targetIpForCheck: _targetIpController.text.isEmpty
+            ? null
+            : _targetIpController.text,
+        expectedValue: _expectedValueController.text,
+        operator: _selectedOperator,
+      );
+    } else if (_selectedType == ConditionType.routingTableCheck) {
+      if (_selectedTargetDeviceId == null ||
+          _selectedProperty == null ||
+          _expectedValueController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please fill all routing table fields')),
+        );
+        return;
+      }
+
+      condition = ScenarioCondition(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        description: _descriptionController.text,
+        type: ConditionType.routingTableCheck,
+        targetDeviceID: _selectedTargetDeviceId,
+        property: _selectedProperty,
+        targetNetworkForCheck: _targetNetworkController.text.isEmpty
+            ? null
+            : _targetNetworkController.text,
+        expectedValue: _expectedValueController.text,
+        operator: _selectedOperator,
+      );
+    } else if (_selectedType == ConditionType.linkCheck) {
+      if (_selectedTargetDeviceId == null ||
+          _selectedProperty == null ||
+          _expectedValueController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please fill all link check fields')),
+        );
+        return;
+      }
+
+      condition = ScenarioCondition(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        description: _descriptionController.text,
+        type: ConditionType.linkCheck,
+        targetDeviceID: _selectedTargetDeviceId,
+        property: _selectedProperty,
+        targetDeviceIdForLink: _targetDeviceForLink,
+        expectedValue: _expectedValueController.text,
+        operator: _selectedOperator,
+      );
+    } else if (_selectedType == ConditionType.composite) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Composite conditions coming soon!')),
+      );
+      return;
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Unknown condition type')));
+      return;
     }
 
     ref.read(scenarioProvider.notifier).addCondition(condition);
