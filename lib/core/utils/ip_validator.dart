@@ -87,4 +87,100 @@ class IpValidator {
 
     return null; // No error
   }
+
+  /// Check if IP already exists in device list
+  static bool isDuplicateIp(
+    String ip,
+    String excludeDeviceId,
+    List<dynamic> allDevices, // List of NetworkDevice
+  ) {
+    for (final device in allDevices) {
+      if (device.deviceId == excludeDeviceId) continue;
+
+      // Check EndDevice and ServerDevice
+      if (device.runtimeType.toString().contains('EndDevice') ||
+          device.runtimeType.toString().contains('ServerDevice')) {
+        final currentIp = (device as dynamic).currentIpAddress;
+        if (currentIp == ip) return true;
+      }
+
+      // Check RouterDevice interfaces
+      if (device.runtimeType.toString().contains('RouterDevice')) {
+        final interfaces = (device as dynamic).interfaces;
+        if (interfaces is Map) {
+          for (final interface in interfaces.values) {
+            if ((interface as dynamic).ipAddress == ip) return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /// Validate gateway is in same subnet as IP address
+  static bool isGatewayInSubnet(
+    String gateway,
+    String ipAddress,
+    String subnetMask,
+  ) {
+    if (gateway.isEmpty) return true; // Optional
+
+    if (!isValidIpv4(gateway)) return false;
+    if (!isValidIpv4(ipAddress)) return false;
+    if (!isValidIpv4(subnetMask)) return false;
+
+    // Calculate network addresses
+    final ipParts = ipAddress.split('.').map(int.parse).toList();
+    final gwParts = gateway.split('.').map(int.parse).toList();
+    final maskParts = subnetMask.split('.').map(int.parse).toList();
+
+    // Check if on same network
+    for (int i = 0; i < 4; i++) {
+      if ((ipParts[i] & maskParts[i]) != (gwParts[i] & maskParts[i])) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// Get suggestion for subnet mask based on IP class
+  static String suggestSubnetMask(String ip) {
+    if (!isValidIpv4(ip)) return '255.255.255.0';
+
+    final firstOctet = int.parse(ip.split('.')[0]);
+
+    if (firstOctet < 128) return '255.0.0.0'; // Class A
+    if (firstOctet < 192) return '255.255.0.0'; // Class B
+    return '255.255.255.0'; // Class C
+  }
+
+  /// Validate subnet mask (must be valid and contiguous)
+  static String? validateSubnetMask(String mask) {
+    if (mask.isEmpty) return 'Subnet mask cannot be empty';
+
+    if (!isValidIpv4(mask)) return getValidationError(mask);
+
+    // Check if mask is contiguous (all 1s must be before all 0s in binary)
+    final parts = mask.split('.').map(int.parse).toList();
+    int binaryMask =
+        (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3];
+
+    // Convert to binary string and check contiguity
+    String binary = binaryMask.toRadixString(2).padLeft(32, '0');
+
+    // Should be like: 11111111111111111111111100000000
+    // Check: no 1 after 0
+    bool seenZero = false;
+    for (int i = 0; i < binary.length; i++) {
+      if (binary[i] == '0') {
+        seenZero = true;
+      } else if (seenZero) {
+        return 'Invalid subnet mask: must be contiguous';
+      }
+    }
+
+    return null; // Valid
+  }
 }

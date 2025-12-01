@@ -27,6 +27,20 @@ class ContextualEditor extends ConsumerStatefulWidget {
 }
 
 class _ContextualEditorState extends ConsumerState<ContextualEditor> {
+  // Helper method to format display mode names
+  String _formatDisplayModeName(String value) {
+    switch (value) {
+      case 'hostname':
+        return 'Hostname';
+      case 'ipAddress':
+        return 'IP Address';
+      case 'macAddress':
+        return 'MAC Address';
+      default:
+        return value;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scenarioState = ref.watch(scenarioProvider);
@@ -779,8 +793,9 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       // Skip device name (already in basic properties)
       if (prop.id == 'name') return false;
 
-      // Skip showIpOnCanvas (we'll show it separately as compact toggle)
-      if (prop.id == 'showIpOnCanvas') return false;
+      // Skip displayMode and displayInterface (we'll show them separately)
+      if (prop.id == 'displayMode' || prop.id == 'displayInterface')
+        return false;
 
       // Check permission in simulation mode
       if (simulationMode) {
@@ -795,9 +810,14 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       return true;
     }).toList();
 
-    // Get showIpOnCanvas property separately
-    final showIpProperty = networkDevice.properties
-        .where((p) => p.id == 'showIpOnCanvas')
+    // Get displayMode property separately
+    final displayModeProperty = networkDevice.properties
+        .where((p) => p.id == 'displayMode')
+        .firstOrNull;
+
+    // Get displayInterface property separately
+    final displayInterfaceProperty = networkDevice.properties
+        .where((p) => p.id == 'displayInterface')
         .firstOrNull;
 
     return Container(
@@ -810,90 +830,147 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Compact Show IP Toggle (if property exists and not denied)
-          if (showIpProperty != null) ...[
-            InkWell(
-              onTap: () {
-                final permission = simulationMode
-                    ? scenarioNotifier.getPropertyPermission(
-                        device.id,
-                        DeviceActionType.editProperty,
-                        propertyId: showIpProperty.id,
-                      )
-                    : PropertyPermission.editable;
+          // Display Mode Dropdown (if property exists and not denied)
+          if (displayModeProperty != null &&
+              displayModeProperty is SelectionProperty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.label, size: 14, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Canvas Display',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                  DropdownButton<String>(
+                    value: displayModeProperty.value,
+                    isDense: true,
+                    underline: const SizedBox.shrink(),
+                    items: displayModeProperty.options.map((option) {
+                      return DropdownMenuItem<String>(
+                        value: option,
+                        child: Text(
+                          _formatDisplayModeName(option),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (newValue) {
+                      if (newValue != null) {
+                        final permission = simulationMode
+                            ? scenarioNotifier.getPropertyPermission(
+                                device.id,
+                                DeviceActionType.editProperty,
+                                propertyId: displayModeProperty.id,
+                              )
+                            : PropertyPermission.editable;
 
-                if (permission == PropertyPermission.editable) {
-                  final currentValue = showIpProperty.value as bool;
-                  final newValue = !currentValue;
-                  showIpProperty.value = newValue;
+                        if (permission == PropertyPermission.editable) {
+                          displayModeProperty.value = newValue;
 
-                  // Update the actual device field
-                  if (networkDevice is RouterDevice) {
-                    networkDevice.showIpOnCanvas = newValue;
-                  } else if (networkDevice is EndDevice) {
-                    networkDevice.showIpOnCanvas = newValue;
-                  } else if (networkDevice is FirewallDevice) {
-                    networkDevice.showIpOnCanvas = newValue;
-                  } else if (networkDevice is WirelessAccessPoint) {
-                    networkDevice.showIpOnCanvas = newValue;
-                  }
+                          // Update the actual device field
+                          if (networkDevice is EndDevice) {
+                            switch (newValue) {
+                              case 'hostname':
+                                networkDevice.displayMode =
+                                    DeviceDisplayMode.hostname;
+                                break;
+                              case 'ipAddress':
+                                networkDevice.displayMode =
+                                    DeviceDisplayMode.ipAddress;
+                                break;
+                              case 'macAddress':
+                                networkDevice.displayMode =
+                                    DeviceDisplayMode.macAddress;
+                                break;
+                            }
+                          } else if (networkDevice is RouterDevice) {
+                            networkDevice.showIpOnCanvas =
+                                (newValue == 'ipAddress');
+                          } else if (networkDevice is FirewallDevice) {
+                            networkDevice.showIpOnCanvas =
+                                (newValue == 'ipAddress');
+                          } else if (networkDevice is WirelessAccessPoint) {
+                            networkDevice.showIpOnCanvas =
+                                (newValue == 'ipAddress');
+                          }
 
-                  canvasNotifier.refreshDevice(device.id);
-                  setState(() {});
-                }
-              },
-              child: Padding(
+                          canvasNotifier.refreshDevice(device.id);
+                          setState(() {});
+                        }
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            // Display Interface Dropdown (conditional - only for EndDevice with multiple interfaces)
+            if (displayInterfaceProperty != null &&
+                displayInterfaceProperty is SelectionProperty) ...[
+              Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   children: [
-                    Icon(Icons.label, size: 14, color: Colors.grey.shade600),
+                    Icon(Icons.cable, size: 14, color: Colors.grey.shade600),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Show IP on Canvas',
+                        'Interface',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade700,
                         ),
                       ),
                     ),
-                    Transform.scale(
-                      scale: 0.8,
-                      child: Switch(
-                        value: showIpProperty.value as bool,
-                        onChanged: (value) {
+                    DropdownButton<String>(
+                      value: displayInterfaceProperty.value,
+                      isDense: true,
+                      underline: const SizedBox.shrink(),
+                      items: displayInterfaceProperty.options.map((option) {
+                        return DropdownMenuItem<String>(
+                          value: option,
+                          child: Text(
+                            option,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        if (newValue != null) {
                           final permission = simulationMode
                               ? scenarioNotifier.getPropertyPermission(
                                   device.id,
                                   DeviceActionType.editProperty,
-                                  propertyId: showIpProperty.id,
+                                  propertyId: displayInterfaceProperty.id,
                                 )
                               : PropertyPermission.editable;
 
                           if (permission == PropertyPermission.editable) {
-                            showIpProperty.value = value;
+                            displayInterfaceProperty.value = newValue;
 
                             // Update the actual device field
-                            if (networkDevice is RouterDevice) {
-                              networkDevice.showIpOnCanvas = value;
-                            } else if (networkDevice is EndDevice) {
-                              networkDevice.showIpOnCanvas = value;
-                            } else if (networkDevice is FirewallDevice) {
-                              networkDevice.showIpOnCanvas = value;
-                            } else if (networkDevice is WirelessAccessPoint) {
-                              networkDevice.showIpOnCanvas = value;
+                            if (networkDevice is EndDevice) {
+                              networkDevice.displayInterfaceName = newValue;
                             }
 
                             canvasNotifier.refreshDevice(device.id);
                             setState(() {});
                           }
-                        },
-                      ),
+                        }
+                      },
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
+
             if (filteredProperties.isNotEmpty)
               Divider(height: 16, color: Colors.grey.withValues(alpha: 0.2)),
           ],

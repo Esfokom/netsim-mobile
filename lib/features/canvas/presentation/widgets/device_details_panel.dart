@@ -235,20 +235,61 @@ class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
   }
 
   void _handleBooleanChange(bool newValue) {
-    // Handle boolean property changes (like showIpOnCanvas toggle)
-    if (widget.property.id == 'showIpOnCanvas') {
+    // Handle boolean property changes
+    // Note: showIpOnCanvas has been replaced by displayMode (enum)
+    // If any boolean properties are added in the future, handle them here
+
+    // Trigger rebuild by refreshing the device
+    ref.read(canvasProvider.notifier).refreshDevice(widget.device.deviceId);
+  }
+
+  void _handleSelectionChange(String propertyId, String newValue) {
+    // Handle selection property changes (like displayMode)
+    if (propertyId == 'displayMode') {
       if (widget.device is EndDevice) {
-        (widget.device as EndDevice).showIpOnCanvas = newValue;
+        final endDevice = widget.device as EndDevice;
+        switch (newValue) {
+          case 'hostname':
+            endDevice.displayMode = DeviceDisplayMode.hostname;
+            break;
+          case 'ipAddress':
+            endDevice.displayMode = DeviceDisplayMode.ipAddress;
+            break;
+          case 'macAddress':
+            endDevice.displayMode = DeviceDisplayMode.macAddress;
+            break;
+        }
       } else if (widget.device is RouterDevice) {
-        (widget.device as RouterDevice).showIpOnCanvas = newValue;
+        (widget.device as RouterDevice).showIpOnCanvas =
+            (newValue == 'ipAddress');
       } else if (widget.device is FirewallDevice) {
-        (widget.device as FirewallDevice).showIpOnCanvas = newValue;
+        (widget.device as FirewallDevice).showIpOnCanvas =
+            (newValue == 'ipAddress');
       } else if (widget.device is WirelessAccessPoint) {
-        (widget.device as WirelessAccessPoint).showIpOnCanvas = newValue;
+        (widget.device as WirelessAccessPoint).showIpOnCanvas =
+            (newValue == 'ipAddress');
       }
 
-      // Trigger rebuild by refreshing the device
       ref.read(canvasProvider.notifier).refreshDevice(widget.device.deviceId);
+    } else if (propertyId == 'displayInterface') {
+      if (widget.device is EndDevice) {
+        (widget.device as EndDevice).displayInterfaceName = newValue;
+        ref.read(canvasProvider.notifier).refreshDevice(widget.device.deviceId);
+      }
+    }
+  }
+
+  String _formatDisplayName(String value) {
+    // Format camelCase to Title Case
+    switch (value) {
+      case 'hostname':
+        return 'Hostname';
+      case 'ipAddress':
+        return 'IP Address';
+      case 'macAddress':
+        return 'MAC Address';
+      default:
+        return value;
     }
   }
 
@@ -290,6 +331,36 @@ class _PropertyWidgetState extends ConsumerState<_PropertyWidget> {
                 });
                 _handleBooleanChange(val);
               },
+        dense: true,
+      );
+    }
+
+    // Handle selection properties (like displayMode, displayInterface)
+    if (widget.property is SelectionProperty) {
+      final selectionProp = widget.property as SelectionProperty;
+      return ListTile(
+        leading: const Icon(Icons.settings),
+        title: Text(selectionProp.label),
+        subtitle: DropdownButton<String>(
+          value: selectionProp.value,
+          isExpanded: true,
+          items: selectionProp.options.map((option) {
+            return DropdownMenuItem<String>(
+              value: option,
+              child: Text(_formatDisplayName(option)),
+            );
+          }).toList(),
+          onChanged: selectionProp.isReadOnly
+              ? null
+              : (newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      selectionProp.value = newValue;
+                    });
+                    _handleSelectionChange(selectionProp.id, newValue);
+                  }
+                },
+        ),
         dense: true,
       );
     }

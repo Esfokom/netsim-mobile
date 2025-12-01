@@ -9,6 +9,13 @@ import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
 import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
 
+/// Display mode for device label on canvas
+enum DeviceDisplayMode {
+  hostname, // Show device hostname (default)
+  ipAddress, // Show IP address with interface name
+  macAddress, // Show MAC address with interface name
+}
+
 /// End Device (PC/Workstation) - Player's main interaction point
 class EndDevice extends NetworkDevice
     implements
@@ -53,8 +60,9 @@ class EndDevice extends NetworkDevice
   List<String> installedTools;
   String statusMessage;
 
-  // Display preference
-  bool showIpOnCanvas;
+  // Display preferences (replaced showIpOnCanvas)
+  DeviceDisplayMode displayMode;
+  String? displayInterfaceName; // Which interface to show (null = default)
 
   // Pending pings waiting for ARP resolution
   final Map<String, int> _pendingPings = {}; // targetIp -> sequence number
@@ -72,7 +80,8 @@ class EndDevice extends NetworkDevice
     this.statusMessage = 'Not connected',
     List<String>? currentDnsServers,
     List<Map<String, String>>? arpCache,
-    this.showIpOnCanvas = false,
+    this.displayMode = DeviceDisplayMode.hostname,
+    this.displayInterfaceName,
     List<NetworkInterface>? interfaces,
     RoutingTable? routingTable,
     ArpCache? arpCacheStructured,
@@ -109,8 +118,36 @@ class EndDevice extends NetworkDevice
   Color get color => Colors.purple;
 
   @override
-  String get displayName =>
-      showIpOnCanvas && currentIpAddress != null ? currentIpAddress! : hostname;
+  String get displayName {
+    switch (displayMode) {
+      case DeviceDisplayMode.hostname:
+        return hostname;
+
+      case DeviceDisplayMode.ipAddress:
+        final iface = displayInterfaceName != null
+            ? getInterface(displayInterfaceName!)
+            : defaultInterface;
+
+        if (iface?.ipAddress != null && iface!.ipAddress!.isNotEmpty) {
+          return interfaces.length > 1
+              ? '${iface.ipAddress} (${iface.name})'
+              : iface.ipAddress!;
+        }
+        return hostname; // Fallback if no IP
+
+      case DeviceDisplayMode.macAddress:
+        final iface = displayInterfaceName != null
+            ? getInterface(displayInterfaceName!)
+            : defaultInterface;
+
+        if (iface != null) {
+          return interfaces.length > 1
+              ? '${iface.macAddress} (${iface.name})'
+              : iface.macAddress;
+        }
+        return hostname; // Fallback
+    }
+  }
 
   @override
   DeviceStatus get status {
@@ -400,17 +437,32 @@ class EndDevice extends NetworkDevice
 
   @override
   List<DeviceProperty> get properties => [
+    StringProperty(
+      id: 'deviceId',
+      label: 'Device ID',
+      value: deviceId,
+      isReadOnly:
+          true, // Read-only here, editability controlled in contextual editor
+    ),
     StringProperty(id: 'hostname', label: 'Hostname', value: hostname),
     MacAddressProperty(
       id: 'macAddress',
       label: 'MAC Address',
       value: macAddress,
     ),
-    BooleanProperty(
-      id: 'showIpOnCanvas',
-      label: 'Show IP on Canvas',
-      value: showIpOnCanvas,
+    SelectionProperty(
+      id: 'displayMode',
+      label: 'Canvas Display',
+      value: displayMode.name,
+      options: ['hostname', 'ipAddress', 'macAddress'],
     ),
+    if (interfaces.length > 1 && displayMode != DeviceDisplayMode.hostname)
+      SelectionProperty(
+        id: 'displayInterface',
+        label: 'Display Interface',
+        value: displayInterfaceName ?? defaultInterface.name,
+        options: interfaces.map((i) => i.name).toList(),
+      ),
     StatusProperty(
       id: 'powerState',
       label: 'Power',
@@ -460,25 +512,11 @@ class EndDevice extends NetworkDevice
         onExecute: _isPoweredOn ? powerOff : powerOn,
       ),
       DeviceAction(
-        id: 'open_terminal',
-        label: 'Open Terminal',
-        icon: Icons.terminal,
-        onExecute: () {}, // UI will handle this
-        isEnabled: _isPoweredOn,
-      ),
-      DeviceAction(
-        id: 'ip_config',
+        id: 'configure_ip',
         label: 'Configure IP',
         icon: Icons.settings_ethernet,
-        onExecute: () {}, // UI will handle this
+        onExecute: () {}, // UI will handle dialog
         isEnabled: _isPoweredOn,
-      ),
-      DeviceAction(
-        id: 'dhcp_renew',
-        label: 'Renew DHCP',
-        icon: Icons.refresh,
-        onExecute: enableDhcp,
-        isEnabled: _isPoweredOn && ipConfigMode == 'DHCP',
       ),
       DeviceAction(
         id: 'view_arp_cache',
