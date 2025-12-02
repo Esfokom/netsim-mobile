@@ -2,13 +2,29 @@ import 'package:flutter/foundation.dart';
 
 /// Types of conditions that can be checked
 enum ConditionType {
-  connectivity, // Ping and link checks only
+  ping, // Ping protocol checks (ICMP, ARP) - RENAMED from connectivity
   deviceProperty, // Basic device properties (RENAMED from propertyCheck)
   interfaceProperty, // NEW: Interface-specific checks
   arpCacheCheck, // NEW: ARP cache validation
   routingTableCheck, // NEW: Routing table validation
   linkCheck, // NEW: Connection/topology validation
   composite, // NEW: Multiple combined conditions
+}
+
+/// Ping protocol types
+enum PingProtocolType {
+  icmp, // ICMP Echo Request/Reply
+  arp, // ARP Request/Reply
+}
+
+/// Ping check types
+enum PingCheckType {
+  sent, // Check if a packet was sent
+  received, // Check if any packet was received
+  receivedFromAny, // Check if packet received from any source
+  receivedFromSpecific, // Check if packet received from specific source
+  responseTime, // Check response time threshold
+  finalReply, // Check if final ICMP reply was received
 }
 
 /// Data types for properties
@@ -134,9 +150,14 @@ class ScenarioCondition {
   final String description;
   final ConditionType type;
 
-  // Connectivity-specific fields (ping only)
+  // Ping-specific fields (NEW: enhanced protocol checks)
   final String? sourceDeviceID;
   final String? targetAddress;
+  final PingProtocolType? protocolType; // ICMP or ARP
+  final PingCheckType? pingCheckType; // Type of check to perform
+  final String? targetDeviceIdForPing; // Target device ID for device selection
+  final int?
+  responseTimeThreshold; // Milliseconds threshold for response time checks
 
   // Property check-specific fields
   final String? targetDeviceID;
@@ -167,6 +188,10 @@ class ScenarioCondition {
     required this.type,
     this.sourceDeviceID,
     this.targetAddress,
+    this.protocolType,
+    this.pingCheckType,
+    this.targetDeviceIdForPing,
+    this.responseTimeThreshold,
     this.targetDeviceID,
     this.property,
     this.propertyDataType,
@@ -188,6 +213,10 @@ class ScenarioCondition {
     ConditionType? type,
     String? sourceDeviceID,
     String? targetAddress,
+    PingProtocolType? protocolType,
+    PingCheckType? pingCheckType,
+    String? targetDeviceIdForPing,
+    int? responseTimeThreshold,
     String? targetDeviceID,
     String? property,
     PropertyDataType? propertyDataType,
@@ -208,6 +237,12 @@ class ScenarioCondition {
       type: type ?? this.type,
       sourceDeviceID: sourceDeviceID ?? this.sourceDeviceID,
       targetAddress: targetAddress ?? this.targetAddress,
+      protocolType: protocolType ?? this.protocolType,
+      pingCheckType: pingCheckType ?? this.pingCheckType,
+      targetDeviceIdForPing:
+          targetDeviceIdForPing ?? this.targetDeviceIdForPing,
+      responseTimeThreshold:
+          responseTimeThreshold ?? this.responseTimeThreshold,
       targetDeviceID: targetDeviceID ?? this.targetDeviceID,
       property: property ?? this.property,
       propertyDataType: propertyDataType ?? this.propertyDataType,
@@ -234,6 +269,14 @@ class ScenarioCondition {
       'type': type.name.toUpperCase(),
       if (sourceDeviceID != null) 'sourceDeviceID': sourceDeviceID,
       if (targetAddress != null) 'targetAddress': targetAddress,
+      if (protocolType != null)
+        'protocolType': protocolType!.name.toUpperCase(),
+      if (pingCheckType != null)
+        'pingCheckType': pingCheckType!.name.toUpperCase(),
+      if (targetDeviceIdForPing != null)
+        'targetDeviceIdForPing': targetDeviceIdForPing,
+      if (responseTimeThreshold != null)
+        'responseTimeThreshold': responseTimeThreshold,
       if (targetDeviceID != null) 'targetDeviceID': targetDeviceID,
       if (property != null) 'property': property,
       if (propertyDataType != null)
@@ -274,12 +317,37 @@ class ScenarioCondition {
       },
     );
 
-    // MIGRATION: Convert old connectivity+link protocol to linkCheck type
-    if (typeStr == 'connectivity' && json['protocol'] != null) {
-      final protocolStr = json['protocol'].toString().toLowerCase();
-      if (protocolStr == 'link') {
-        type = ConditionType.linkCheck;
+    // MIGRATION: Convert old connectivity type to ping
+    if (typeStr == 'connectivity') {
+      if (json['protocol'] != null) {
+        final protocolStr = json['protocol'].toString().toLowerCase();
+        if (protocolStr == 'link') {
+          type = ConditionType.linkCheck;
+        } else {
+          type = ConditionType.ping; // Convert connectivity to ping
+        }
+      } else {
+        type = ConditionType.ping; // Default connectivity to ping
       }
+    }
+
+    // Parse ping-specific enums
+    PingProtocolType? protocolType;
+    if (json['protocolType'] != null) {
+      final protocolStr = json['protocolType'].toString().toLowerCase();
+      protocolType = PingProtocolType.values.firstWhere(
+        (e) => e.name.toLowerCase() == protocolStr,
+        orElse: () => PingProtocolType.icmp,
+      );
+    }
+
+    PingCheckType? pingCheckType;
+    if (json['pingCheckType'] != null) {
+      final checkTypeStr = json['pingCheckType'].toString().toLowerCase();
+      pingCheckType = PingCheckType.values.firstWhere(
+        (e) => e.name.toLowerCase() == checkTypeStr,
+        orElse: () => PingCheckType.sent,
+      );
     }
 
     PropertyDataType? propertyDataType;
@@ -345,6 +413,10 @@ class ScenarioCondition {
       type: type,
       sourceDeviceID: json['sourceDeviceID'] as String?,
       targetAddress: json['targetAddress'] as String?,
+      protocolType: protocolType,
+      pingCheckType: pingCheckType,
+      targetDeviceIdForPing: json['targetDeviceIdForPing'] as String?,
+      responseTimeThreshold: json['responseTimeThreshold'] as int?,
       targetDeviceID: json['targetDeviceID'] as String?,
       property: json['property'] as String?,
       propertyDataType: propertyDataType,
@@ -365,8 +437,8 @@ class ScenarioCondition {
 extension ConditionTypeExtension on ConditionType {
   String get displayName {
     switch (this) {
-      case ConditionType.connectivity:
-        return 'Connectivity';
+      case ConditionType.ping:
+        return 'Ping';
       case ConditionType.deviceProperty:
         return 'Device Property';
       case ConditionType.interfaceProperty:

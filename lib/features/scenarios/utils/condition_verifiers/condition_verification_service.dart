@@ -1,6 +1,5 @@
 import 'package:netsim_mobile/features/scenarios/domain/entities/scenario_condition.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
-import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/device_property_verifier.dart';
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/interface_property_verifier.dart';
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/arp_cache_verifier.dart';
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/routing_table_verifier.dart';
@@ -15,8 +14,8 @@ class ConditionVerificationService {
   bool verifyCondition(ScenarioCondition condition, CanvasState canvasState) {
     try {
       switch (condition.type) {
-        case ConditionType.connectivity:
-          return _verifyConnectivity(condition, canvasState);
+        case ConditionType.ping:
+          return _verifyPing(condition, canvasState);
 
         case ConditionType.deviceProperty:
           return _verifyDeviceProperty(condition, canvasState);
@@ -89,33 +88,45 @@ class ConditionVerificationService {
 
   // Private verification methods
 
-  bool _verifyConnectivity(
-    ScenarioCondition condition,
-    CanvasState canvasState,
-  ) {
-    // Connectivity check is for ping - check if two devices are connected
-    // For now, we check if a direct link exists between source and target
-    if (condition.sourceDeviceID == null || condition.targetAddress == null) {
+  bool _verifyPing(ScenarioCondition condition, CanvasState canvasState) {
+    // Ping protocol check - verify ICMP/ARP packet events
+    // TODO: Implement full packet tracking with SimulationEngine.packetStream
+
+    if (condition.sourceDeviceID == null ||
+        condition.targetDeviceIdForPing == null) {
       appLogger.w(
-        '[ConditionVerification] Missing source or target for connectivity check',
+        '[ConditionVerification] Missing source or target for ping check',
       );
       return false;
     }
 
-    // Try to find if targetAddress is a device ID
-    final targetDeviceId = condition.targetAddress;
-
-    // Check if a link exists between the two devices
-    final linkExists = canvasState.links.any(
-      (link) =>
-          (link.fromDeviceId == condition.sourceDeviceID &&
-              link.toDeviceId == targetDeviceId) ||
-          (link.fromDeviceId == targetDeviceId &&
-              link.toDeviceId == condition.sourceDeviceID),
-    );
+    final sourceDeviceId = condition.sourceDeviceID!;
+    final targetDeviceId = condition.targetDeviceIdForPing!;
+    final protocolType = condition.protocolType ?? PingProtocolType.icmp;
+    final checkType = condition.pingCheckType ?? PingCheckType.finalReply;
 
     appLogger.d(
-      '[ConditionVerification] Connectivity check: source=${condition.sourceDeviceID}, target=$targetDeviceId, linkExists=$linkExists',
+      '[ConditionVerification] Ping check: source=$sourceDeviceId, target=$targetDeviceId, '
+      'protocol=${protocolType.name}, checkType=${checkType.name}',
+    );
+
+    // Basic implementation: check if devices exist and are reachable
+    // For now, verify link connectivity as a baseline
+    final linkExists = canvasState.links.any(
+      (link) =>
+          (link.fromDeviceId == sourceDeviceId &&
+              link.toDeviceId == targetDeviceId) ||
+          (link.fromDeviceId == targetDeviceId &&
+              link.toDeviceId == sourceDeviceId),
+    );
+
+    // TODO: Integrate with packet stream to verify actual packet events
+    // - Track sent/received packets by type (ARP/ICMP)
+    // - Measure response times for threshold checks
+    // - Verify final replies vs intermediate packets
+
+    appLogger.d(
+      '[ConditionVerification] Basic ping check (link connectivity): $linkExists',
     );
 
     return linkExists;

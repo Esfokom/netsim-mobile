@@ -17,6 +17,9 @@ import 'package:netsim_mobile/features/devices/domain/entities/wireless_access_p
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
 import 'package:netsim_mobile/core/utils/ip_validator.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/alert_notification_stack.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/alert_history_dialog.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/providers/alert_notification_provider.dart';
 
 /// Contextual editor that shows scenario metadata or device properties
 class ContextualEditor extends ConsumerStatefulWidget {
@@ -82,7 +85,16 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
         );
       }
 
-      return content;
+      // Wrap in Stack with alert notifications
+      return Stack(
+        children: [
+          content,
+          // Alert notification stack
+          const AlertNotificationStack(bottomOffset: 16),
+          // Alert history button
+          _buildAlertHistoryButton(),
+        ],
+      );
     }
 
     // Edit mode: show full editor
@@ -134,7 +146,66 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       );
     }
 
-    return content;
+    // Wrap in Stack with alert notifications
+    return Stack(
+      children: [
+        content,
+        // Alert notification stack
+        const AlertNotificationStack(bottomOffset: 16),
+        // Alert history button
+        _buildAlertHistoryButton(),
+      ],
+    );
+  }
+
+  /// Build floating alert history button with badge
+  Widget _buildAlertHistoryButton() {
+    final alertState = ref.watch(alertNotificationProvider);
+    final alertCount = alertState.alertHistory.length;
+
+    return Positioned(
+      right: 16,
+      bottom: 16,
+      child: FloatingActionButton.small(
+        heroTag: 'alertHistory',
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => const AlertHistoryDialog(),
+          );
+        },
+        child: Stack(
+          children: [
+            const Icon(Icons.history, size: 20),
+            if (alertCount > 0)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Text(
+                    alertCount > 99 ? '99+' : '$alertCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDevicePropertiesEditor(

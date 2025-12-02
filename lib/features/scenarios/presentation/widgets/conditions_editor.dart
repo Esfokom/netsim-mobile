@@ -154,19 +154,37 @@ class _ConditionCard extends ConsumerWidget {
 
   Widget _buildConditionDetails(ScenarioCondition condition) {
     switch (condition.type) {
-      case ConditionType.connectivity:
+      case ConditionType.ping:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _DetailRow(label: 'Type', value: 'Ping'),
+            if (condition.protocolType != null)
+              _DetailRow(
+                label: 'Protocol',
+                value: condition.protocolType!.name.toUpperCase(),
+              ),
+            if (condition.pingCheckType != null)
+              _DetailRow(
+                label: 'Check Type',
+                value: _formatPingCheckType(condition.pingCheckType!),
+              ),
             _DetailRow(
               label: 'Source',
               value: condition.sourceDeviceID ?? 'N/A',
             ),
             _DetailRow(
               label: 'Target',
-              value: condition.targetAddress ?? 'N/A',
+              value:
+                  condition.targetDeviceIdForPing ??
+                  condition.targetAddress ??
+                  'N/A',
             ),
+            if (condition.responseTimeThreshold != null)
+              _DetailRow(
+                label: 'Threshold',
+                value: '${condition.responseTimeThreshold}ms',
+              ),
           ],
         );
 
@@ -299,7 +317,6 @@ class _ConditionCard extends ConsumerWidget {
         );
 
       case ConditionType.deviceProperty:
-      default:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -328,7 +345,7 @@ class _ConditionCard extends ConsumerWidget {
 
   Color _getConditionColor(ConditionType type) {
     switch (type) {
-      case ConditionType.connectivity:
+      case ConditionType.ping:
         return Colors.blue;
       case ConditionType.deviceProperty:
         return Colors.green;
@@ -342,6 +359,23 @@ class _ConditionCard extends ConsumerWidget {
         return Colors.indigo;
       case ConditionType.composite:
         return Colors.deepPurple;
+    }
+  }
+
+  String _formatPingCheckType(PingCheckType type) {
+    switch (type) {
+      case PingCheckType.sent:
+        return 'Packet Sent';
+      case PingCheckType.received:
+        return 'Packet Received';
+      case PingCheckType.receivedFromAny:
+        return 'Received from Any';
+      case PingCheckType.receivedFromSpecific:
+        return 'Received from Specific';
+      case PingCheckType.responseTime:
+        return 'Response Time';
+      case PingCheckType.finalReply:
+        return 'Final Reply';
     }
   }
 }
@@ -380,12 +414,16 @@ class _AddConditionDialog extends ConsumerStatefulWidget {
 }
 
 class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
-  ConditionType _selectedType = ConditionType.connectivity;
+  ConditionType _selectedType = ConditionType.ping;
   final _descriptionController = TextEditingController();
 
-  // Connectivity fields (ping only)
+  // Ping fields
   String? _selectedSourceDeviceId;
+  String? _selectedTargetDeviceIdForPing;
   final _targetAddressController = TextEditingController();
+  PingProtocolType _selectedProtocolType = PingProtocolType.icmp;
+  PingCheckType _selectedPingCheckType = PingCheckType.finalReply;
+  final _responseTimeController = TextEditingController(text: '100');
 
   // Property check fields
   String? _selectedTargetDeviceId;
@@ -493,8 +531,8 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
               Builder(
                 builder: (context) {
                   switch (_selectedType) {
-                    case ConditionType.connectivity:
-                      return _buildConnectivityFields(devices);
+                    case ConditionType.ping:
+                      return _buildPingFields(devices);
                     case ConditionType.deviceProperty:
                       return _buildPropertyCheckFields(devices);
                     case ConditionType.interfaceProperty:
@@ -535,24 +573,66 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     );
   }
 
-  Widget _buildConnectivityFields(List<CanvasDevice> devices) {
+  Widget _buildPingFields(List<CanvasDevice> devices) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Ping connectivity (simplified - no protocol selector)
         Text(
-          'Configure ping connectivity check',
+          'Configure ping protocol check',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
 
-        // Device dropdown for source
+        // Protocol selector
+        ShadSelectFormField<PingProtocolType>(
+          id: 'protocolType',
+          minWidth: double.infinity,
+          initialValue: _selectedProtocolType,
+          label: Text('Protocol Type'),
+          placeholder: Text('Select protocol'),
+          options: PingProtocolType.values.map((protocol) {
+            return ShadOption(
+              value: protocol,
+              child: Text(_formatProtocolType(protocol)),
+            );
+          }).toList(),
+          selectedOptionBuilder: (context, value) =>
+              Text(_formatProtocolType(value)),
+          onChanged: (value) {
+            setState(() => _selectedProtocolType = value!);
+          },
+        ),
+        SizedBox(height: 12),
+
+        // Check type selector
+        ShadSelectFormField<PingCheckType>(
+          id: 'checkType',
+          minWidth: double.infinity,
+          initialValue: _selectedPingCheckType,
+          label: Text('Check Type'),
+          placeholder: Text('Select check type'),
+          options: PingCheckType.values.map((checkType) {
+            return ShadOption(
+              value: checkType,
+              child: Text(_formatPingCheckType(checkType)),
+            );
+          }).toList(),
+          selectedOptionBuilder: (context, value) =>
+              Text(_formatPingCheckType(value)),
+          onChanged: (value) {
+            setState(() => _selectedPingCheckType = value!);
+          },
+        ),
+        SizedBox(height: 12),
+
+        // Source device selector
         ShadSelectFormField<String>(
           id: 'sourceDevice',
           minWidth: double.infinity,
-          key: ValueKey(_selectedSourceDeviceId),
+          key: ValueKey('ping-source-${_selectedSourceDeviceId ?? "none"}'),
           initialValue: _selectedSourceDeviceId,
-          label: const Text('Source Device'),
-          placeholder: const Text('Select source device'),
+          label: Text('Source Device'),
+          placeholder: Text('Select source device'),
           options: devices.map((device) {
             return ShadOption(
               value: device.id,
@@ -610,15 +690,86 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
             setState(() => _selectedSourceDeviceId = value);
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
 
-        // Target address for ping
-        ShadInputFormField(
-          controller: _targetAddressController,
-          label: const Text("Target Address"),
-          description: const Text("e.g., 8.8.8.8, google.com, or device IP"),
-          placeholder: const Text("Enter target IP or hostname"),
+        // Target device selector (for device selection instead of manual IP)
+        ShadSelectFormField<String>(
+          id: 'targetDevice',
+          minWidth: double.infinity,
+          key: ValueKey(
+            'ping-target-${_selectedTargetDeviceIdForPing ?? "none"}',
+          ),
+          initialValue: _selectedTargetDeviceIdForPing,
+          label: Text('Target Device'),
+          placeholder: Text('Select target device'),
+          options: devices.map((device) {
+            return ShadOption(
+              value: device.id,
+              child: SizedBox(
+                height: 48,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(device.type.icon, size: 16, color: device.type.color),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            device.name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          Text(
+                            '${device.id} • ${device.type.displayName}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+          selectedOptionBuilder: (context, value) {
+            final device = devices.firstWhere((d) => d.id == value);
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(device.type.icon, size: 16, color: device.type.color),
+                const SizedBox(width: 8),
+                Text(device.name),
+              ],
+            );
+          },
+          onChanged: (value) {
+            setState(() => _selectedTargetDeviceIdForPing = value);
+          },
         ),
+        SizedBox(height: 12),
+
+        // Response time threshold (for responseTime check type)
+        if (_selectedPingCheckType == PingCheckType.responseTime)
+          ShadInputFormField(
+            controller: _responseTimeController,
+            label: Text("Response Time Threshold (ms)"),
+            description: Text("Alert if response time exceeds this value"),
+            placeholder: Text("e.g., 100"),
+            keyboardType: TextInputType.number,
+          ),
       ],
     );
   }
@@ -1369,8 +1520,8 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   /// Get icon for condition type
   IconData _getConditionTypeIcon(ConditionType type) {
     switch (type) {
-      case ConditionType.connectivity:
-        return Icons.network_check;
+      case ConditionType.ping:
+        return Icons.network_ping;
       case ConditionType.deviceProperty:
         return Icons.settings_outlined;
       case ConditionType.interfaceProperty:
@@ -1383,6 +1534,34 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         return Icons.link;
       case ConditionType.composite:
         return Icons.layers;
+    }
+  }
+
+  /// Format protocol type for display
+  String _formatProtocolType(PingProtocolType type) {
+    switch (type) {
+      case PingProtocolType.icmp:
+        return 'ICMP (Ping)';
+      case PingProtocolType.arp:
+        return 'ARP';
+    }
+  }
+
+  /// Format ping check type for display
+  String _formatPingCheckType(PingCheckType type) {
+    switch (type) {
+      case PingCheckType.sent:
+        return 'Packet Sent';
+      case PingCheckType.received:
+        return 'Packet Received';
+      case PingCheckType.receivedFromAny:
+        return 'Received from Any Source';
+      case PingCheckType.receivedFromSpecific:
+        return 'Received from Specific Source';
+      case PingCheckType.responseTime:
+        return 'Response Time Check';
+      case PingCheckType.finalReply:
+        return 'Final Reply Received';
     }
   }
 
@@ -1418,22 +1597,41 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
 
     ScenarioCondition condition;
 
-    if (_selectedType == ConditionType.connectivity) {
-      // Ping connectivity - need source device and target address
+    if (_selectedType == ConditionType.ping) {
+      // Ping check - need source device and target device
       if (_selectedSourceDeviceId == null ||
-          _targetAddressController.text.isEmpty) {
+          _selectedTargetDeviceIdForPing == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please fill all connectivity fields')),
+          const SnackBar(
+            content: Text('Please select source and target devices'),
+          ),
         );
         return;
+      }
+
+      // Parse response time threshold if applicable
+      int? threshold;
+      if (_selectedPingCheckType == PingCheckType.responseTime) {
+        threshold = int.tryParse(_responseTimeController.text);
+        if (threshold == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please enter a valid response time threshold'),
+            ),
+          );
+          return;
+        }
       }
 
       condition = ScenarioCondition(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         description: _descriptionController.text,
-        type: ConditionType.connectivity,
+        type: ConditionType.ping,
         sourceDeviceID: _selectedSourceDeviceId,
-        targetAddress: _targetAddressController.text,
+        targetDeviceIdForPing: _selectedTargetDeviceIdForPing,
+        protocolType: _selectedProtocolType,
+        pingCheckType: _selectedPingCheckType,
+        responseTimeThreshold: threshold,
       );
     } else if (_selectedType == ConditionType.deviceProperty) {
       if (_selectedTargetDeviceId == null ||
@@ -1598,8 +1796,8 @@ class _ConditionTypeButton extends StatelessWidget {
 
   IconData _getIcon() {
     switch (type) {
-      case ConditionType.connectivity:
-        return Icons.network_check;
+      case ConditionType.ping:
+        return Icons.network_ping;
       case ConditionType.deviceProperty:
         return Icons.settings_outlined;
       case ConditionType.interfaceProperty:
@@ -1679,8 +1877,8 @@ class _ConditionTypeChip extends StatelessWidget {
 
   IconData _getIcon() {
     switch (type) {
-      case ConditionType.connectivity:
-        return Icons.network_check;
+      case ConditionType.ping:
+        return Icons.network_ping;
       case ConditionType.deviceProperty:
         return Icons.settings_outlined;
       case ConditionType.interfaceProperty:
