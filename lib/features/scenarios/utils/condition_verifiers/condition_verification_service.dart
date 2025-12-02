@@ -151,21 +151,33 @@ class ConditionVerificationService {
       return false;
     }
 
-    // Parse property type
-    final propertyType = _parseDevicePropertyType(condition.property);
-    if (propertyType == null) {
-      appLogger.w(
-        '[ConditionVerification] Invalid property type: ${condition.property}',
-      );
-      return false;
-    }
+    // Find the property by label
+    final property = device.properties.firstWhere(
+      (p) => p.label == condition.property,
+      orElse: () {
+        appLogger.w(
+          '[ConditionVerification] Property not found: ${condition.property}',
+        );
+        appLogger.w(
+          '[ConditionVerification] Available properties: ${device.properties.map((p) => p.label).join(", ")}',
+        );
+        throw Exception('Property not found');
+      },
+    );
 
-    // Verify using DevicePropertyVerifier
-    return DevicePropertyVerifier.verify(
-      device: device,
-      property: propertyType,
-      operator: condition.operator ?? PropertyOperator.equals,
-      expectedValue: condition.expectedValue ?? '',
+    // Get the actual value
+    final actualValue = property.value;
+
+    appLogger.d(
+      '[ConditionVerification] Property "${property.label}": actual="$actualValue", expected="${condition.expectedValue}"',
+    );
+
+    // Verify based on operator and data type
+    return _compareValues(
+      actualValue,
+      condition.expectedValue ?? '',
+      condition.operator ?? PropertyOperator.equals,
+      condition.propertyDataType ?? PropertyDataType.string,
     );
   }
 
@@ -386,6 +398,81 @@ class ConditionVerificationService {
         '[ConditionVerification] Failed to parse LinkPropertyType: $property',
       );
       return null;
+    }
+  }
+
+  /// Compare two values based on data type and operator
+  bool _compareValues(
+    String actualValue,
+    String expectedValue,
+    PropertyOperator operator,
+    PropertyDataType dataType,
+  ) {
+    switch (dataType) {
+      case PropertyDataType.string:
+        return _compareStrings(actualValue, expectedValue, operator);
+      case PropertyDataType.boolean:
+        final actualBool =
+            actualValue.toLowerCase() == 'true' ||
+            actualValue.toLowerCase() == 'on' ||
+            actualValue == '1';
+        final expectedBool =
+            expectedValue.toLowerCase() == 'true' ||
+            expectedValue.toLowerCase() == 'on' ||
+            expectedValue == '1';
+        return _compareBooleans(actualBool, expectedBool, operator);
+      case PropertyDataType.integer:
+        final actualInt = int.tryParse(actualValue) ?? 0;
+        final expectedInt = int.tryParse(expectedValue) ?? 0;
+        return _compareIntegers(actualInt, expectedInt, operator);
+      case PropertyDataType.ipAddress:
+        return _compareStrings(actualValue, expectedValue, operator);
+    }
+  }
+
+  bool _compareStrings(
+    String actual,
+    String expected,
+    PropertyOperator operator,
+  ) {
+    switch (operator) {
+      case PropertyOperator.equals:
+        return actual == expected;
+      case PropertyOperator.notEquals:
+        return actual != expected;
+      case PropertyOperator.contains:
+        return actual.contains(expected);
+      case PropertyOperator.greaterThan:
+      case PropertyOperator.lessThan:
+        return false; // Not applicable for strings
+    }
+  }
+
+  bool _compareBooleans(bool actual, bool expected, PropertyOperator operator) {
+    switch (operator) {
+      case PropertyOperator.equals:
+        return actual == expected;
+      case PropertyOperator.notEquals:
+        return actual != expected;
+      case PropertyOperator.contains:
+      case PropertyOperator.greaterThan:
+      case PropertyOperator.lessThan:
+        return false; // Not applicable for booleans
+    }
+  }
+
+  bool _compareIntegers(int actual, int expected, PropertyOperator operator) {
+    switch (operator) {
+      case PropertyOperator.equals:
+        return actual == expected;
+      case PropertyOperator.notEquals:
+        return actual != expected;
+      case PropertyOperator.greaterThan:
+        return actual > expected;
+      case PropertyOperator.lessThan:
+        return actual < expected;
+      case PropertyOperator.contains:
+        return false; // Not applicable for integers
     }
   }
 }
