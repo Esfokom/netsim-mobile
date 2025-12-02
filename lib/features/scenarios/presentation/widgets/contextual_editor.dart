@@ -143,7 +143,8 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   }) {
     final canvasNotifier = ref.read(canvasProvider.notifier);
     final canvasState = ref.watch(canvasProvider);
-    final networkDevice = canvasNotifier.getNetworkDevice(device.id);
+    // Get network device from watched state for reactive updates
+    final networkDevice = canvasState.networkDevices[device.id];
     final scenarioNotifier = ref.read(scenarioProvider.notifier);
 
     // Show linking mode message if in linking mode
@@ -1123,6 +1124,9 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     // Handle specific property types
     if (property.id == 'powerState' || property.label == 'Power') {
       _showPowerDialog(device, networkDevice, canvasNotifier);
+    } else if (property.id.toLowerCase().contains('hostname') ||
+        property.label.toLowerCase().contains('hostname')) {
+      _showHostnameDialog(device, networkDevice, property, canvasNotifier);
     } else if (property.id.toLowerCase().contains('mac')) {
       _showMacAddressDialog(device, networkDevice, property, canvasNotifier);
     } else if (property.id == 'linkState' ||
@@ -2343,5 +2347,120 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   network.DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
     // NetworkDevice and CanvasDevice both use the same DeviceStatus enum
     return networkStatus;
+  }
+
+  void _showHostnameDialog(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    DeviceProperty property,
+    CanvasNotifier canvasNotifier,
+  ) {
+    // Check if device supports hostname
+    if (networkDevice is! EndDevice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This device type does not support hostname'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final endDevice = networkDevice;
+    final controller = TextEditingController(text: endDevice.hostname);
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Edit Hostname'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enter a unique hostname for this device',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: 'Hostname',
+                    border: const OutlineInputBorder(),
+                    errorText: errorText,
+                    hintText: 'Computer-01',
+                  ),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      // Validate hostname
+                      if (value.trim().isEmpty) {
+                        errorText = 'Hostname cannot be empty';
+                      } else if (value.trim().length < 2) {
+                        errorText = 'Hostname must be at least 2 characters';
+                      } else if (value.trim().length > 63) {
+                        errorText = 'Hostname must be 63 characters or less';
+                      }
+                      // else if (!RegExp(
+                      //   r'^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$',
+                      // ).hasMatch(value.trim())) {
+                      //   errorText =
+                      //       'Hostname can only contain letters, numbers, and hyphens';
+                      // }
+                      else {
+                        errorText = null;
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    errorText == null && controller.text.trim().isNotEmpty
+                    ? () {
+                        final newHostname = controller.text.trim();
+
+                        // Update property value
+                        property.value = newHostname;
+
+                        // Update the actual device hostname
+                        endDevice.hostname = newHostname;
+
+                        // Update the networkDevice in the provider's map to ensure reference is fresh
+                        canvasNotifier.setNetworkDevice(device.id, endDevice);
+
+                        // Update device name in canvas
+                        canvasNotifier.updateDeviceName(device.id, newHostname);
+
+                        // Force refresh by creating new state
+                        canvasNotifier.refreshDevice(device.id);
+
+                        Navigator.pop(ctx);
+                        setState(() {});
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Hostname updated to "$newHostname"'),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
