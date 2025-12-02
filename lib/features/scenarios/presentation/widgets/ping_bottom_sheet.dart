@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
 import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
+import 'package:netsim_mobile/features/simulation/presentation/providers/packet_telemetry_provider.dart';
 
 /// Compact bottom sheet for ping test functionality (200px height)
 /// Supports both EndDevice and RouterDevice as source/destination
@@ -38,47 +39,58 @@ class _CompactPingBottomSheetState
         selectedSourceIp != null &&
         (selectedDestIp != null || _customIpController.text.isNotEmpty);
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          // Source Device Indicator
-          Expanded(
-            child: _buildDeviceIndicator(
-              label: 'Source',
-              deviceId: selectedSourceId,
-              deviceIp: selectedSourceIp,
-              onTap: () => _showDeviceSelectionDialog(context, isSource: true),
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Ping Controls
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              // Source Device Indicator
+              Expanded(
+                child: _buildDeviceIndicator(
+                  label: 'Source',
+                  deviceId: selectedSourceId,
+                  deviceIp: selectedSourceIp,
+                  onTap: () =>
+                      _showDeviceSelectionDialog(context, isSource: true),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Arrow Icon
+              Icon(
+                Icons.arrow_forward,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 12),
+              // Destination Device Indicator
+              Expanded(
+                child: _buildDeviceIndicator(
+                  label: 'Destination',
+                  deviceId: selectedDestId,
+                  deviceIp: selectedDestIp ?? _customIpController.text,
+                  onTap: () =>
+                      _showDeviceSelectionDialog(context, isSource: false),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Ping Button
+              ElevatedButton.icon(
+                onPressed: isPingEnabled ? _executePing : null,
+                icon: const Icon(Icons.send, size: 18),
+                label: const Text('Ping'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          // Arrow Icon
-          Icon(
-            Icons.arrow_forward,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 12),
-          // Destination Device Indicator
-          Expanded(
-            child: _buildDeviceIndicator(
-              label: 'Destination',
-              deviceId: selectedDestId,
-              deviceIp: selectedDestIp ?? _customIpController.text,
-              onTap: () => _showDeviceSelectionDialog(context, isSource: false),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Ping Button
-          ElevatedButton.icon(
-            onPressed: isPingEnabled ? _executePing : null,
-            icon: const Icon(Icons.send, size: 18),
-            label: const Text('Ping'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

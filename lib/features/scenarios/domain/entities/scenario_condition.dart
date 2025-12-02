@@ -27,6 +27,18 @@ enum PingCheckType {
   finalReply, // Check if final ICMP reply was received
 }
 
+/// ICMP event types for condition checks
+enum IcmpEventType {
+  sent, // Packet sent event
+  received, // Packet received event
+}
+
+/// Device scope for ping conditions
+enum PingDeviceScope {
+  anyDevice, // From/to any device
+  specificDevice, // From/to a specific device
+}
+
 /// Data types for properties
 enum PropertyDataType { string, boolean, integer, ipAddress }
 
@@ -159,6 +171,11 @@ class ScenarioCondition {
   final int?
   responseTimeThreshold; // Milliseconds threshold for response time checks
 
+  // ICMP-specific fields
+  final IcmpEventType? icmpEventType; // Sent or Received event
+  final PingDeviceScope? icmpDeviceScope; // Any device or specific device
+  final String? icmpSpecificDeviceId; // Specific device ID for scope
+
   // Property check-specific fields
   final String? targetDeviceID;
   final String? property;
@@ -192,6 +209,9 @@ class ScenarioCondition {
     this.pingCheckType,
     this.targetDeviceIdForPing,
     this.responseTimeThreshold,
+    this.icmpEventType,
+    this.icmpDeviceScope,
+    this.icmpSpecificDeviceId,
     this.targetDeviceID,
     this.property,
     this.propertyDataType,
@@ -217,6 +237,9 @@ class ScenarioCondition {
     PingCheckType? pingCheckType,
     String? targetDeviceIdForPing,
     int? responseTimeThreshold,
+    IcmpEventType? icmpEventType,
+    PingDeviceScope? icmpDeviceScope,
+    String? icmpSpecificDeviceId,
     String? targetDeviceID,
     String? property,
     PropertyDataType? propertyDataType,
@@ -243,6 +266,9 @@ class ScenarioCondition {
           targetDeviceIdForPing ?? this.targetDeviceIdForPing,
       responseTimeThreshold:
           responseTimeThreshold ?? this.responseTimeThreshold,
+      icmpEventType: icmpEventType ?? this.icmpEventType,
+      icmpDeviceScope: icmpDeviceScope ?? this.icmpDeviceScope,
+      icmpSpecificDeviceId: icmpSpecificDeviceId ?? this.icmpSpecificDeviceId,
       targetDeviceID: targetDeviceID ?? this.targetDeviceID,
       property: property ?? this.property,
       propertyDataType: propertyDataType ?? this.propertyDataType,
@@ -277,6 +303,12 @@ class ScenarioCondition {
         'targetDeviceIdForPing': targetDeviceIdForPing,
       if (responseTimeThreshold != null)
         'responseTimeThreshold': responseTimeThreshold,
+      if (icmpEventType != null)
+        'icmpEventType': icmpEventType!.name.toUpperCase(),
+      if (icmpDeviceScope != null)
+        'icmpDeviceScope': icmpDeviceScope!.name.toUpperCase(),
+      if (icmpSpecificDeviceId != null)
+        'icmpSpecificDeviceId': icmpSpecificDeviceId,
       if (targetDeviceID != null) 'targetDeviceID': targetDeviceID,
       if (property != null) 'property': property,
       if (propertyDataType != null)
@@ -394,6 +426,25 @@ class ScenarioCondition {
           .toList();
     }
 
+    // Parse ICMP-specific enums
+    IcmpEventType? icmpEventType;
+    if (json['icmpEventType'] != null) {
+      final eventTypeStr = json['icmpEventType'].toString().toLowerCase();
+      icmpEventType = IcmpEventType.values.firstWhere(
+        (e) => e.name.toLowerCase() == eventTypeStr,
+        orElse: () => IcmpEventType.sent,
+      );
+    }
+
+    PingDeviceScope? icmpDeviceScope;
+    if (json['icmpDeviceScope'] != null) {
+      final scopeStr = json['icmpDeviceScope'].toString().toLowerCase();
+      icmpDeviceScope = PingDeviceScope.values.firstWhere(
+        (e) => e.name.toLowerCase() == scopeStr,
+        orElse: () => PingDeviceScope.anyDevice,
+      );
+    }
+
     // Parse link check mode with migration support
     LinkCheckMode? linkCheckMode;
     if (json['linkCheckMode'] != null) {
@@ -417,6 +468,9 @@ class ScenarioCondition {
       pingCheckType: pingCheckType,
       targetDeviceIdForPing: json['targetDeviceIdForPing'] as String?,
       responseTimeThreshold: json['responseTimeThreshold'] as int?,
+      icmpEventType: icmpEventType,
+      icmpDeviceScope: icmpDeviceScope,
+      icmpSpecificDeviceId: json['icmpSpecificDeviceId'] as String?,
       targetDeviceID: json['targetDeviceID'] as String?,
       property: json['property'] as String?,
       propertyDataType: propertyDataType,

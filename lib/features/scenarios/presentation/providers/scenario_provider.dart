@@ -64,11 +64,13 @@ class ScenarioState {
 /// Notifier for managing scenario state
 class ScenarioNotifier extends Notifier<ScenarioState> {
   final ScenarioStorageService _storageService = ScenarioStorageService();
-  final ConditionVerificationService _verificationService =
-      ConditionVerificationService();
+  late final ConditionVerificationService _verificationService;
 
   @override
   ScenarioState build() {
+    // Initialize verification service with ref
+    _verificationService = ConditionVerificationService(ref);
+
     // Try to load the current scenario from storage
     _loadCurrentScenario();
     return ScenarioState(scenario: NetworkScenario.empty());
