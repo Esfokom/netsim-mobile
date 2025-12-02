@@ -8,6 +8,7 @@ import 'package:netsim_mobile/features/devices/domain/entities/network_device.da
 import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_capability.dart';
+import 'package:netsim_mobile/features/devices/domain/factories/device_factory.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 
 /// Interface for disposable resources
@@ -563,6 +564,48 @@ class CanvasNotifier extends Notifier<CanvasState> {
         );
       }
     }
+  }
+
+  /// Initialize network devices from canvas devices (for scenario loading)
+  void initializeNetworkDevicesFromCanvas() {
+    appLogger.i(
+      '[Canvas] Initializing network devices from ${state.devices.length} canvas devices',
+    );
+
+    final updatedNetworkDevices = Map<String, NetworkDevice>.from(
+      state.networkDevices,
+    );
+
+    int createdCount = 0;
+    for (final canvasDevice in state.devices) {
+      if (!updatedNetworkDevices.containsKey(canvasDevice.id)) {
+        try {
+          final networkDevice = DeviceFactory.fromCanvasDevice(canvasDevice);
+          updatedNetworkDevices[canvasDevice.id] = networkDevice;
+          createdCount++;
+          appLogger.d(
+            '[Canvas] Created NetworkDevice for ${canvasDevice.id} (${canvasDevice.name})',
+          );
+        } catch (e) {
+          appLogger.e(
+            '[Canvas] Failed to create NetworkDevice for ${canvasDevice.id}',
+            error: e,
+          );
+        }
+      }
+    }
+
+    state = state.copyWith(networkDevices: updatedNetworkDevices);
+
+    appLogger.i(
+      '[Canvas] Network devices initialized: $createdCount created, ${updatedNetworkDevices.length} total',
+    );
+  }
+
+  /// Clear network devices cache (for cleanup when exiting simulation)
+  void clearNetworkDevicesCache() {
+    appLogger.i('[Canvas] Clearing network devices cache');
+    state = state.copyWith(networkDevices: {});
   }
 }
 

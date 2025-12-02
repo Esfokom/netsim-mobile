@@ -403,6 +403,9 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
     // Snapshot current canvas state using lifecycle manager
     CanvasLifecycleManager.snapshotCurrentState(ref);
 
+    // Initialize network devices from canvas devices (CRITICAL for condition checking)
+    ref.read(canvasProvider.notifier).initializeNetworkDevicesFromCanvas();
+
     // Enter simulation mode
     ref.read(scenarioProvider.notifier).enterSimulationMode();
 
@@ -421,10 +424,14 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
   }
 
   void _exitSimulation() {
+    // Exit simulation mode first
     ref.read(scenarioProvider.notifier).exitSimulationMode();
 
     // Clear condition check results when exiting simulation
     ref.read(gameConditionCheckerProvider.notifier).clearResults();
+
+    // Clear network devices cache to force re-initialization next time
+    ref.read(canvasProvider.notifier).clearNetworkDevicesCache();
 
     ScaffoldMessenger.of(
       context,

@@ -9,6 +9,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/data/models/device_link.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
+import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/condition_verification_service.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Mode of the scenario editor/player
@@ -63,6 +64,8 @@ class ScenarioState {
 /// Notifier for managing scenario state
 class ScenarioNotifier extends Notifier<ScenarioState> {
   final ScenarioStorageService _storageService = ScenarioStorageService();
+  final ConditionVerificationService _verificationService =
+      ConditionVerificationService();
 
   @override
   ScenarioState build() {
@@ -320,168 +323,48 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
 
   /// Check all success conditions using instance ref
   Future<Map<String, bool>> checkConditions() async {
-    final results = <String, bool>{};
+    // Get current canvas state with live devices and links
+    final canvasState = ref.read(canvasProvider);
 
     appLogger.d('[ScenarioProvider] Checking success conditions...');
     appLogger.d(
       '[ScenarioProvider] Number of conditions: ${state.scenario.successConditions.length}',
     );
     appLogger.d(
-      '[ScenarioProvider] Simulation devices: ${state.simulationDevices?.length}',
+      '[ScenarioProvider] Canvas devices: ${canvasState.devices.length}',
+    );
+    appLogger.d('[ScenarioProvider] Canvas links: ${canvasState.links.length}');
+
+    // Use the verification service to check all conditions
+    final results = _verificationService.verifyAllConditions(
+      state.scenario.successConditions,
+      canvasState,
     );
 
+    // Update state with condition results
+    state = state.copyWith(conditionResults: results);
+
+    // Log detailed results
     for (final condition in state.scenario.successConditions) {
-      bool passed = false;
+      final passed = results[condition.id] ?? false;
 
       appLogger.d(
         '[ScenarioProvider] Checking condition: ${condition.id} - ${condition.description}',
       );
       appLogger.d('[ScenarioProvider] Condition type: ${condition.type}');
-
-      if (condition.type == ConditionType.connectivity) {
-        appLogger.d(
-          '[ScenarioProvider] Connectivity check - protocol: ${condition.protocol}',
-        );
-
-        // Check for link/cable connectivity
-        if (condition.protocol == ConnectivityProtocol.link) {
-          appLogger.d(
-            '[ScenarioProvider] Link check - source: ${condition.sourceDeviceID}, target: ${condition.targetDeviceID}',
-          );
-
-          // Check if both source and target device IDs are provided
-          if (condition.sourceDeviceID != null &&
-              condition.targetDeviceID != null) {
-            // Check if a link exists between the two devices
-            final links = state.simulationLinks;
-            if (links != null) {
-              // Check if there's a link connecting these two devices (in either direction)
-              final linkExists = links.any(
-                (link) =>
-                    (link.fromDeviceId == condition.sourceDeviceID &&
-                        link.toDeviceId == condition.targetDeviceID) ||
-                    (link.fromDeviceId == condition.targetDeviceID &&
-                        link.toDeviceId == condition.sourceDeviceID),
-              );
-
-              passed = linkExists;
-              appLogger.d('[ScenarioProvider] Link exists: $linkExists');
-            } else {
-              appLogger.d('[ScenarioProvider] No simulation links available');
-              passed = false;
-            }
-          } else {
-            appLogger.d(
-              '[ScenarioProvider] Missing source or target device ID for link check',
-            );
-            passed = false;
-          }
-        } else {
-          // TODO: Implement other connectivity checks (ping, http, dnsLookup)
-          appLogger.d(
-            '[ScenarioProvider] Other connectivity protocols not yet implemented',
-          );
-          passed = false;
-        }
-      } else if (condition.type == ConditionType.propertyCheck) {
-        appLogger.d(
-          '[ScenarioProvider] Property check - target device: ${condition.targetDeviceID}',
-        );
-        appLogger.d(
-          '[ScenarioProvider] Property: ${condition.property}, Expected: ${condition.expectedValue}',
-        );
-
-        // Check if a device property matches expected value
-        if (state.simulationDevices != null &&
-            condition.targetDeviceID != null &&
-            condition.property != null &&
-            condition.expectedValue != null &&
-            condition.operator != null &&
-            condition.propertyDataType != null) {
-          // Find the device
-          CanvasDevice? device;
-          try {
-            device = state.simulationDevices!.firstWhere(
-              (d) => d.id == condition.targetDeviceID,
-            );
-            appLogger.d(
-              '[ScenarioProvider] Found simulation device: ${device.name}',
-            );
-          } catch (e) {
-            // Device not found, condition fails
-            device = null;
-            appLogger.d(
-              '[ScenarioProvider] Device not found in simulationDevices',
-              error: e,
-            );
-          }
-
-          if (device != null) {
-            // Get the network device to access its properties
-            final canvasNotifier = ref.read(canvasProvider.notifier);
-            final networkDevice = canvasNotifier.getNetworkDevice(device.id);
-
-            appLogger.d(
-              '[ScenarioProvider] Network device: ${networkDevice != null ? "found" : "not found"}',
-            );
-
-            if (networkDevice != null) {
-              appLogger.d(
-                '[ScenarioProvider] Network device properties: ${networkDevice.properties.map((p) => p.label).join(", ")}',
-              );
-
-              // Find the property by label
-              final property = networkDevice.properties
-                  .where((p) => p.label == condition.property)
-                  .firstOrNull;
-
-              appLogger.d(
-                '[ScenarioProvider] Property found: ${property != null}',
-              );
-              if (property != null) {
-                appLogger.d(
-                  '[ScenarioProvider] Property value: ${property.value}',
-                );
-
-                // Use the robust verification helper
-                passed = verifyPropertyCondition(
-                  property: property,
-                  operator: condition.operator!,
-                  expectedValue: condition.expectedValue!,
-                  dataType: condition.propertyDataType!,
-                );
-
-                appLogger.d('[ScenarioProvider] Verification result: $passed');
-              }
-            }
-          }
-        } else {
-          appLogger.d(
-            '[ScenarioProvider] Missing required fields for property check',
-          );
-          appLogger.d(
-            '  - simulationDevices: ${state.simulationDevices != null}',
-          );
-          appLogger.d(
-            '  - targetDeviceID: ${condition.targetDeviceID != null}',
-          );
-          appLogger.d('  - property: ${condition.property != null}');
-          appLogger.d('  - expectedValue: ${condition.expectedValue != null}');
-          appLogger.d('  - operator: ${condition.operator != null}');
-          appLogger.d(
-            '  - propertyDataType: ${condition.propertyDataType != null}',
-          );
-        }
-      }
-
-      results[condition.id] = passed;
       appLogger.d(
-        '[ScenarioProvider] Condition ${condition.id} result: $passed',
+        '[ScenarioProvider] Condition result: ${passed ? "PASSED ✓" : "FAILED ✗"}',
       );
     }
 
     appLogger.d('[ScenarioProvider] All results: $results');
-    state = state.copyWith(conditionResults: results);
+
+    // Check if all conditions are satisfied
+    final allSatisfied = results.values.every((passed) => passed);
+    if (allSatisfied && results.isNotEmpty) {
+      appLogger.i('[ScenarioProvider] ✅ All conditions satisfied!');
+    }
+
     return results;
   }
 
@@ -536,6 +419,105 @@ class ScenarioNotifier extends Notifier<ScenarioState> {
   /// Reset scenario state to empty initial state
   void resetToEmpty() {
     state = ScenarioState(scenario: NetworkScenario.empty());
+  }
+
+  // ============================================================================
+  // ENHANCED CONDITION VERIFICATION METHODS (NEW)
+  // ============================================================================
+
+  /// Check all success conditions using the new verification service
+  /// This uses the enhanced verifiers for device properties, interfaces, ARP, routing, links
+  void checkConditionsWithNewService() {
+    final canvasState = ref.read(canvasProvider);
+
+    appLogger.d(
+      '[ScenarioProvider] Checking ${state.scenario.successConditions.length} conditions (new service)',
+    );
+
+    // Use the verification service to check all conditions
+    final results = _verificationService.verifyAllConditions(
+      state.scenario.successConditions,
+      canvasState,
+    );
+
+    // Update state with condition results
+    state = state.copyWith(conditionResults: results);
+
+    // Log results
+    results.forEach((conditionId, passed) {
+      final condition = state.scenario.successConditions.firstWhere(
+        (c) => c.id == conditionId,
+        orElse: () => throw Exception('Condition not found'),
+      );
+      appLogger.d(
+        '[ScenarioProvider] Condition "${condition.description}": ${passed ? "PASSED" : "FAILED"}',
+      );
+    });
+
+    // Check if all conditions are satisfied
+    final allSatisfied = _verificationService.areAllConditionsSatisfied(
+      state.scenario.successConditions,
+      canvasState,
+    );
+
+    if (allSatisfied && state.scenario.successConditions.isNotEmpty) {
+      _onScenarioCompleted();
+    }
+  }
+
+  /// Get verification status for a specific condition
+  bool? getConditionStatus(String conditionId) {
+    return state.conditionResults?[conditionId];
+  }
+
+  /// Get count of satisfied conditions
+  int getSatisfiedConditionsCount() {
+    if (state.conditionResults == null) return 0;
+    return state.conditionResults!.values.where((v) => v).length;
+  }
+
+  /// Get count of total conditions
+  int getTotalConditionsCount() {
+    return state.scenario.successConditions.length;
+  }
+
+  /// Check if a specific condition is satisfied
+  bool isConditionSatisfied(String conditionId) {
+    return state.conditionResults?[conditionId] ?? false;
+  }
+
+  /// Get progress percentage (0-100)
+  double getConditionsProgress() {
+    final total = getTotalConditionsCount();
+    if (total == 0) return 0.0;
+    final satisfied = getSatisfiedConditionsCount();
+    return (satisfied / total) * 100.0;
+  }
+
+  /// Called when all conditions are satisfied (scenario completed)
+  void _onScenarioCompleted() {
+    appLogger.i(
+      '[ScenarioProvider] 🎉 All success conditions satisfied! Scenario completed!',
+    );
+
+    // TODO: Implement completion logic
+    // - Show completion dialog
+    // - Update player statistics
+    // - Award points/badges
+    // - Save completion record
+    // - Trigger celebration animation
+  }
+
+  /// Verify a single condition (for testing or preview)
+  bool verifySingleCondition(ScenarioCondition condition) {
+    final canvasState = ref.read(canvasProvider);
+    return _verificationService.verifyCondition(condition, canvasState);
+  }
+
+  /// Reset condition results (clear all verification status)
+  void resetConditionResults() {
+    state = state.copyWith(conditionResults: {});
+    appLogger.d('[ScenarioProvider] Condition results reset');
   }
 }
 

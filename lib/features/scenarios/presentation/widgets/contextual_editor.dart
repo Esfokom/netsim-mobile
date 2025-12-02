@@ -16,6 +16,10 @@ import 'package:netsim_mobile/features/devices/domain/entities/firewall_device.d
 import 'package:netsim_mobile/features/devices/domain/entities/wireless_access_point.dart';
 import 'package:netsim_mobile/features/devices/domain/interfaces/device_property.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
+import 'package:netsim_mobile/core/utils/ip_validator.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/alert_notification_stack.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/widgets/alert_history_dialog.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/providers/alert_notification_provider.dart';
 
 /// Contextual editor that shows scenario metadata or device properties
 class ContextualEditor extends ConsumerStatefulWidget {
@@ -81,7 +85,16 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
         );
       }
 
-      return content;
+      // Wrap in Stack with alert notifications
+      return Stack(
+        children: [
+          content,
+          // Alert notification stack
+          const AlertNotificationStack(bottomOffset: 16),
+          // Alert history button
+          _buildAlertHistoryButton(),
+        ],
+      );
     }
 
     // Edit mode: show full editor
@@ -133,7 +146,66 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
       );
     }
 
-    return content;
+    // Wrap in Stack with alert notifications
+    return Stack(
+      children: [
+        content,
+        // Alert notification stack
+        const AlertNotificationStack(bottomOffset: 16),
+        // Alert history button
+        _buildAlertHistoryButton(),
+      ],
+    );
+  }
+
+  /// Build floating alert history button with badge
+  Widget _buildAlertHistoryButton() {
+    final alertState = ref.watch(alertNotificationProvider);
+    final alertCount = alertState.alertHistory.length;
+
+    return Positioned(
+      right: 16,
+      bottom: 16,
+      child: FloatingActionButton.small(
+        heroTag: 'alertHistory',
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => const AlertHistoryDialog(),
+          );
+        },
+        child: Stack(
+          children: [
+            const Icon(Icons.history, size: 20),
+            if (alertCount > 0)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Text(
+                    alertCount > 99 ? '99+' : '$alertCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildDevicePropertiesEditor(
@@ -142,7 +214,8 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
   }) {
     final canvasNotifier = ref.read(canvasProvider.notifier);
     final canvasState = ref.watch(canvasProvider);
-    final networkDevice = canvasNotifier.getNetworkDevice(device.id);
+    // Get network device from watched state for reactive updates
+    final networkDevice = canvasState.networkDevices[device.id];
     final scenarioNotifier = ref.read(scenarioProvider.notifier);
 
     // Show linking mode message if in linking mode
@@ -629,7 +702,8 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                           else if (action.id == 'configure_ip' &&
                               networkDevice is EndDevice) {
                             final endDevice = networkDevice;
-                            final allDevices = canvasState.networkDevices.values.toList();
+                            final allDevices = canvasState.networkDevices.values
+                                .toList();
 
                             showDialog(
                               context: context,
@@ -1058,7 +1132,7 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                                   color:
                                       permission == PropertyPermission.readonly
                                       ? Colors.orange.shade700
-                                      : Colors.grey.shade900,
+                                      : Theme.of(context).colorScheme.onSurface,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -1118,47 +1192,64 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     DeviceProperty property,
     CanvasNotifier canvasNotifier,
   ) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Edit ${property.label}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Current value:',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+    // Handle specific property types
+    if (property.id == 'powerState' || property.label == 'Power') {
+      _showPowerDialog(device, networkDevice, canvasNotifier);
+    } else if (property.id.toLowerCase().contains('hostname') ||
+        property.label.toLowerCase().contains('hostname')) {
+      _showHostnameDialog(device, networkDevice, property, canvasNotifier);
+    } else if (property.id.toLowerCase().contains('mac')) {
+      _showMacAddressDialog(device, networkDevice, property, canvasNotifier);
+    } else if (property.id == 'linkState' ||
+        property.label.toLowerCase().contains('link')) {
+      _showLinkStateDialog(device, networkDevice, ref.read(canvasProvider));
+    } else if (property.id.toLowerCase().contains('ip') &&
+        (property.label.contains('Address') || property.label.contains('IP'))) {
+      _showIpConfigurationDialog(device, networkDevice, canvasNotifier);
+    } else {
+      // Generic property editor
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Edit ${property.label}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Current value:',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 12),
+              property.buildEditWidget((newValue) {
+                    property.value = newValue;
+                    canvasNotifier.refreshDevice(device.id);
+                  }) ??
+                  property.buildDisplayWidget(),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
             ),
-            const SizedBox(height: 12),
-            property.buildEditWidget((newValue) {
-                  property.value = newValue;
-                  canvasNotifier.refreshDevice(device.id);
-                }) ??
-                property.buildDisplayWidget(),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {});
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${property.label} updated'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: const Text('Done'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {});
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${property.label} updated'),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildConnectedDevicesSection(
@@ -1598,6 +1689,54 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     CanvasState canvasState,
     CanvasNotifier canvasNotifier,
   ) {
+    // Check if device has links
+    final hasLinks = canvasState.links.any(
+      (link) => link.fromDeviceId == device.id || link.toDeviceId == device.id,
+    );
+
+    // If device has links, show warning and don't allow editing
+    if (hasLinks) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Cannot Edit Device ID'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.warning_amber, color: Colors.orange.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This device has active connections',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Device ID cannot be changed while the device has links. Remove all connections first.',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final controller = TextEditingController(text: device.id);
     String? errorText;
 
@@ -1867,8 +2006,532 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     );
   }
 
+  void _showPowerDialog(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    CanvasNotifier canvasNotifier,
+  ) {
+    // Check if device supports power control
+    if (networkDevice is! EndDevice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This device type does not support power control'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final endDevice = networkDevice as EndDevice;
+    final isPoweredOn = endDevice.isPoweredOn;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Power Control'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isPoweredOn ? Icons.power : Icons.power_off,
+                  color: isPoweredOn ? Colors.green : Colors.red,
+                  size: 32,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    isPoweredOn
+                        ? 'Device is powered ON'
+                        : 'Device is powered OFF',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: isPoweredOn
+                        ? null
+                        : () {
+                            endDevice.powerOn();
+                            canvasNotifier.refreshDevice(device.id);
+                            Navigator.pop(ctx);
+                            setState(() {});
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('${device.name} powered ON'),
+                                backgroundColor: Colors.green,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.power),
+                    label: const Text('Power ON'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: !isPoweredOn
+                        ? null
+                        : () {
+                            endDevice.powerOff();
+                            canvasNotifier.refreshDevice(device.id);
+                            Navigator.pop(ctx);
+                            setState(() {});
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('${device.name} powered OFF'),
+                                backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.power_off),
+                    label: const Text('Power OFF'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMacAddressDialog(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    DeviceProperty property,
+    CanvasNotifier canvasNotifier,
+  ) {
+    final controller = TextEditingController(text: property.value.toString());
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Edit MAC Address'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Format: XX:XX:XX:XX:XX:XX (12 hex characters)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: 'MAC Address',
+                    border: const OutlineInputBorder(),
+                    errorText: errorText,
+                    hintText: '00:1A:2B:3C:4D:5E',
+                  ),
+                  textCapitalization: TextCapitalization.characters,
+                  maxLength: 17,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      // Validate MAC address format
+                      final macRegex = RegExp(
+                        r'^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$',
+                      );
+                      if (value.isEmpty) {
+                        errorText = 'MAC address cannot be empty';
+                      } else if (!macRegex.hasMatch(value)) {
+                        errorText = 'Invalid MAC address format';
+                      } else {
+                        errorText = null;
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: errorText == null && controller.text.isNotEmpty
+                    ? () {
+                        final newMac = controller.text.toUpperCase();
+                        property.value = newMac;
+
+                        // Note: MAC address is typically read-only in network devices
+                        // The property value update is sufficient for display purposes
+
+                        canvasNotifier.refreshDevice(device.id);
+                        Navigator.pop(ctx);
+                        setState(() {});
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('MAC Address updated to $newMac'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showLinkStateDialog(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    CanvasState canvasState,
+  ) {
+    // Check if device is powered on and has links
+    final isPoweredOn = networkDevice is EndDevice
+        ? (networkDevice as EndDevice).isPoweredOn
+        : true; // Other devices are always considered powered on
+    final connectedLinks = canvasState.links
+        .where(
+          (link) =>
+              link.fromDeviceId == device.id || link.toDeviceId == device.id,
+        )
+        .toList();
+
+    final hasLinks = connectedLinks.isNotEmpty;
+    final linkState = isPoweredOn && hasLinks ? 'UP' : 'DOWN';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Link State'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  linkState == 'UP' ? Icons.link : Icons.link_off,
+                  color: linkState == 'UP' ? Colors.green : Colors.red,
+                  size: 32,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Link State: $linkState',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: linkState == 'UP' ? Colors.green : Colors.red,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        linkState == 'UP'
+                            ? 'Device has active connections'
+                            : 'No active connections or powered off',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Connected Devices:',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (connectedLinks.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Center(
+                  child: Text(
+                    'No connections',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ),
+              )
+            else
+              ...connectedLinks.map((link) {
+                final otherDeviceId = link.fromDeviceId == device.id
+                    ? link.toDeviceId
+                    : link.fromDeviceId;
+                final otherDevice = canvasState.devices
+                    .where((d) => d.id == otherDeviceId)
+                    .firstOrNull;
+
+                if (otherDevice == null) return const SizedBox.shrink();
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(otherDevice.type.icon, size: 20),
+                    title: Text(
+                      otherDevice.name,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    subtitle: Text(
+                      link.type.displayName,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.link_off, size: 18),
+                      color: Colors.red.shade600,
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (deleteCtx) => AlertDialog(
+                            title: const Text('Disconnect'),
+                            content: Text(
+                              'Remove connection to ${otherDevice.name}?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(deleteCtx),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  ref
+                                      .read(canvasProvider.notifier)
+                                      .removeLink(link.id);
+                                  Navigator.pop(deleteCtx);
+                                  Navigator.pop(ctx);
+                                  setState(() {});
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                ),
+                                child: const Text('Disconnect'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              }),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showIpConfigurationDialog(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    CanvasNotifier canvasNotifier,
+  ) {
+    // Only show for devices that support IP configuration
+    if (networkDevice is! EndDevice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This device type does not support IP configuration'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // Get all network devices for duplicate IP checking
+    final allNetworkDevices = ref
+        .read(canvasProvider)
+        .networkDevices
+        .values
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => IpConfigurationDialog(
+        device: networkDevice,
+        allDevices: allNetworkDevices,
+        onSave: (ipAddress, subnetMask, defaultGateway) {
+          // Update the device's IP configuration
+          networkDevice.setStaticIp(ipAddress, subnetMask, defaultGateway);
+
+          // Refresh the device in canvas
+          canvasNotifier.refreshDevice(device.id);
+
+          // Update the UI
+          setState(() {});
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('IP configuration updated for ${device.name}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   network.DeviceStatus _mapToCanvasStatus(network.DeviceStatus networkStatus) {
     // NetworkDevice and CanvasDevice both use the same DeviceStatus enum
     return networkStatus;
+  }
+
+  void _showHostnameDialog(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    DeviceProperty property,
+    CanvasNotifier canvasNotifier,
+  ) {
+    // Check if device supports hostname
+    if (networkDevice is! EndDevice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This device type does not support hostname'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final endDevice = networkDevice;
+    final controller = TextEditingController(text: endDevice.hostname);
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Edit Hostname'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Enter a unique hostname for this device',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: 'Hostname',
+                    border: const OutlineInputBorder(),
+                    errorText: errorText,
+                    hintText: 'Computer-01',
+                  ),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      // Validate hostname
+                      if (value.trim().isEmpty) {
+                        errorText = 'Hostname cannot be empty';
+                      } else if (value.trim().length < 2) {
+                        errorText = 'Hostname must be at least 2 characters';
+                      } else if (value.trim().length > 63) {
+                        errorText = 'Hostname must be 63 characters or less';
+                      }
+                      // else if (!RegExp(
+                      //   r'^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$',
+                      // ).hasMatch(value.trim())) {
+                      //   errorText =
+                      //       'Hostname can only contain letters, numbers, and hyphens';
+                      // }
+                      else {
+                        errorText = null;
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    errorText == null && controller.text.trim().isNotEmpty
+                    ? () {
+                        final newHostname = controller.text.trim();
+
+                        // Update property value
+                        property.value = newHostname;
+
+                        // Update the actual device hostname
+                        endDevice.hostname = newHostname;
+
+                        // Update the networkDevice in the provider's map to ensure reference is fresh
+                        canvasNotifier.setNetworkDevice(device.id, endDevice);
+
+                        // Update device name in canvas
+                        canvasNotifier.updateDeviceName(device.id, newHostname);
+
+                        // Force refresh by creating new state
+                        canvasNotifier.refreshDevice(device.id);
+
+                        Navigator.pop(ctx);
+                        setState(() {});
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Hostname updated to "$newHostname"'),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }

@@ -1,16 +1,147 @@
 import 'package:flutter/foundation.dart';
 
 /// Types of conditions that can be checked
-enum ConditionType { connectivity, propertyCheck }
+enum ConditionType {
+  ping, // Ping protocol checks (ICMP, ARP) - RENAMED from connectivity
+  deviceProperty, // Basic device properties (RENAMED from propertyCheck)
+  interfaceProperty, // NEW: Interface-specific checks
+  arpCacheCheck, // NEW: ARP cache validation
+  routingTableCheck, // NEW: Routing table validation
+  linkCheck, // NEW: Connection/topology validation
+  composite, // NEW: Multiple combined conditions
+}
 
-/// Protocol types for connectivity checks
-enum ConnectivityProtocol { ping, http, dnsLookup, link }
+/// Ping protocol types
+enum PingProtocolType {
+  icmp, // ICMP Echo Request/Reply
+  arp, // ARP Request/Reply
+}
+
+/// Ping check types
+enum PingCheckType {
+  sent, // Check if a packet was sent
+  received, // Check if any packet was received
+  receivedFromAny, // Check if packet received from any source
+  receivedFromSpecific, // Check if packet received from specific source
+  responseTime, // Check response time threshold
+  finalReply, // Check if final ICMP reply was received
+}
 
 /// Data types for properties
 enum PropertyDataType { string, boolean, integer, ipAddress }
 
 /// Operators for property checks
 enum PropertyOperator { equals, notEquals, contains, greaterThan, lessThan }
+
+/// NEW: Device property types
+enum DevicePropertyType {
+  // Identity
+  hostname,
+  deviceId,
+  deviceType,
+
+  // State (FIXED: powerState is now boolean)
+  powerState, // boolean: true/false (not "ON"/"OFF")
+  linkState, // boolean: true/false (not "UP"/"DOWN")
+  operationalStatus, // string: "online"/"offline"/"error"
+  // Network
+  ipAddress,
+  macAddress,
+  subnetMask,
+  defaultGateway,
+  ipConfigMode, // string: "STATIC"/"DHCP"
+  // Position
+  positionX,
+  positionY,
+
+  // Counts
+  interfaceCount,
+}
+
+/// NEW: Interface property types
+enum InterfacePropertyType {
+  interfaceName,
+  interfaceStatus, // string: "UP"/"DOWN"/"DISABLED"
+  interfaceIpAddress,
+  interfaceMacAddress,
+  interfaceSubnetMask,
+  interfaceGateway,
+  connectedDeviceId,
+  connectedDeviceName,
+}
+
+/// NEW: Link property types
+enum LinkPropertyType {
+  linkCount, // integer: total connections
+  isLinkedToDevice, // boolean: connected to specific device
+  linkedDeviceIds, // array (for internal use)
+}
+
+/// Link check modes
+enum LinkCheckMode {
+  booleanLinkStatus, // Check if two devices are linked (true/false)
+  linkCount, // Check total link count for a device (0-N)
+}
+
+/// NEW: ARP cache property types
+enum ArpCachePropertyType {
+  hasArpEntry, // boolean: has entry for IP
+  arpEntryMac, // string: MAC for IP
+  arpEntryCount, // integer: total entries
+}
+
+/// NEW: Routing table property types
+enum RoutingTablePropertyType {
+  hasRoute, // boolean: has route for destination
+  routeGateway, // string: gateway IP for destination
+  routeInterface, // string: interface for destination
+  routeCount, // integer: total routes
+  hasDefaultRoute, // boolean: has 0.0.0.0/0 route
+}
+
+/// NEW: Composite logic
+enum CompositeLogic {
+  and, // All sub-conditions must be true
+  or, // At least one sub-condition must be true
+}
+
+/// Sub-condition for composite conditions
+@immutable
+class SubCondition {
+  final String id;
+  final ConditionType type;
+  final Map<String, dynamic> parameters;
+  final bool isHidden; // Don't show to students in UI
+
+  const SubCondition({
+    required this.id,
+    required this.type,
+    required this.parameters,
+    this.isHidden = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type.name.toUpperCase(),
+    'parameters': parameters,
+    'isHidden': isHidden,
+  };
+
+  factory SubCondition.fromJson(Map<String, dynamic> json) {
+    final typeStr = json['type'].toString().toLowerCase();
+    final type = ConditionType.values.firstWhere(
+      (e) => e.name == typeStr,
+      orElse: () => ConditionType.deviceProperty,
+    );
+
+    return SubCondition(
+      id: json['id'] as String,
+      type: type,
+      parameters: Map<String, dynamic>.from(json['parameters'] as Map),
+      isHidden: json['isHidden'] as bool? ?? false,
+    );
+  }
+}
 
 /// Represents a success condition for a scenario
 @immutable
@@ -19,10 +150,14 @@ class ScenarioCondition {
   final String description;
   final ConditionType type;
 
-  // Connectivity-specific fields
-  final ConnectivityProtocol? protocol;
+  // Ping-specific fields (NEW: enhanced protocol checks)
   final String? sourceDeviceID;
   final String? targetAddress;
+  final PingProtocolType? protocolType; // ICMP or ARP
+  final PingCheckType? pingCheckType; // Type of check to perform
+  final String? targetDeviceIdForPing; // Target device ID for device selection
+  final int?
+  responseTimeThreshold; // Milliseconds threshold for response time checks
 
   // Property check-specific fields
   final String? targetDeviceID;
@@ -31,45 +166,99 @@ class ScenarioCondition {
   final PropertyOperator? operator;
   final String? expectedValue;
 
+  // NEW: Interface-specific fields
+  final String? interfaceName; // e.g., "eth0"
+
+  // NEW: ARP/Routing check fields
+  final String? targetIpForCheck; // IP to check in ARP/routing
+  final String? targetNetworkForCheck; // Network for routing check
+
+  // NEW: Link check fields
+  final LinkCheckMode? linkCheckMode; // Mode for link checking
+  final String? sourceDeviceIDForLink; // Source device for boolean link check
+  final String? targetDeviceIdForLink; // Target device for boolean link check
+
+  // NEW: Composite condition fields
+  final List<SubCondition>? subConditions;
+  final CompositeLogic? compositeLogic;
+
   const ScenarioCondition({
     required this.id,
     required this.description,
     required this.type,
-    this.protocol,
     this.sourceDeviceID,
     this.targetAddress,
+    this.protocolType,
+    this.pingCheckType,
+    this.targetDeviceIdForPing,
+    this.responseTimeThreshold,
     this.targetDeviceID,
     this.property,
     this.propertyDataType,
     this.operator,
     this.expectedValue,
+    this.interfaceName,
+    this.targetIpForCheck,
+    this.targetNetworkForCheck,
+    this.linkCheckMode,
+    this.sourceDeviceIDForLink,
+    this.targetDeviceIdForLink,
+    this.subConditions,
+    this.compositeLogic,
   });
 
   ScenarioCondition copyWith({
     String? id,
     String? description,
     ConditionType? type,
-    ConnectivityProtocol? protocol,
     String? sourceDeviceID,
     String? targetAddress,
+    PingProtocolType? protocolType,
+    PingCheckType? pingCheckType,
+    String? targetDeviceIdForPing,
+    int? responseTimeThreshold,
     String? targetDeviceID,
     String? property,
     PropertyDataType? propertyDataType,
     PropertyOperator? operator,
     String? expectedValue,
+    String? interfaceName,
+    String? targetIpForCheck,
+    String? targetNetworkForCheck,
+    LinkCheckMode? linkCheckMode,
+    String? sourceDeviceIDForLink,
+    String? targetDeviceIdForLink,
+    List<SubCondition>? subConditions,
+    CompositeLogic? compositeLogic,
   }) {
     return ScenarioCondition(
       id: id ?? this.id,
       description: description ?? this.description,
       type: type ?? this.type,
-      protocol: protocol ?? this.protocol,
       sourceDeviceID: sourceDeviceID ?? this.sourceDeviceID,
       targetAddress: targetAddress ?? this.targetAddress,
+      protocolType: protocolType ?? this.protocolType,
+      pingCheckType: pingCheckType ?? this.pingCheckType,
+      targetDeviceIdForPing:
+          targetDeviceIdForPing ?? this.targetDeviceIdForPing,
+      responseTimeThreshold:
+          responseTimeThreshold ?? this.responseTimeThreshold,
       targetDeviceID: targetDeviceID ?? this.targetDeviceID,
       property: property ?? this.property,
       propertyDataType: propertyDataType ?? this.propertyDataType,
       operator: operator ?? this.operator,
       expectedValue: expectedValue ?? this.expectedValue,
+      interfaceName: interfaceName ?? this.interfaceName,
+      targetIpForCheck: targetIpForCheck ?? this.targetIpForCheck,
+      targetNetworkForCheck:
+          targetNetworkForCheck ?? this.targetNetworkForCheck,
+      linkCheckMode: linkCheckMode ?? this.linkCheckMode,
+      sourceDeviceIDForLink:
+          sourceDeviceIDForLink ?? this.sourceDeviceIDForLink,
+      targetDeviceIdForLink:
+          targetDeviceIdForLink ?? this.targetDeviceIdForLink,
+      subConditions: subConditions ?? this.subConditions,
+      compositeLogic: compositeLogic ?? this.compositeLogic,
     );
   }
 
@@ -78,36 +267,87 @@ class ScenarioCondition {
       'id': id,
       'description': description,
       'type': type.name.toUpperCase(),
-      if (protocol != null) 'protocol': protocol!.name.toUpperCase(),
       if (sourceDeviceID != null) 'sourceDeviceID': sourceDeviceID,
       if (targetAddress != null) 'targetAddress': targetAddress,
+      if (protocolType != null)
+        'protocolType': protocolType!.name.toUpperCase(),
+      if (pingCheckType != null)
+        'pingCheckType': pingCheckType!.name.toUpperCase(),
+      if (targetDeviceIdForPing != null)
+        'targetDeviceIdForPing': targetDeviceIdForPing,
+      if (responseTimeThreshold != null)
+        'responseTimeThreshold': responseTimeThreshold,
       if (targetDeviceID != null) 'targetDeviceID': targetDeviceID,
       if (property != null) 'property': property,
       if (propertyDataType != null)
         'propertyDataType': propertyDataType!.name.toUpperCase(),
       if (operator != null) 'operator': operator!.name.toUpperCase(),
       if (expectedValue != null) 'expectedValue': expectedValue,
+      if (interfaceName != null) 'interfaceName': interfaceName,
+      if (targetIpForCheck != null) 'targetIpForCheck': targetIpForCheck,
+      if (targetNetworkForCheck != null)
+        'targetNetworkForCheck': targetNetworkForCheck,
+      if (linkCheckMode != null)
+        'linkCheckMode': linkCheckMode!.name.toUpperCase(),
+      if (sourceDeviceIDForLink != null)
+        'sourceDeviceIDForLink': sourceDeviceIDForLink,
+      if (targetDeviceIdForLink != null)
+        'targetDeviceIdForLink': targetDeviceIdForLink,
+      if (subConditions != null)
+        'subConditions': subConditions!.map((sc) => sc.toJson()).toList(),
+      if (compositeLogic != null)
+        'compositeLogic': compositeLogic!.name.toUpperCase(),
     };
   }
 
   factory ScenarioCondition.fromJson(Map<String, dynamic> json) {
+    // Parse condition type with migration support
     final typeStr = json['type'].toString().toLowerCase();
-    final type = typeStr == 'connectivity'
-        ? ConditionType.connectivity
-        : ConditionType.propertyCheck;
 
-    ConnectivityProtocol? protocol;
-    if (json['protocol'] != null) {
-      final protocolStr = json['protocol'].toString().toLowerCase();
-      protocol = protocolStr == 'ping'
-          ? ConnectivityProtocol.ping
-          : protocolStr == 'http'
-          ? ConnectivityProtocol.http
-          : protocolStr == 'dnslookup'
-          ? ConnectivityProtocol.dnsLookup
-          : protocolStr == 'link'
-          ? ConnectivityProtocol.link
-          : ConnectivityProtocol.ping;
+    // Try to match enum by lowercase comparison
+    var type = ConditionType.values.firstWhere(
+      (e) => e.name.toLowerCase() == typeStr,
+      orElse: () {
+        // Legacy support for old type names
+        if (typeStr == 'propertycheck') {
+          return ConditionType.deviceProperty;
+        }
+        // Default fallback
+        return ConditionType.deviceProperty;
+      },
+    );
+
+    // MIGRATION: Convert old connectivity type to ping
+    if (typeStr == 'connectivity') {
+      if (json['protocol'] != null) {
+        final protocolStr = json['protocol'].toString().toLowerCase();
+        if (protocolStr == 'link') {
+          type = ConditionType.linkCheck;
+        } else {
+          type = ConditionType.ping; // Convert connectivity to ping
+        }
+      } else {
+        type = ConditionType.ping; // Default connectivity to ping
+      }
+    }
+
+    // Parse ping-specific enums
+    PingProtocolType? protocolType;
+    if (json['protocolType'] != null) {
+      final protocolStr = json['protocolType'].toString().toLowerCase();
+      protocolType = PingProtocolType.values.firstWhere(
+        (e) => e.name.toLowerCase() == protocolStr,
+        orElse: () => PingProtocolType.icmp,
+      );
+    }
+
+    PingCheckType? pingCheckType;
+    if (json['pingCheckType'] != null) {
+      final checkTypeStr = json['pingCheckType'].toString().toLowerCase();
+      pingCheckType = PingCheckType.values.firstWhere(
+        (e) => e.name.toLowerCase() == checkTypeStr,
+        orElse: () => PingCheckType.sent,
+      );
     }
 
     PropertyDataType? propertyDataType;
@@ -136,18 +376,60 @@ class ScenarioCondition {
           : PropertyOperator.lessThan;
     }
 
+    // Parse composite logic
+    CompositeLogic? compositeLogic;
+    if (json['compositeLogic'] != null) {
+      final logicStr = json['compositeLogic'].toString().toLowerCase();
+      compositeLogic = CompositeLogic.values.firstWhere(
+        (e) => e.name.toLowerCase() == logicStr,
+        orElse: () => CompositeLogic.and,
+      );
+    }
+
+    // Parse sub-conditions
+    List<SubCondition>? subConditions;
+    if (json['subConditions'] != null) {
+      subConditions = (json['subConditions'] as List)
+          .map((sc) => SubCondition.fromJson(sc as Map<String, dynamic>))
+          .toList();
+    }
+
+    // Parse link check mode with migration support
+    LinkCheckMode? linkCheckMode;
+    if (json['linkCheckMode'] != null) {
+      final modeStr = json['linkCheckMode'].toString().toLowerCase();
+      linkCheckMode = LinkCheckMode.values.firstWhere(
+        (e) => e.name.toLowerCase() == modeStr,
+        orElse: () => LinkCheckMode.linkCount, // Default to linkCount
+      );
+    } else if (type == ConditionType.linkCheck) {
+      // Migration: old linkCheck conditions default to linkCount mode
+      linkCheckMode = LinkCheckMode.linkCount;
+    }
+
     return ScenarioCondition(
       id: json['id'] as String,
       description: json['description'] as String,
       type: type,
-      protocol: protocol,
       sourceDeviceID: json['sourceDeviceID'] as String?,
       targetAddress: json['targetAddress'] as String?,
+      protocolType: protocolType,
+      pingCheckType: pingCheckType,
+      targetDeviceIdForPing: json['targetDeviceIdForPing'] as String?,
+      responseTimeThreshold: json['responseTimeThreshold'] as int?,
       targetDeviceID: json['targetDeviceID'] as String?,
       property: json['property'] as String?,
       propertyDataType: propertyDataType,
       operator: operator,
       expectedValue: json['expectedValue'] as String?,
+      interfaceName: json['interfaceName'] as String?,
+      targetIpForCheck: json['targetIpForCheck'] as String?,
+      targetNetworkForCheck: json['targetNetworkForCheck'] as String?,
+      linkCheckMode: linkCheckMode,
+      sourceDeviceIDForLink: json['sourceDeviceIDForLink'] as String?,
+      targetDeviceIdForLink: json['targetDeviceIdForLink'] as String?,
+      subConditions: subConditions,
+      compositeLogic: compositeLogic,
     );
   }
 }
@@ -155,25 +437,20 @@ class ScenarioCondition {
 extension ConditionTypeExtension on ConditionType {
   String get displayName {
     switch (this) {
-      case ConditionType.connectivity:
-        return 'Connectivity';
-      case ConditionType.propertyCheck:
-        return 'Property Check';
-    }
-  }
-}
-
-extension ConnectivityProtocolExtension on ConnectivityProtocol {
-  String get displayName {
-    switch (this) {
-      case ConnectivityProtocol.ping:
-        return 'PING';
-      case ConnectivityProtocol.http:
-        return 'HTTP';
-      case ConnectivityProtocol.dnsLookup:
-        return 'DNS Lookup';
-      case ConnectivityProtocol.link:
-        return 'Link/Cable';
+      case ConditionType.ping:
+        return 'Ping';
+      case ConditionType.deviceProperty:
+        return 'Device Property';
+      case ConditionType.interfaceProperty:
+        return 'Interface Property';
+      case ConditionType.arpCacheCheck:
+        return 'ARP Cache';
+      case ConditionType.routingTableCheck:
+        return 'Routing Table';
+      case ConditionType.linkCheck:
+        return 'Link Check';
+      case ConditionType.composite:
+        return 'Composite';
     }
   }
 }
