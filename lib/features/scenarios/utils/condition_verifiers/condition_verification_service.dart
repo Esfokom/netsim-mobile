@@ -125,11 +125,28 @@ class ConditionVerificationService {
     ScenarioCondition condition,
     CanvasState canvasState,
   ) {
+    // Log available devices for debugging
+    appLogger.d(
+      '[ConditionVerification] Available networkDevices: ${canvasState.networkDevices.keys.toList()}',
+    );
+    appLogger.d(
+      '[ConditionVerification] Looking for device: ${condition.targetDeviceID}',
+    );
+    appLogger.d(
+      '[ConditionVerification] Property to check: ${condition.property}',
+    );
+
     // Get the device
     final device = canvasState.networkDevices[condition.targetDeviceID];
     if (device == null) {
       appLogger.w(
         '[ConditionVerification] Device not found: ${condition.targetDeviceID}',
+      );
+      appLogger.w(
+        '[ConditionVerification] Available devices in networkDevices map: ${canvasState.networkDevices.keys.join(", ")}',
+      );
+      appLogger.w(
+        '[ConditionVerification] Total canvas devices: ${canvasState.devices.length}',
       );
       return false;
     }

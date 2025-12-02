@@ -153,36 +153,176 @@ class _ConditionCard extends ConsumerWidget {
   }
 
   Widget _buildConditionDetails(ScenarioCondition condition) {
-    if (condition.type == ConditionType.connectivity) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _DetailRow(label: 'Type', value: 'Ping'),
-          _DetailRow(label: 'Source', value: condition.sourceDeviceID ?? 'N/A'),
-          _DetailRow(label: 'Target', value: condition.targetAddress ?? 'N/A'),
-        ],
-      );
-    } else {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _DetailRow(label: 'Device', value: condition.targetDeviceID ?? 'N/A'),
-          _DetailRow(label: 'Property', value: condition.property ?? 'N/A'),
-          if (condition.propertyDataType != null)
+    switch (condition.type) {
+      case ConditionType.connectivity:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow(label: 'Type', value: 'Ping'),
             _DetailRow(
-              label: 'Data Type',
-              value: condition.propertyDataType!.displayName,
+              label: 'Source',
+              value: condition.sourceDeviceID ?? 'N/A',
             ),
-          _DetailRow(
-            label: 'Operator',
-            value: condition.operator?.displayName ?? 'N/A',
-          ),
-          _DetailRow(
-            label: 'Expected',
-            value: condition.expectedValue ?? 'N/A',
-          ),
-        ],
-      );
+            _DetailRow(
+              label: 'Target',
+              value: condition.targetAddress ?? 'N/A',
+            ),
+          ],
+        );
+
+      case ConditionType.linkCheck:
+        if (condition.linkCheckMode == LinkCheckMode.booleanLinkStatus) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DetailRow(label: 'Mode', value: 'Link Status'),
+              _DetailRow(
+                label: 'Source',
+                value: condition.sourceDeviceIDForLink ?? 'N/A',
+              ),
+              _DetailRow(
+                label: 'Target',
+                value: condition.targetDeviceIdForLink ?? 'N/A',
+              ),
+              _DetailRow(
+                label: 'Expected',
+                value: condition.expectedValue == 'true'
+                    ? 'Linked'
+                    : 'Not Linked',
+              ),
+            ],
+          );
+        } else {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DetailRow(label: 'Mode', value: 'Link Count'),
+              _DetailRow(
+                label: 'Device',
+                value: condition.targetDeviceID ?? 'N/A',
+              ),
+              _DetailRow(
+                label: 'Expected Count',
+                value: condition.expectedValue ?? 'N/A',
+              ),
+            ],
+          );
+        }
+
+      case ConditionType.interfaceProperty:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow(
+              label: 'Device',
+              value: condition.targetDeviceID ?? 'N/A',
+            ),
+            _DetailRow(
+              label: 'Interface',
+              value: condition.interfaceName ?? 'N/A',
+            ),
+            _DetailRow(label: 'Property', value: condition.property ?? 'N/A'),
+            _DetailRow(
+              label: 'Operator',
+              value: condition.operator?.displayName ?? 'N/A',
+            ),
+            _DetailRow(
+              label: 'Expected',
+              value: condition.expectedValue ?? 'N/A',
+            ),
+          ],
+        );
+
+      case ConditionType.arpCacheCheck:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow(
+              label: 'Device',
+              value: condition.targetDeviceID ?? 'N/A',
+            ),
+            _DetailRow(label: 'Property', value: condition.property ?? 'N/A'),
+            if (condition.targetIpForCheck != null)
+              _DetailRow(
+                label: 'Target IP',
+                value: condition.targetIpForCheck!,
+              ),
+            _DetailRow(
+              label: 'Operator',
+              value: condition.operator?.displayName ?? 'N/A',
+            ),
+            _DetailRow(
+              label: 'Expected',
+              value: condition.expectedValue ?? 'N/A',
+            ),
+          ],
+        );
+
+      case ConditionType.routingTableCheck:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow(
+              label: 'Device',
+              value: condition.targetDeviceID ?? 'N/A',
+            ),
+            _DetailRow(label: 'Property', value: condition.property ?? 'N/A'),
+            if (condition.targetNetworkForCheck != null)
+              _DetailRow(
+                label: 'Target Network',
+                value: condition.targetNetworkForCheck!,
+              ),
+            _DetailRow(
+              label: 'Operator',
+              value: condition.operator?.displayName ?? 'N/A',
+            ),
+            _DetailRow(
+              label: 'Expected',
+              value: condition.expectedValue ?? 'N/A',
+            ),
+          ],
+        );
+
+      case ConditionType.composite:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow(
+              label: 'Logic',
+              value: condition.compositeLogic?.name.toUpperCase() ?? 'N/A',
+            ),
+            _DetailRow(
+              label: 'Sub-Conditions',
+              value: '${condition.subConditions?.length ?? 0}',
+            ),
+          ],
+        );
+
+      case ConditionType.deviceProperty:
+      default:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow(
+              label: 'Device',
+              value: condition.targetDeviceID ?? 'N/A',
+            ),
+            _DetailRow(label: 'Property', value: condition.property ?? 'N/A'),
+            if (condition.propertyDataType != null)
+              _DetailRow(
+                label: 'Data Type',
+                value: condition.propertyDataType!.displayName,
+              ),
+            _DetailRow(
+              label: 'Operator',
+              value: condition.operator?.displayName ?? 'N/A',
+            ),
+            _DetailRow(
+              label: 'Expected',
+              value: condition.expectedValue ?? 'N/A',
+            ),
+          ],
+        );
     }
   }
 
@@ -192,8 +332,16 @@ class _ConditionCard extends ConsumerWidget {
         return Colors.blue;
       case ConditionType.deviceProperty:
         return Colors.green;
-      default:
-        return Colors.grey;
+      case ConditionType.linkCheck:
+        return Colors.orange;
+      case ConditionType.interfaceProperty:
+        return Colors.purple;
+      case ConditionType.arpCacheCheck:
+        return Colors.teal;
+      case ConditionType.routingTableCheck:
+        return Colors.indigo;
+      case ConditionType.composite:
+        return Colors.deepPurple;
     }
   }
 }

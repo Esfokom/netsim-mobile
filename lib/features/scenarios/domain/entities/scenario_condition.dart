@@ -260,12 +260,18 @@ class ScenarioCondition {
   factory ScenarioCondition.fromJson(Map<String, dynamic> json) {
     // Parse condition type with migration support
     final typeStr = json['type'].toString().toLowerCase();
+
+    // Try to match enum by lowercase comparison
     var type = ConditionType.values.firstWhere(
-      (e) => e.name == typeStr,
-      orElse: () => typeStr == 'propertycheck'
-          ? ConditionType
-                .deviceProperty // Legacy support
-          : ConditionType.deviceProperty,
+      (e) => e.name.toLowerCase() == typeStr,
+      orElse: () {
+        // Legacy support for old type names
+        if (typeStr == 'propertycheck') {
+          return ConditionType.deviceProperty;
+        }
+        // Default fallback
+        return ConditionType.deviceProperty;
+      },
     );
 
     // MIGRATION: Convert old connectivity+link protocol to linkCheck type
@@ -307,7 +313,7 @@ class ScenarioCondition {
     if (json['compositeLogic'] != null) {
       final logicStr = json['compositeLogic'].toString().toLowerCase();
       compositeLogic = CompositeLogic.values.firstWhere(
-        (e) => e.name == logicStr,
+        (e) => e.name.toLowerCase() == logicStr,
         orElse: () => CompositeLogic.and,
       );
     }
@@ -325,7 +331,7 @@ class ScenarioCondition {
     if (json['linkCheckMode'] != null) {
       final modeStr = json['linkCheckMode'].toString().toLowerCase();
       linkCheckMode = LinkCheckMode.values.firstWhere(
-        (e) => e.name == modeStr,
+        (e) => e.name.toLowerCase() == modeStr,
         orElse: () => LinkCheckMode.linkCount, // Default to linkCount
       );
     } else if (type == ConditionType.linkCheck) {

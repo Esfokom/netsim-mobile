@@ -51,6 +51,8 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   void _cleanupGameState() {
     // Clear condition check results
     ref.read(gameConditionCheckerProvider.notifier).clearResults();
+    // Clear network devices cache to force re-initialization next time
+    ref.read(canvasProvider.notifier).clearNetworkDevicesCache();
     // Exit simulation mode
     ref.read(scenarioProvider.notifier).exitSimulationMode();
     appLogger.d('[GamePlayScreen] Game state cleaned up');
@@ -86,6 +88,9 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
         widget.scenario.initialDeviceStates,
         widget.scenario.initialLinks,
       );
+
+      // Initialize network devices from canvas devices (CRITICAL for condition checking)
+      ref.read(canvasProvider.notifier).initializeNetworkDevicesFromCanvas();
 
       // Enter simulation mode
       ref.read(scenarioProvider.notifier).enterSimulationMode();
