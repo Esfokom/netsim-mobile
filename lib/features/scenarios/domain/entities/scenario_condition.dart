@@ -11,13 +11,6 @@ enum ConditionType {
   composite, // NEW: Multiple combined conditions
 }
 
-/// Protocol types for connectivity checks
-enum ConnectivityProtocol {
-  ping,
-  link,
-  // REMOVED: http, dnsLookup (not needed)
-}
-
 /// Data types for properties
 enum PropertyDataType { string, boolean, integer, ipAddress }
 
@@ -66,6 +59,12 @@ enum LinkPropertyType {
   linkCount, // integer: total connections
   isLinkedToDevice, // boolean: connected to specific device
   linkedDeviceIds, // array (for internal use)
+}
+
+/// Link check modes
+enum LinkCheckMode {
+  booleanLinkStatus, // Check if two devices are linked (true/false)
+  linkCount, // Check total link count for a device (0-N)
 }
 
 /// NEW: ARP cache property types
@@ -135,8 +134,7 @@ class ScenarioCondition {
   final String description;
   final ConditionType type;
 
-  // Connectivity-specific fields
-  final ConnectivityProtocol? protocol;
+  // Connectivity-specific fields (ping only)
   final String? sourceDeviceID;
   final String? targetAddress;
 
@@ -155,7 +153,9 @@ class ScenarioCondition {
   final String? targetNetworkForCheck; // Network for routing check
 
   // NEW: Link check fields
-  final String? targetDeviceIdForLink; // Device to check link to
+  final LinkCheckMode? linkCheckMode; // Mode for link checking
+  final String? sourceDeviceIDForLink; // Source device for boolean link check
+  final String? targetDeviceIdForLink; // Target device for boolean link check
 
   // NEW: Composite condition fields
   final List<SubCondition>? subConditions;
@@ -165,7 +165,6 @@ class ScenarioCondition {
     required this.id,
     required this.description,
     required this.type,
-    this.protocol,
     this.sourceDeviceID,
     this.targetAddress,
     this.targetDeviceID,
@@ -176,6 +175,8 @@ class ScenarioCondition {
     this.interfaceName,
     this.targetIpForCheck,
     this.targetNetworkForCheck,
+    this.linkCheckMode,
+    this.sourceDeviceIDForLink,
     this.targetDeviceIdForLink,
     this.subConditions,
     this.compositeLogic,
@@ -185,7 +186,6 @@ class ScenarioCondition {
     String? id,
     String? description,
     ConditionType? type,
-    ConnectivityProtocol? protocol,
     String? sourceDeviceID,
     String? targetAddress,
     String? targetDeviceID,
@@ -196,6 +196,8 @@ class ScenarioCondition {
     String? interfaceName,
     String? targetIpForCheck,
     String? targetNetworkForCheck,
+    LinkCheckMode? linkCheckMode,
+    String? sourceDeviceIDForLink,
     String? targetDeviceIdForLink,
     List<SubCondition>? subConditions,
     CompositeLogic? compositeLogic,
@@ -204,7 +206,6 @@ class ScenarioCondition {
       id: id ?? this.id,
       description: description ?? this.description,
       type: type ?? this.type,
-      protocol: protocol ?? this.protocol,
       sourceDeviceID: sourceDeviceID ?? this.sourceDeviceID,
       targetAddress: targetAddress ?? this.targetAddress,
       targetDeviceID: targetDeviceID ?? this.targetDeviceID,
@@ -216,6 +217,9 @@ class ScenarioCondition {
       targetIpForCheck: targetIpForCheck ?? this.targetIpForCheck,
       targetNetworkForCheck:
           targetNetworkForCheck ?? this.targetNetworkForCheck,
+      linkCheckMode: linkCheckMode ?? this.linkCheckMode,
+      sourceDeviceIDForLink:
+          sourceDeviceIDForLink ?? this.sourceDeviceIDForLink,
       targetDeviceIdForLink:
           targetDeviceIdForLink ?? this.targetDeviceIdForLink,
       subConditions: subConditions ?? this.subConditions,
@@ -228,7 +232,6 @@ class ScenarioCondition {
       'id': id,
       'description': description,
       'type': type.name.toUpperCase(),
-      if (protocol != null) 'protocol': protocol!.name.toUpperCase(),
       if (sourceDeviceID != null) 'sourceDeviceID': sourceDeviceID,
       if (targetAddress != null) 'targetAddress': targetAddress,
       if (targetDeviceID != null) 'targetDeviceID': targetDeviceID,
@@ -241,6 +244,10 @@ class ScenarioCondition {
       if (targetIpForCheck != null) 'targetIpForCheck': targetIpForCheck,
       if (targetNetworkForCheck != null)
         'targetNetworkForCheck': targetNetworkForCheck,
+      if (linkCheckMode != null)
+        'linkCheckMode': linkCheckMode!.name.toUpperCase(),
+      if (sourceDeviceIDForLink != null)
+        'sourceDeviceIDForLink': sourceDeviceIDForLink,
       if (targetDeviceIdForLink != null)
         'targetDeviceIdForLink': targetDeviceIdForLink,
       if (subConditions != null)
@@ -251,9 +258,9 @@ class ScenarioCondition {
   }
 
   factory ScenarioCondition.fromJson(Map<String, dynamic> json) {
-    // Parse condition type
+    // Parse condition type with migration support
     final typeStr = json['type'].toString().toLowerCase();
-    final type = ConditionType.values.firstWhere(
+    var type = ConditionType.values.firstWhere(
       (e) => e.name == typeStr,
       orElse: () => typeStr == 'propertycheck'
           ? ConditionType
@@ -261,16 +268,12 @@ class ScenarioCondition {
           : ConditionType.deviceProperty,
     );
 
-    // Parse connectivity protocol (removed HTTP and DNS)
-    ConnectivityProtocol? protocol;
-    if (json['protocol'] != null) {
+    // MIGRATION: Convert old connectivity+link protocol to linkCheck type
+    if (typeStr == 'connectivity' && json['protocol'] != null) {
       final protocolStr = json['protocol'].toString().toLowerCase();
-      protocol = protocolStr == 'ping'
-          ? ConnectivityProtocol.ping
-          : protocolStr == 'link'
-          ? ConnectivityProtocol.link
-          : ConnectivityProtocol.ping; // Default to ping
-      // NOTE: http and dnsLookup are no longer supported
+      if (protocolStr == 'link') {
+        type = ConditionType.linkCheck;
+      }
     }
 
     PropertyDataType? propertyDataType;
@@ -317,11 +320,23 @@ class ScenarioCondition {
           .toList();
     }
 
+    // Parse link check mode with migration support
+    LinkCheckMode? linkCheckMode;
+    if (json['linkCheckMode'] != null) {
+      final modeStr = json['linkCheckMode'].toString().toLowerCase();
+      linkCheckMode = LinkCheckMode.values.firstWhere(
+        (e) => e.name == modeStr,
+        orElse: () => LinkCheckMode.linkCount, // Default to linkCount
+      );
+    } else if (type == ConditionType.linkCheck) {
+      // Migration: old linkCheck conditions default to linkCount mode
+      linkCheckMode = LinkCheckMode.linkCount;
+    }
+
     return ScenarioCondition(
       id: json['id'] as String,
       description: json['description'] as String,
       type: type,
-      protocol: protocol,
       sourceDeviceID: json['sourceDeviceID'] as String?,
       targetAddress: json['targetAddress'] as String?,
       targetDeviceID: json['targetDeviceID'] as String?,
@@ -332,6 +347,8 @@ class ScenarioCondition {
       interfaceName: json['interfaceName'] as String?,
       targetIpForCheck: json['targetIpForCheck'] as String?,
       targetNetworkForCheck: json['targetNetworkForCheck'] as String?,
+      linkCheckMode: linkCheckMode,
+      sourceDeviceIDForLink: json['sourceDeviceIDForLink'] as String?,
       targetDeviceIdForLink: json['targetDeviceIdForLink'] as String?,
       subConditions: subConditions,
       compositeLogic: compositeLogic,
@@ -356,17 +373,6 @@ extension ConditionTypeExtension on ConditionType {
         return 'Link Check';
       case ConditionType.composite:
         return 'Composite';
-    }
-  }
-}
-
-extension ConnectivityProtocolExtension on ConnectivityProtocol {
-  String get displayName {
-    switch (this) {
-      case ConnectivityProtocol.ping:
-        return 'PING';
-      case ConnectivityProtocol.link:
-        return 'Link/Cable';
     }
   }
 }

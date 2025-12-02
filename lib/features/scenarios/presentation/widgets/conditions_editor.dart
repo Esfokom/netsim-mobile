@@ -157,10 +157,7 @@ class _ConditionCard extends ConsumerWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _DetailRow(
-            label: 'Protocol',
-            value: condition.protocol?.displayName ?? 'N/A',
-          ),
+          _DetailRow(label: 'Type', value: 'Ping'),
           _DetailRow(label: 'Source', value: condition.sourceDeviceID ?? 'N/A'),
           _DetailRow(label: 'Target', value: condition.targetAddress ?? 'N/A'),
         ],
@@ -238,8 +235,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   ConditionType _selectedType = ConditionType.connectivity;
   final _descriptionController = TextEditingController();
 
-  // Connectivity fields
-  ConnectivityProtocol _selectedProtocol = ConnectivityProtocol.ping;
+  // Connectivity fields (ping only)
   String? _selectedSourceDeviceId;
   final _targetAddressController = TextEditingController();
 
@@ -260,7 +256,10 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   final _targetNetworkController = TextEditingController();
 
   // NEW: Link check fields
+  LinkCheckMode _linkCheckMode = LinkCheckMode.booleanLinkStatus;
+  String? _sourceDeviceForLink;
   String? _targetDeviceForLink;
+  double _linkCountValue = 1.0;
 
   // NEW: Composite fields
   final List<Map<String, dynamic>> _subConditions = [];
@@ -291,91 +290,42 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Condition Type Selection Grid (7 types)
-              Text(
-                'Condition Type',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _ConditionTypeChip(
-                    type: ConditionType.connectivity,
-                    isSelected: _selectedType == ConditionType.connectivity,
-                    onTap: () {
-                      setState(() {
-                        _selectedType = ConditionType.connectivity;
-                        _resetFields();
-                      });
-                    },
-                  ),
-                  _ConditionTypeChip(
-                    type: ConditionType.deviceProperty,
-                    isSelected: _selectedType == ConditionType.deviceProperty,
-                    onTap: () {
-                      setState(() {
-                        _selectedType = ConditionType.deviceProperty;
-                        _resetFields();
-                      });
-                    },
-                  ),
-                  _ConditionTypeChip(
-                    type: ConditionType.interfaceProperty,
-                    isSelected:
-                        _selectedType == ConditionType.interfaceProperty,
-                    onTap: () {
-                      setState(() {
-                        _selectedType = ConditionType.interfaceProperty;
-                        _resetFields();
-                      });
-                    },
-                  ),
-                  _ConditionTypeChip(
-                    type: ConditionType.arpCacheCheck,
-                    isSelected: _selectedType == ConditionType.arpCacheCheck,
-                    onTap: () {
-                      setState(() {
-                        _selectedType = ConditionType.arpCacheCheck;
-                        _resetFields();
-                      });
-                    },
-                  ),
-                  _ConditionTypeChip(
-                    type: ConditionType.routingTableCheck,
-                    isSelected:
-                        _selectedType == ConditionType.routingTableCheck,
-                    onTap: () {
-                      setState(() {
-                        _selectedType = ConditionType.routingTableCheck;
-                        _resetFields();
-                      });
-                    },
-                  ),
-                  _ConditionTypeChip(
-                    type: ConditionType.linkCheck,
-                    isSelected: _selectedType == ConditionType.linkCheck,
-                    onTap: () {
-                      setState(() {
-                        _selectedType = ConditionType.linkCheck;
-                        _resetFields();
-                      });
-                    },
-                  ),
-                  _ConditionTypeChip(
-                    type: ConditionType.composite,
-                    isSelected: _selectedType == ConditionType.composite,
-                    onTap: () {
-                      setState(() {
-                        _selectedType = ConditionType.composite;
-                        _resetFields();
-                      });
-                    },
-                  ),
-                ],
+              // Condition Type Selection - Compact Dropdown
+              ShadSelectFormField<ConditionType>(
+                id: 'conditionType',
+                minWidth: double.infinity,
+                initialValue: _selectedType,
+                label: const Text('Condition Type'),
+                placeholder: const Text('Select condition type'),
+                options: ConditionType.values.map((type) {
+                  return ShadOption(
+                    value: type,
+                    child: Row(
+                      children: [
+                        Icon(_getConditionTypeIcon(type), size: 18),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(type.displayName)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                selectedOptionBuilder: (context, value) {
+                  return Row(
+                    children: [
+                      Icon(_getConditionTypeIcon(value), size: 18),
+                      const SizedBox(width: 12),
+                      Text(value.displayName),
+                    ],
+                  );
+                },
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedType = value;
+                      _resetFields();
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 16),
 
@@ -440,23 +390,10 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   Widget _buildConnectivityFields(List<CanvasDevice> devices) {
     return Column(
       children: [
-        ShadSelectFormField<ConnectivityProtocol>(
-          id: 'protocol',
-          initialValue: _selectedProtocol,
-          minWidth: double.infinity,
-          label: const Text('Protocol'),
-          options: ConnectivityProtocol.values.map((protocol) {
-            return ShadOption(
-              value: protocol,
-              child: Text(protocol.displayName),
-            );
-          }).toList(),
-          selectedOptionBuilder: (context, value) => Text(value.displayName),
-          onChanged: (value) {
-            if (value != null) {
-              setState(() => _selectedProtocol = value);
-            }
-          },
+        // Ping connectivity (simplified - no protocol selector)
+        Text(
+          'Configure ping connectivity check',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
         const SizedBox(height: 12),
 
@@ -527,87 +464,13 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         ),
         const SizedBox(height: 12),
 
-        // Show target device selector for link protocol, otherwise target address
-        if (_selectedProtocol == ConnectivityProtocol.link)
-          ShadSelectFormField<String>(
-            key: const ValueKey('targetDeviceSelector'),
-            id: 'targetDevice',
-            minWidth: double.infinity,
-            initialValue: _selectedTargetDeviceId,
-            label: const Text('Target Device'),
-            placeholder: const Text('Select target device'),
-            options: devices
-                .where((device) => device.id != _selectedSourceDeviceId)
-                .map((device) {
-                  return ShadOption(
-                    value: device.id,
-                    child: SizedBox(
-                      height: 48,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            device.type.icon,
-                            size: 16,
-                            color: device.type.color,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  device.name,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                                Text(
-                                  '${device.id} • ${device.type.displayName}',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                })
-                .toList(),
-            selectedOptionBuilder: (context, value) {
-              final device = devices.firstWhere((d) => d.id == value);
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(device.type.icon, size: 16, color: device.type.color),
-                  const SizedBox(width: 8),
-                  Text(device.name),
-                ],
-              );
-            },
-            onChanged: (value) {
-              setState(() => _selectedTargetDeviceId = value);
-            },
-          )
-        else
-          ShadInputFormField(
-            key: const ValueKey('targetAddressInput'),
-            controller: _targetAddressController,
-            label: Text("Target Address"),
-            description: Text("e.g., 8.8.8.8 or google.com"),
-            placeholder: Text("Please enter address"),
-          ),
+        // Target address for ping
+        ShadInputFormField(
+          controller: _targetAddressController,
+          label: const Text("Target Address"),
+          description: const Text("e.g., 8.8.8.8, google.com, or device IP"),
+          placeholder: const Text("Enter target IP or hostname"),
+        ),
       ],
     );
   }
@@ -1133,62 +996,191 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Check device connections',
+          'Check device link/connection status',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
         const SizedBox(height: 12),
-        // Device selector
-        ShadSelectFormField<String>(
-          id: 'linkDevice',
-          minWidth: double.infinity,
-          label: const Text('Device'),
-          placeholder: const Text('Select device'),
-          options: devices
-              .map(
-                (device) =>
-                    ShadOption(value: device.id, child: Text(device.name)),
-              )
-              .toList(),
-          selectedOptionBuilder: (context, value) {
-            final device = devices.firstWhere((d) => d.id == value);
-            return Text(device.name);
-          },
-          onChanged: (value) => setState(() => _selectedTargetDeviceId = value),
+
+        // Mode toggle buttons
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _linkCheckMode = LinkCheckMode.booleanLinkStatus;
+                    // Initialize expected value for boolean mode if empty
+                    if (_expectedValueController.text.isEmpty) {
+                      _expectedValueController.text = 'true';
+                    }
+                  });
+                },
+                icon: Icon(
+                  Icons.link,
+                  size: 18,
+                  color: _linkCheckMode == LinkCheckMode.booleanLinkStatus
+                      ? Colors.white
+                      : Colors.blue,
+                ),
+                label: const Text('Link Status'),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor:
+                      _linkCheckMode == LinkCheckMode.booleanLinkStatus
+                      ? Colors.blue
+                      : Colors.transparent,
+                  foregroundColor:
+                      _linkCheckMode == LinkCheckMode.booleanLinkStatus
+                      ? Colors.white
+                      : Colors.blue,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _linkCheckMode = LinkCheckMode.linkCount;
+                  });
+                },
+                icon: Icon(
+                  Icons.numbers,
+                  size: 18,
+                  color: _linkCheckMode == LinkCheckMode.linkCount
+                      ? Colors.white
+                      : Colors.green,
+                ),
+                label: const Text('Link Count'),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: _linkCheckMode == LinkCheckMode.linkCount
+                      ? Colors.green
+                      : Colors.transparent,
+                  foregroundColor: _linkCheckMode == LinkCheckMode.linkCount
+                      ? Colors.white
+                      : Colors.green,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        // Property selector
-        ShadInputFormField(
-          id: 'linkProperty',
-          label: const Text('Property'),
-          placeholder: const Text('e.g., linkCount, isLinkedToDevice'),
-          onChanged: (value) => setState(() => _selectedProperty = value),
-        ),
-        const SizedBox(height: 12),
-        // Target device (optional, for isLinkedToDevice)
-        ShadSelectFormField<String>(
-          id: 'targetDevice',
-          minWidth: double.infinity,
-          label: const Text('Target Device (optional)'),
-          placeholder: const Text('Select target device'),
-          options: devices
-              .map(
-                (device) =>
-                    ShadOption(value: device.id, child: Text(device.name)),
-              )
-              .toList(),
-          selectedOptionBuilder: (context, value) {
-            final device = devices.firstWhere((d) => d.id == value);
-            return Text(device.name);
-          },
-          onChanged: (value) => setState(() => _targetDeviceForLink = value),
-        ),
-        const SizedBox(height: 12),
-        // Expected value
-        ShadInputFormField(
-          controller: _expectedValueController,
-          label: const Text('Expected Value'),
-          placeholder: const Text('e.g., 2, true'),
-        ),
+        const SizedBox(height: 16),
+
+        // Boolean Link Status Mode
+        if (_linkCheckMode == LinkCheckMode.booleanLinkStatus) ...[
+          // Source device
+          ShadSelectFormField<String>(
+            id: 'sourceDevice',
+            minWidth: double.infinity,
+            label: const Text('Source Device'),
+            placeholder: const Text('Select source device'),
+            options: devices.map((device) {
+              return ShadOption(value: device.id, child: Text(device.name));
+            }).toList(),
+            selectedOptionBuilder: (context, value) {
+              final device = devices.firstWhere((d) => d.id == value);
+              return Text(device.name);
+            },
+            onChanged: (value) => setState(() => _sourceDeviceForLink = value),
+          ),
+          const SizedBox(height: 12),
+
+          // Target device
+          ShadSelectFormField<String>(
+            id: 'targetDevice',
+            minWidth: double.infinity,
+            label: const Text('Target Device'),
+            placeholder: const Text('Select target device'),
+            options: devices.where((d) => d.id != _sourceDeviceForLink).map((
+              device,
+            ) {
+              return ShadOption(value: device.id, child: Text(device.name));
+            }).toList(),
+            selectedOptionBuilder: (context, value) {
+              final device = devices.firstWhere((d) => d.id == value);
+              return Text(device.name);
+            },
+            onChanged: (value) => setState(() => _targetDeviceForLink = value),
+          ),
+          const SizedBox(height: 12),
+
+          // Expected value (true/false)
+          ShadSelectFormField<String>(
+            id: 'expectedLinkStatus',
+            minWidth: double.infinity,
+            label: const Text('Expected Link Status'),
+            initialValue: 'true',
+            options: const [
+              ShadOption(value: 'true', child: Text('Linked (true)')),
+              ShadOption(value: 'false', child: Text('Not Linked (false)')),
+            ],
+            selectedOptionBuilder: (context, value) =>
+                Text(value == 'true' ? 'Linked (true)' : 'Not Linked (false)'),
+            onChanged: (value) {
+              if (value != null) {
+                _expectedValueController.text = value;
+              }
+            },
+          ),
+        ],
+
+        // Link Count Mode
+        if (_linkCheckMode == LinkCheckMode.linkCount) ...[
+          // Device selector
+          ShadSelectFormField<String>(
+            id: 'deviceForCount',
+            minWidth: double.infinity,
+            label: const Text('Device'),
+            placeholder: const Text('Select device'),
+            options: devices.map((device) {
+              return ShadOption(value: device.id, child: Text(device.name));
+            }).toList(),
+            selectedOptionBuilder: (context, value) {
+              final device = devices.firstWhere((d) => d.id == value);
+              return Text(device.name);
+            },
+            onChanged: (value) =>
+                setState(() => _selectedTargetDeviceId = value),
+          ),
+          const SizedBox(height: 12),
+
+          // Link count slider
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Expected Link Count:',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${_linkCountValue.toInt()}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Slider(
+                value: _linkCountValue,
+                min: 0,
+                max: 10,
+                divisions: 10,
+                label: '${_linkCountValue.toInt()} links',
+                onChanged: (value) {
+                  setState(() {
+                    _linkCountValue = value;
+                    _expectedValueController.text = value.toInt().toString();
+                  });
+                },
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -1226,6 +1218,26 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     );
   }
 
+  /// Get icon for condition type
+  IconData _getConditionTypeIcon(ConditionType type) {
+    switch (type) {
+      case ConditionType.connectivity:
+        return Icons.network_check;
+      case ConditionType.deviceProperty:
+        return Icons.settings_outlined;
+      case ConditionType.interfaceProperty:
+        return Icons.cable;
+      case ConditionType.arpCacheCheck:
+        return Icons.storage;
+      case ConditionType.routingTableCheck:
+        return Icons.route;
+      case ConditionType.linkCheck:
+        return Icons.link;
+      case ConditionType.composite:
+        return Icons.layers;
+    }
+  }
+
   /// Reset all field selections when condition type changes
   void _resetFields() {
     _selectedSourceDeviceId = null;
@@ -1233,11 +1245,19 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     _selectedProperty = null;
     _selectedPropertyDataType = null;
     _selectedInterfaceName = null;
+    _linkCheckMode = LinkCheckMode.booleanLinkStatus;
+    _sourceDeviceForLink = null;
     _targetDeviceForLink = null;
+    _linkCountValue = 1.0;
     _targetAddressController.clear();
     _expectedValueController.clear();
     _targetIpController.clear();
     _targetNetworkController.clear();
+
+    // Initialize expected value for link check boolean mode (default)
+    if (_selectedType == ConditionType.linkCheck) {
+      _expectedValueController.text = 'true';
+    }
   }
 
   void _saveCondition() {
@@ -1251,48 +1271,22 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     ScenarioCondition condition;
 
     if (_selectedType == ConditionType.connectivity) {
-      // Validate based on protocol type
-      if (_selectedProtocol == ConnectivityProtocol.link) {
-        // For link protocol, we need source and target device IDs
-        if (_selectedSourceDeviceId == null ||
-            _selectedTargetDeviceId == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please select both source and target devices'),
-            ),
-          );
-          return;
-        }
-
-        condition = ScenarioCondition(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          description: _descriptionController.text,
-          type: ConditionType.connectivity,
-          protocol: _selectedProtocol,
-          sourceDeviceID: _selectedSourceDeviceId,
-          targetDeviceID: _selectedTargetDeviceId,
+      // Ping connectivity - need source device and target address
+      if (_selectedSourceDeviceId == null ||
+          _targetAddressController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please fill all connectivity fields')),
         );
-      } else {
-        // For other protocols, we need source device and target address
-        if (_selectedSourceDeviceId == null ||
-            _targetAddressController.text.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please fill all connectivity fields'),
-            ),
-          );
-          return;
-        }
-
-        condition = ScenarioCondition(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          description: _descriptionController.text,
-          type: ConditionType.connectivity,
-          protocol: _selectedProtocol,
-          sourceDeviceID: _selectedSourceDeviceId,
-          targetAddress: _targetAddressController.text,
-        );
+        return;
       }
+
+      condition = ScenarioCondition(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        description: _descriptionController.text,
+        type: ConditionType.connectivity,
+        sourceDeviceID: _selectedSourceDeviceId,
+        targetAddress: _targetAddressController.text,
+      );
     } else if (_selectedType == ConditionType.deviceProperty) {
       if (_selectedTargetDeviceId == null ||
           _selectedProperty == null ||
@@ -1382,25 +1376,49 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         operator: _selectedOperator,
       );
     } else if (_selectedType == ConditionType.linkCheck) {
-      if (_selectedTargetDeviceId == null ||
-          _selectedProperty == null ||
-          _expectedValueController.text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please fill all link check fields')),
-        );
-        return;
-      }
+      // Validate based on mode
+      if (_linkCheckMode == LinkCheckMode.booleanLinkStatus) {
+        // Boolean mode: need source, target, and expected value
+        if (_sourceDeviceForLink == null ||
+            _targetDeviceForLink == null ||
+            _expectedValueController.text.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select both source and target devices'),
+            ),
+          );
+          return;
+        }
 
-      condition = ScenarioCondition(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        description: _descriptionController.text,
-        type: ConditionType.linkCheck,
-        targetDeviceID: _selectedTargetDeviceId,
-        property: _selectedProperty,
-        targetDeviceIdForLink: _targetDeviceForLink,
-        expectedValue: _expectedValueController.text,
-        operator: _selectedOperator,
-      );
+        condition = ScenarioCondition(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          description: _descriptionController.text,
+          type: ConditionType.linkCheck,
+          linkCheckMode: LinkCheckMode.booleanLinkStatus,
+          sourceDeviceIDForLink: _sourceDeviceForLink,
+          targetDeviceIdForLink: _targetDeviceForLink,
+          expectedValue: _expectedValueController.text,
+          operator: PropertyOperator.equals,
+        );
+      } else {
+        // Link count mode: need device and count value
+        if (_selectedTargetDeviceId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please select a device')),
+          );
+          return;
+        }
+
+        condition = ScenarioCondition(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          description: _descriptionController.text,
+          type: ConditionType.linkCheck,
+          linkCheckMode: LinkCheckMode.linkCount,
+          targetDeviceID: _selectedTargetDeviceId,
+          expectedValue: _linkCountValue.toInt().toString(),
+          operator: PropertyOperator.equals,
+        );
+      }
     } else if (_selectedType == ConditionType.composite) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Composite conditions coming soon!')),

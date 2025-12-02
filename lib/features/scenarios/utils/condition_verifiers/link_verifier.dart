@@ -4,7 +4,7 @@ import 'package:netsim_mobile/features/scenarios/domain/entities/scenario_condit
 
 /// Verify link/connection conditions
 class LinkVerifier {
-  /// Verify a link condition
+  /// Verify a link condition with mode support
   static bool verify({
     required CanvasDevice device,
     required List<DeviceLink> allLinks,
@@ -43,6 +43,47 @@ class LinkVerifier {
         // Not directly checkable as single value
         // This would be used for more complex checks internally
         return false;
+    }
+  }
+
+  /// Verify a link condition with mode support
+  static bool verifyWithMode({
+    required LinkCheckMode mode,
+    required List<DeviceLink> allLinks,
+    String? sourceDeviceId,
+    String? targetDeviceId,
+    required PropertyOperator operator,
+    required String expectedValue,
+  }) {
+    if (mode == LinkCheckMode.booleanLinkStatus) {
+      // Check if two specific devices are linked
+      if (sourceDeviceId == null || targetDeviceId == null) return false;
+
+      final isLinked = allLinks.any(
+        (link) =>
+            (link.fromDeviceId == sourceDeviceId &&
+                link.toDeviceId == targetDeviceId) ||
+            (link.fromDeviceId == targetDeviceId &&
+                link.toDeviceId == sourceDeviceId),
+      );
+
+      final expected = expectedValue.toLowerCase() == 'true';
+      return _compareBoolean(isLinked, operator, expected);
+    } else {
+      // Check link count for a device
+      if (sourceDeviceId == null) return false;
+
+      final deviceLinks = allLinks
+          .where(
+            (link) =>
+                link.fromDeviceId == sourceDeviceId ||
+                link.toDeviceId == sourceDeviceId,
+          )
+          .toList();
+
+      final count = deviceLinks.length;
+      final expected = int.tryParse(expectedValue) ?? 0;
+      return _compareIntegers(count, operator, expected);
     }
   }
 

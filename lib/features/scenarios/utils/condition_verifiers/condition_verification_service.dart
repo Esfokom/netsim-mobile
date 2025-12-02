@@ -51,12 +51,27 @@ class ConditionVerificationService {
     List<ScenarioCondition> conditions,
     CanvasState canvasState,
   ) {
+    appLogger.d(
+      '[ConditionVerification] Verifying ${conditions.length} conditions',
+    );
+    appLogger.d(
+      '[ConditionVerification] Canvas has ${canvasState.devices.length} devices, ${canvasState.links.length} links',
+    );
+
     final results = <String, bool>{};
 
     for (final condition in conditions) {
-      results[condition.id] = verifyCondition(condition, canvasState);
+      appLogger.d(
+        '[ConditionVerification] Checking: ${condition.description} (${condition.type})',
+      );
+      final result = verifyCondition(condition, canvasState);
+      results[condition.id] = result;
+      appLogger.d(
+        '[ConditionVerification] Result: ${result ? "PASSED ✓" : "FAILED ✗"}',
+      );
     }
 
+    appLogger.d('[ConditionVerification] Total results: ${results.length}');
     return results;
   }
 
@@ -78,12 +93,32 @@ class ConditionVerificationService {
     ScenarioCondition condition,
     CanvasState canvasState,
   ) {
-    // TODO: Implement connectivity check (ping/link)
-    // This would involve checking simulation results or ping history
-    appLogger.d(
-      '[ConditionVerification] Connectivity check not yet implemented',
+    // Connectivity check is for ping - check if two devices are connected
+    // For now, we check if a direct link exists between source and target
+    if (condition.sourceDeviceID == null || condition.targetAddress == null) {
+      appLogger.w(
+        '[ConditionVerification] Missing source or target for connectivity check',
+      );
+      return false;
+    }
+
+    // Try to find if targetAddress is a device ID
+    final targetDeviceId = condition.targetAddress;
+
+    // Check if a link exists between the two devices
+    final linkExists = canvasState.links.any(
+      (link) =>
+          (link.fromDeviceId == condition.sourceDeviceID &&
+              link.toDeviceId == targetDeviceId) ||
+          (link.fromDeviceId == targetDeviceId &&
+              link.toDeviceId == condition.sourceDeviceID),
     );
-    return false;
+
+    appLogger.d(
+      '[ConditionVerification] Connectivity check: source=${condition.sourceDeviceID}, target=$targetDeviceId, linkExists=$linkExists',
+    );
+
+    return linkExists;
   }
 
   bool _verifyDeviceProperty(
@@ -216,6 +251,22 @@ class ConditionVerificationService {
   }
 
   bool _verifyLink(ScenarioCondition condition, CanvasState canvasState) {
+    // Use mode-aware verification if mode is specified
+    if (condition.linkCheckMode != null) {
+      return LinkVerifier.verifyWithMode(
+        mode: condition.linkCheckMode!,
+        allLinks: canvasState.links,
+        sourceDeviceId:
+            condition.linkCheckMode == LinkCheckMode.booleanLinkStatus
+            ? condition.sourceDeviceIDForLink
+            : condition.targetDeviceID,
+        targetDeviceId: condition.targetDeviceIdForLink,
+        operator: condition.operator ?? PropertyOperator.equals,
+        expectedValue: condition.expectedValue ?? '',
+      );
+    }
+
+    // Legacy support: use old property-based verification
     // Get the canvas device
     final canvasDevice = canvasState.devices.firstWhere(
       (d) => d.id == condition.targetDeviceID,
@@ -232,7 +283,7 @@ class ConditionVerificationService {
       return false;
     }
 
-    // Verify using LinkVerifier
+    // Verify using LinkVerifier (legacy)
     return LinkVerifier.verify(
       device: canvasDevice,
       allLinks: canvasState.links,
