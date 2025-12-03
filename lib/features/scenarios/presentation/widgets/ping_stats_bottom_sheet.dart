@@ -210,7 +210,7 @@ class _PingStatsBottomSheetState extends ConsumerState<PingStatsBottomSheet> {
                   label: 'Sent',
                   value: '${stats.icmpEchoRequestSent}',
                   subtitle: 'ICMP Requests',
-                  color: Colors.blue,
+                  color: Colors.cyan,
                 ),
               ),
               const SizedBox(width: 12),
@@ -236,19 +236,21 @@ class _PingStatsBottomSheetState extends ConsumerState<PingStatsBottomSheet> {
                       ? '${stats.averageResponseTime.toStringAsFixed(1)}ms'
                       : 'N/A',
                   subtitle: 'Response time',
-                  color: Colors.orange,
+                  color: Colors.cyan,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  icon: Icons.speed,
-                  label: 'Last Time',
-                  value: stats.lastResponseTime != null
-                      ? '${stats.lastResponseTime!.inMilliseconds}ms'
-                      : 'N/A',
-                  subtitle: 'Most recent',
-                  color: Colors.purple,
+                  icon: stats.lastPingTimedOut
+                      ? Icons.warning_amber
+                      : Icons.speed,
+                  label: 'Last Ping',
+                  value: stats.lastPingStatus,
+                  subtitle: stats.lastPingTimedOut
+                      ? 'Timed out'
+                      : 'Response time',
+                  color: stats.lastPingTimedOut ? Colors.red : Colors.cyan,
                 ),
               ),
             ],

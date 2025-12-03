@@ -214,6 +214,12 @@ class PacketTelemetryService {
     switch (packet.type) {
       case PacketType.icmpEchoRequest:
         stats.icmpEchoRequestSent++;
+
+        // Track last ping time for this device
+        stats.lastPingTime = packet.timestamp;
+        stats.lastPingResponseTime = null; // Reset response time
+        stats.lastPingTimedOut = false; // Reset timeout flag
+
         appLogger.i(
           '[PacketTelemetry] ICMP Echo Request sent from $sourceId: '
           'Total requests sent: ${stats.icmpEchoRequestSent}',
@@ -355,6 +361,10 @@ class PacketTelemetryService {
       final stats = getDeviceStats(receiverId);
       stats.icmpResponseTimes.add(responseTime);
 
+      // Update last ping response time
+      stats.lastPingResponseTime = responseTime;
+      stats.lastPingTimedOut = false;
+
       // Find and update the original request telemetry
       for (final telemetry in _packetHistory.values) {
         if (telemetry.type == PacketType.icmpEchoRequest &&
@@ -396,10 +406,33 @@ class PacketTelemetryService {
       );
     }
 
-    // Cleanup timed-out pending requests
+    // Cleanup timed-out pending requests and mark devices with high ping
     final now = DateTime.now();
+    final timedOutRequests = <String, DateTime>{};
+
     _pendingIcmpRequests.removeWhere((key, requestTime) {
-      return now.difference(requestTime) > requestTimeout;
+      final hasTimedOut = now.difference(requestTime) > requestTimeout;
+      if (hasTimedOut) {
+        timedOutRequests[key] = requestTime;
+        appLogger.w('[PacketTelemetry] Ping request timed out: $key');
+      }
+      return hasTimedOut;
     });
+
+    // Mark devices with timed-out last pings
+    for (final stats in _deviceStats.values) {
+      if (stats.lastPingTime != null &&
+          stats.lastPingResponseTime == null &&
+          !stats.lastPingTimedOut) {
+        final timeSincePing = now.difference(stats.lastPingTime!);
+        if (timeSincePing >= DevicePacketStats.pingTimeout) {
+          stats.lastPingTimedOut = true;
+          appLogger.w(
+            '[PacketTelemetry] Device ${stats.deviceId} last ping timed out '
+            '(${timeSincePing.inMilliseconds}ms)',
+          );
+        }
+      }
+    }
   }
 }

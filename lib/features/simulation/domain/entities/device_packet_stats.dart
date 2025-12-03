@@ -9,6 +9,14 @@ class DevicePacketStats {
   int icmpEchoReplyReceived = 0;
   final List<Duration> icmpResponseTimes = [];
 
+  // Last Ping Tracking
+  DateTime? lastPingTime; // When the last ping was sent
+  Duration? lastPingResponseTime; // Response time for the last ping
+  bool lastPingTimedOut = false; // Whether the last ping timed out
+  static const Duration pingTimeout = Duration(
+    seconds: 5,
+  ); // Default timeout threshold
+
   // ARP Statistics
   int arpRequestSent = 0;
   int arpReplySent = 0;
@@ -45,6 +53,37 @@ class DevicePacketStats {
     return icmpResponseTimes.last;
   }
 
+  /// Get last ping status (returns actual time or "High Ping" if timed out)
+  String get lastPingStatus {
+    if (lastPingTime == null) return 'No pings sent';
+
+    if (lastPingTimedOut) {
+      return 'High Ping (>5000ms)';
+    }
+
+    if (lastPingResponseTime != null) {
+      return '${lastPingResponseTime!.inMilliseconds}ms';
+    }
+
+    // Check if we're still waiting but haven't timed out yet
+    final timeSincePing = DateTime.now().difference(lastPingTime!);
+    if (timeSincePing < pingTimeout) {
+      return 'Waiting... (${timeSincePing.inMilliseconds}ms)';
+    }
+
+    return 'Timeout';
+  }
+
+  /// Whether the last ping is still pending (waiting for response)
+  bool get isLastPingPending {
+    if (lastPingTime == null) return false;
+    if (lastPingResponseTime != null) return false;
+    if (lastPingTimedOut) return false;
+
+    final timeSincePing = DateTime.now().difference(lastPingTime!);
+    return timeSincePing < pingTimeout;
+  }
+
   /// ARP success rate (replies received / requests sent)
   double get arpSuccessRate {
     if (arpRequestSent == 0) return 0.0;
@@ -73,6 +112,11 @@ class DevicePacketStats {
     totalPacketsReceived = 0;
     totalPacketsDropped = 0;
     totalPacketsForwarded = 0;
+
+    // Reset last ping tracking
+    lastPingTime = null;
+    lastPingResponseTime = null;
+    lastPingTimedOut = false;
   }
 
   @override
