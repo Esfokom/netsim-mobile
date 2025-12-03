@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/scenarios/domain/entities/scenario_condition.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/interface_property_verifier.dart';
@@ -6,10 +7,16 @@ import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/routi
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/link_verifier.dart';
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/composite_verifier.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
+import 'package:netsim_mobile/features/simulation/presentation/providers/packet_telemetry_provider.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
 
 /// Master service for verifying all condition types
 class ConditionVerificationService {
+  final Ref _ref;
+
+  ConditionVerificationService(this._ref);
+
   /// Verify a single condition
   bool verifyCondition(ScenarioCondition condition, CanvasState canvasState) {
     try {
@@ -89,8 +96,7 @@ class ConditionVerificationService {
   // Private verification methods
 
   bool _verifyPing(ScenarioCondition condition, CanvasState canvasState) {
-    // Ping protocol check - verify ICMP/ARP packet events
-    // TODO: Implement full packet tracking with SimulationEngine.packetStream
+    // Ping protocol check - verify ICMP/ARP packet events using packet telemetry
 
     if (condition.sourceDeviceID == null ||
         condition.targetDeviceIdForPing == null) {
@@ -110,26 +116,199 @@ class ConditionVerificationService {
       'protocol=${protocolType.name}, checkType=${checkType.name}',
     );
 
-    // Basic implementation: check if devices exist and are reachable
-    // For now, verify link connectivity as a baseline
-    final linkExists = canvasState.links.any(
-      (link) =>
-          (link.fromDeviceId == sourceDeviceId &&
-              link.toDeviceId == targetDeviceId) ||
-          (link.fromDeviceId == targetDeviceId &&
-              link.toDeviceId == sourceDeviceId),
-    );
+    // Use packet telemetry for verification
+    switch (protocolType) {
+      case PingProtocolType.icmp:
+        return _verifyIcmpCondition(
+          condition,
+          sourceDeviceId,
+          targetDeviceId,
+          checkType,
+        );
+      case PingProtocolType.arp:
+        return _verifyArpCondition(
+          condition,
+          sourceDeviceId,
+          targetDeviceId,
+          checkType,
+        );
+    }
+  }
 
-    // TODO: Integrate with packet stream to verify actual packet events
-    // - Track sent/received packets by type (ARP/ICMP)
-    // - Measure response times for threshold checks
-    // - Verify final replies vs intermediate packets
+  bool _verifyIcmpCondition(
+    ScenarioCondition condition,
+    String sourceDeviceId,
+    String targetDeviceId,
+    PingCheckType checkType,
+  ) {
+    final telemetry = _ref.read(packetTelemetryServiceProvider);
 
-    appLogger.d(
-      '[ConditionVerification] Basic ping check (link connectivity): $linkExists',
-    );
+    appLogger.d('[ConditionVerification] ICMP check type: ${checkType.name}');
 
-    return linkExists;
+    switch (checkType) {
+      case PingCheckType.sent:
+        // Check if source device sent ICMP Echo Request
+        final sent = telemetry.didDeviceSendPacket(
+          sourceDeviceId,
+          PacketType.icmpEchoRequest,
+        );
+        appLogger.d('[ConditionVerification] ICMP sent check: $sent');
+        return sent;
+
+      case PingCheckType.received:
+      case PingCheckType.receivedFromAny:
+        // Check if target device received ICMP Echo Reply from any source
+        final received = telemetry.didDeviceReceivePacket(
+          sourceDeviceId, // sourceDevice receives the reply
+          PacketType.icmpEchoReply,
+        );
+
+        // Check response time threshold if specified
+        if (received && condition.responseTimeThreshold != null) {
+          final responseTime = telemetry.getResponseTime(
+            sourceDeviceId,
+            targetDeviceId,
+          );
+
+          if (responseTime != null) {
+            final withinThreshold =
+                responseTime.inMilliseconds <= condition.responseTimeThreshold!;
+            appLogger.d(
+              '[ConditionVerification] Response time: ${responseTime.inMilliseconds}ms, '
+              'threshold: ${condition.responseTimeThreshold}ms, within: $withinThreshold',
+            );
+            return withinThreshold;
+          } else {
+            appLogger.d('[ConditionVerification] No response time recorded');
+            return false;
+          }
+        }
+
+        appLogger.d('[ConditionVerification] ICMP received check: $received');
+        return received;
+
+      case PingCheckType.receivedFromSpecific:
+        // Check if received from specific device (using icmpSpecificDeviceId from condition)
+        // Note: For this to work, we need to add icmpSpecificDeviceId to ScenarioCondition
+        final specificDeviceId =
+            targetDeviceId; // Use targetDeviceId as the specific source
+        final receivedFromSpecific = telemetry.didDeviceReceivePacket(
+          sourceDeviceId,
+          PacketType.icmpEchoReply,
+          fromDeviceId: specificDeviceId,
+        );
+
+        // Check response time threshold if specified
+        if (receivedFromSpecific && condition.responseTimeThreshold != null) {
+          final responseTime = telemetry.getResponseTime(
+            sourceDeviceId,
+            specificDeviceId,
+          );
+
+          if (responseTime != null) {
+            final withinThreshold =
+                responseTime.inMilliseconds <= condition.responseTimeThreshold!;
+            appLogger.d(
+              '[ConditionVerification] Response time from specific: ${responseTime.inMilliseconds}ms, '
+              'threshold: ${condition.responseTimeThreshold}ms, within: $withinThreshold',
+            );
+            return withinThreshold;
+          }
+        }
+
+        appLogger.d(
+          '[ConditionVerification] ICMP received from specific check: $receivedFromSpecific',
+        );
+        return receivedFromSpecific;
+
+      case PingCheckType.responseTime:
+        // Verify response time is below threshold
+        if (condition.responseTimeThreshold == null) {
+          appLogger.w(
+            '[ConditionVerification] Response time check requires threshold',
+          );
+          return false;
+        }
+
+        final responseTime = telemetry.getResponseTime(
+          sourceDeviceId,
+          targetDeviceId,
+        );
+
+        if (responseTime == null) {
+          appLogger.d('[ConditionVerification] No response time recorded');
+          return false;
+        }
+
+        final withinThreshold =
+            responseTime.inMilliseconds <= condition.responseTimeThreshold!;
+        appLogger.d(
+          '[ConditionVerification] Response time: ${responseTime.inMilliseconds}ms, '
+          'threshold: ${condition.responseTimeThreshold}ms, result: $withinThreshold',
+        );
+        return withinThreshold;
+
+      case PingCheckType.finalReply:
+        // Check if final ICMP Echo Reply was received
+        final stats = telemetry.getDeviceStats(sourceDeviceId);
+        final hasFinalReply = stats.icmpEchoReplyReceived > 0;
+        appLogger.d(
+          '[ConditionVerification] Final reply check: $hasFinalReply',
+        );
+        return hasFinalReply;
+    }
+  }
+
+  bool _verifyArpCondition(
+    ScenarioCondition condition,
+    String sourceDeviceId,
+    String targetDeviceId,
+    PingCheckType checkType,
+  ) {
+    final telemetry = _ref.read(packetTelemetryServiceProvider);
+
+    appLogger.d('[ConditionVerification] ARP check type: ${checkType.name}');
+
+    switch (checkType) {
+      case PingCheckType.sent:
+        // Check if source device sent ARP Request
+        final sent = telemetry.didDeviceSendPacket(
+          sourceDeviceId,
+          PacketType.arpRequest,
+        );
+        appLogger.d('[ConditionVerification] ARP sent check: $sent');
+        return sent;
+
+      case PingCheckType.received:
+      case PingCheckType.receivedFromAny:
+        // Check if device received ARP Reply from any source
+        final received = telemetry.didDeviceReceivePacket(
+          sourceDeviceId,
+          PacketType.arpReply,
+        );
+        appLogger.d('[ConditionVerification] ARP received check: $received');
+        return received;
+
+      case PingCheckType.receivedFromSpecific:
+        // Check if received ARP Reply from specific device
+        final receivedFromSpecific = telemetry.didDeviceReceivePacket(
+          sourceDeviceId,
+          PacketType.arpReply,
+          fromDeviceId: targetDeviceId,
+        );
+        appLogger.d(
+          '[ConditionVerification] ARP received from specific check: $receivedFromSpecific',
+        );
+        return receivedFromSpecific;
+
+      case PingCheckType.responseTime:
+      case PingCheckType.finalReply:
+        // ARP doesn't support response time or final reply checks
+        appLogger.w(
+          '[ConditionVerification] ARP does not support ${checkType.name} check',
+        );
+        return false;
+    }
   }
 
   bool _verifyDeviceProperty(

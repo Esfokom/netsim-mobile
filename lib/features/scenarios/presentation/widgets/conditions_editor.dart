@@ -425,6 +425,11 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   PingCheckType _selectedPingCheckType = PingCheckType.finalReply;
   final _responseTimeController = TextEditingController(text: '100');
 
+  // ICMP-specific fields
+  IcmpEventType _icmpEventType = IcmpEventType.sent;
+  PingDeviceScope _icmpDeviceScope = PingDeviceScope.anyDevice;
+  String? _icmpSpecificDeviceId;
+
   // Property check fields
   String? _selectedTargetDeviceId;
   String? _selectedProperty;
@@ -574,6 +579,8 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   }
 
   Widget _buildPingFields(List<CanvasDevice> devices) {
+    final isIcmp = _selectedProtocolType == PingProtocolType.icmp;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -599,31 +606,155 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
           selectedOptionBuilder: (context, value) =>
               Text(_formatProtocolType(value)),
           onChanged: (value) {
-            setState(() => _selectedProtocolType = value!);
+            setState(() {
+              _selectedProtocolType = value!;
+              // Reset ICMP-specific fields when switching protocols
+              if (_selectedProtocolType != PingProtocolType.icmp) {
+                _icmpEventType = IcmpEventType.sent;
+                _icmpDeviceScope = PingDeviceScope.anyDevice;
+                _icmpSpecificDeviceId = null;
+              }
+            });
           },
         ),
         SizedBox(height: 12),
 
-        // Check type selector
-        ShadSelectFormField<PingCheckType>(
-          id: 'checkType',
-          minWidth: double.infinity,
-          initialValue: _selectedPingCheckType,
-          label: Text('Check Type'),
-          placeholder: Text('Select check type'),
-          options: PingCheckType.values.map((checkType) {
-            return ShadOption(
-              value: checkType,
-              child: Text(_formatPingCheckType(checkType)),
-            );
-          }).toList(),
-          selectedOptionBuilder: (context, value) =>
-              Text(_formatPingCheckType(value)),
-          onChanged: (value) {
-            setState(() => _selectedPingCheckType = value!);
-          },
-        ),
-        SizedBox(height: 12),
+        // ICMP-specific controls
+        if (isIcmp) ...[
+          // ICMP Event Type selector
+          ShadSelectFormField<IcmpEventType>(
+            id: 'icmpEventType',
+            minWidth: double.infinity,
+            initialValue: _icmpEventType,
+            label: Text('ICMP Event'),
+            placeholder: Text('Select event type'),
+            options: IcmpEventType.values.map((event) {
+              return ShadOption(
+                value: event,
+                child: Text(
+                  event == IcmpEventType.sent
+                      ? 'Packet Sent'
+                      : 'Packet Received',
+                ),
+              );
+            }).toList(),
+            selectedOptionBuilder: (context, value) => Text(
+              value == IcmpEventType.sent ? 'Packet Sent' : 'Packet Received',
+            ),
+            onChanged: (value) {
+              setState(() {
+                _icmpEventType = value!;
+                // Update ping check type based on event
+                _selectedPingCheckType = value == IcmpEventType.sent
+                    ? PingCheckType.sent
+                    : PingCheckType.received;
+              });
+            },
+          ),
+          SizedBox(height: 12),
+
+          // Device Scope selector
+          ShadSelectFormField<PingDeviceScope>(
+            id: 'deviceScope',
+            minWidth: double.infinity,
+            initialValue: _icmpDeviceScope,
+            label: Text('Device Scope'),
+            placeholder: Text('Select scope'),
+            options: PingDeviceScope.values.map((scope) {
+              return ShadOption(
+                value: scope,
+                child: Text(
+                  scope == PingDeviceScope.anyDevice
+                      ? 'Any Device'
+                      : 'Specific Device',
+                ),
+              );
+            }).toList(),
+            selectedOptionBuilder: (context, value) => Text(
+              value == PingDeviceScope.anyDevice
+                  ? 'Any Device'
+                  : 'Specific Device',
+            ),
+            onChanged: (value) {
+              setState(() {
+                _icmpDeviceScope = value!;
+                if (_icmpDeviceScope == PingDeviceScope.anyDevice) {
+                  _icmpSpecificDeviceId = null;
+                }
+                // Update ping check type based on scope
+                _selectedPingCheckType =
+                    _icmpDeviceScope == PingDeviceScope.anyDevice
+                    ? (_icmpEventType == IcmpEventType.sent
+                          ? PingCheckType.sent
+                          : PingCheckType.receivedFromAny)
+                    : (_icmpEventType == IcmpEventType.sent
+                          ? PingCheckType.sent
+                          : PingCheckType.receivedFromSpecific);
+              });
+            },
+          ),
+          SizedBox(height: 12),
+
+          // Specific device selector (conditional)
+          if (_icmpDeviceScope == PingDeviceScope.specificDevice) ...[
+            ShadSelectFormField<String>(
+              id: 'icmpSpecificDevice',
+              minWidth: double.infinity,
+              key: ValueKey('icmp-specific-${_icmpSpecificDeviceId ?? "none"}'),
+              initialValue: _icmpSpecificDeviceId,
+              label: Text(
+                _icmpEventType == IcmpEventType.sent
+                    ? 'Target Device'
+                    : 'Source Device',
+              ),
+              placeholder: Text('Select device'),
+              options: devices.map((device) {
+                return ShadOption(value: device.id, child: Text(device.name));
+              }).toList(),
+              selectedOptionBuilder: (context, value) {
+                final device = devices.firstWhere((d) => d.id == value);
+                return Text(device.name);
+              },
+              onChanged: (value) {
+                setState(() => _icmpSpecificDeviceId = value);
+              },
+            ),
+            SizedBox(height: 12),
+          ],
+
+          // Response time threshold (for received events)
+          if (_icmpEventType == IcmpEventType.received) ...[
+            ShadInputFormField(
+              controller: _responseTimeController,
+              label: Text('Response Time Threshold (ms)'),
+              description: Text('Alert if response time exceeds this value'),
+              placeholder: Text('e.g., 100'),
+              keyboardType: TextInputType.number,
+            ),
+            SizedBox(height: 12),
+          ],
+        ] else ...[
+          // Non-ICMP protocols (keep old check type selector for ARP)
+          ShadSelectFormField<PingCheckType>(
+            id: 'checkType',
+            minWidth: double.infinity,
+            initialValue: _selectedPingCheckType,
+            label: Text('Check Type'),
+            placeholder: Text('Select check type'),
+            options: PingCheckType.values.map((checkType) {
+              return ShadOption(
+                value: checkType,
+                child: Text(_formatPingCheckType(checkType)),
+              );
+            }).toList(),
+            selectedOptionBuilder: (context, value) =>
+                Text(_formatPingCheckType(value)),
+            onChanged: (value) {
+              setState(() => _selectedPingCheckType = value!);
+            },
+          ),
+          SizedBox(height: 12),
+        ],
 
         // Source device selector
         ShadSelectFormField<String>(
@@ -1568,6 +1699,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   /// Reset all field selections when condition type changes
   void _resetFields() {
     _selectedSourceDeviceId = null;
+    _selectedTargetDeviceIdForPing = null;
     _selectedTargetDeviceId = null;
     _selectedProperty = null;
     _selectedPropertyDataType = null;
@@ -1580,6 +1712,14 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     _expectedValueController.clear();
     _targetIpController.clear();
     _targetNetworkController.clear();
+    _responseTimeController.text = '100';
+
+    // Reset ICMP-specific fields
+    _icmpEventType = IcmpEventType.sent;
+    _icmpDeviceScope = PingDeviceScope.anyDevice;
+    _icmpSpecificDeviceId = null;
+    _selectedProtocolType = PingProtocolType.icmp;
+    _selectedPingCheckType = PingCheckType.finalReply;
 
     // Initialize expected value for link check boolean mode (default)
     if (_selectedType == ConditionType.linkCheck) {
@@ -1632,6 +1772,9 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         protocolType: _selectedProtocolType,
         pingCheckType: _selectedPingCheckType,
         responseTimeThreshold: threshold,
+        icmpEventType: _icmpEventType,
+        icmpDeviceScope: _icmpDeviceScope,
+        icmpSpecificDeviceId: _icmpSpecificDeviceId,
       );
     } else if (_selectedType == ConditionType.deviceProperty) {
       if (_selectedTargetDeviceId == null ||
