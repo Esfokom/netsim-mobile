@@ -182,7 +182,16 @@ class PacketTelemetryService {
     final packet = event.packet;
     final sourceId = event.sourceDeviceId;
 
-    if (sourceId == null) return;
+    if (sourceId == null) {
+      appLogger.w(
+        '[PacketTelemetry] Packet sent event has null sourceDeviceId!',
+      );
+      return;
+    }
+
+    appLogger.d(
+      '[PacketTelemetry] Tracking packet sent from device: $sourceId',
+    );
 
     // Create telemetry record
     final telemetry = PacketTelemetry(
@@ -205,14 +214,23 @@ class PacketTelemetryService {
     switch (packet.type) {
       case PacketType.icmpEchoRequest:
         stats.icmpEchoRequestSent++;
+        appLogger.i(
+          '[PacketTelemetry] ICMP Echo Request sent from $sourceId: '
+          'Total requests sent: ${stats.icmpEchoRequestSent}',
+        );
         // Register pending request for response time tracking
         if (packet.sourceIp != null && packet.destIp != null) {
           final key = '${packet.sourceIp}:${packet.destIp}';
           _pendingIcmpRequests[key] = packet.timestamp;
+          appLogger.d('[PacketTelemetry] Registered pending request: $key');
         }
         break;
       case PacketType.icmpEchoReply:
         stats.icmpEchoReplySent++;
+        appLogger.i(
+          '[PacketTelemetry] ICMP Echo Reply sent from $sourceId: '
+          'Total replies sent: ${stats.icmpEchoReplySent}',
+        );
         break;
       case PacketType.arpRequest:
         stats.arpRequestSent++;
@@ -233,7 +251,16 @@ class PacketTelemetryService {
     final packet = event.packet;
     final targetId = event.targetDeviceId;
 
-    if (targetId == null) return;
+    if (targetId == null) {
+      appLogger.w(
+        '[PacketTelemetry] Packet delivered event has null targetDeviceId!',
+      );
+      return;
+    }
+
+    appLogger.d(
+      '[PacketTelemetry] Tracking packet delivered to device: $targetId',
+    );
 
     // Update telemetry record
     final existingTelemetry = _packetHistory[packet.id];
@@ -252,9 +279,17 @@ class PacketTelemetryService {
     switch (packet.type) {
       case PacketType.icmpEchoRequest:
         stats.icmpEchoRequestReceived++;
+        appLogger.i(
+          '[PacketTelemetry] ICMP Echo Request received by $targetId: '
+          'Total requests received: ${stats.icmpEchoRequestReceived}',
+        );
         break;
       case PacketType.icmpEchoReply:
         stats.icmpEchoReplyReceived++;
+        appLogger.i(
+          '[PacketTelemetry] ICMP Echo Reply received by $targetId: '
+          'Total replies received: ${stats.icmpEchoReplyReceived}',
+        );
         // Match with pending request for response time
         _matchIcmpReply(packet, targetId);
         break;

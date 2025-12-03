@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/simulation/domain/entities/device_packet_stats.dart'
+    show DevicePacketStats;
 import 'package:netsim_mobile/features/simulation/presentation/providers/packet_telemetry_provider.dart';
 
 /// Bottom sheet for viewing ping statistics for a selected device
@@ -106,43 +108,65 @@ class _PingStatsBottomSheetState extends ConsumerState<PingStatsBottomSheet> {
   }
 
   Widget _buildStatisticsDisplay(String deviceId) {
-    final stats = ref.watch(devicePacketStatsProvider(deviceId));
-    final hasActivity =
-        stats.icmpEchoRequestSent > 0 || stats.icmpEchoReplyReceived > 0;
+    final statsAsync = ref.watch(devicePacketStatsProvider(deviceId));
 
-    if (!hasActivity) {
-      return Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          children: [
-            Icon(
-              Icons.analytics_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.outline,
+    return statsAsync.when(
+      data: (stats) {
+        final hasActivity =
+            stats.icmpEchoRequestSent > 0 || stats.icmpEchoReplyReceived > 0;
+
+        if (!hasActivity) {
+          return Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.analytics_outlined,
+                  size: 48,
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No ping activity yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Send a ping from this device to see statistics',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              'No ping activity yet',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Send a ping from this device to see statistics',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+          );
+        }
+
+        return _buildStatsContent(stats);
+      },
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: CircularProgressIndicator(),
         ),
-      );
-    }
+      ),
+      error: (error, stack) => Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Text(
+          'Error loading stats: $error',
+          style: const TextStyle(color: Colors.red),
+        ),
+      ),
+    );
+  }
 
+  Widget _buildStatsContent(DevicePacketStats stats) {
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
