@@ -14,6 +14,8 @@ import 'package:netsim_mobile/features/game/presentation/widgets/game_timer.dart
 import 'package:netsim_mobile/features/game/presentation/widgets/success_screen.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/game_objectives_list.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/compact_bottom_action_bar.dart';
+import 'package:netsim_mobile/features/simulation/domain/entities/ping_session.dart';
+import 'package:netsim_mobile/features/simulation/presentation/providers/packet_telemetry_provider.dart';
 import 'package:netsim_mobile/core/utils/canvas_lifecycle_manager.dart';
 import 'package:netsim_mobile/core/utils/controller_validator.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
@@ -39,6 +41,9 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   // Panel state
   GamePanelType? _currentPanel;
 
+  // Ping session completion subscription for condition checking
+  StreamSubscription<PingSession>? _pingSessionSubscription;
+
   // Saved notifier references for safe disposal
   GameConditionChecker? _conditionNotifier;
   CanvasNotifier? _canvasNotifier;
@@ -59,6 +64,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   @override
   void dispose() {
     _gameTimer?.cancel();
+    _pingSessionSubscription?.cancel();
     // Clean up game state when leaving using saved references
     _cleanupGameStateSafely();
     super.dispose();
@@ -95,6 +101,9 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
 
   void _replayGame() {
     appLogger.i('[GamePlayScreen] Replaying game...');
+
+    // Cancel existing subscriptions
+    _pingSessionSubscription?.cancel();
 
     // Reset game state
     setState(() {
@@ -136,9 +145,48 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
       // Start the game timer
       _startGameTimer();
 
+      // Subscribe to ping session completion events to trigger condition checks
+      _subscribeToPingSessionCompletion();
+
       // Trigger initial condition check
       ref.read(gameConditionCheckerProvider.notifier).triggerConditionCheck();
     });
+  }
+
+  /// Subscribe to ping session completion events from the telemetry service
+  /// This triggers condition checks when ping sessions complete (success/timeout/failure)
+  /// This is more reliable than listening to raw packet events because the session
+  /// data is already processed and stored when this event fires
+  void _subscribeToPingSessionCompletion() {
+    // Cancel any existing subscription
+    _pingSessionSubscription?.cancel();
+
+    final telemetryService = ref.read(packetTelemetryServiceProvider);
+
+    _pingSessionSubscription = telemetryService.onPingSessionCompleted.listen(
+      (completedSession) {
+        // Only check conditions if the game is still active
+        if (!_isGameCompleted && !_isPaused) {
+          appLogger.d(
+            '[GamePlayScreen] Ping session completed: '
+            '${completedSession.sourceIp} -> ${completedSession.targetIp} '
+            '(status: ${completedSession.status.displayName})',
+          );
+
+          // Trigger condition check - session data is already stored in telemetry
+          ref
+              .read(gameConditionCheckerProvider.notifier)
+              .triggerConditionCheck();
+        }
+      },
+      onError: (error) {
+        appLogger.e('[GamePlayScreen] Error in ping session stream: $error');
+      },
+    );
+
+    appLogger.d(
+      '[GamePlayScreen] Subscribed to ping session completion events',
+    );
   }
 
   void _startGameTimer() {

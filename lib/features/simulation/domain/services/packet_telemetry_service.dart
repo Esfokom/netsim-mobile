@@ -27,6 +27,15 @@ class PacketTelemetryService {
   final Map<String, List<PingSession>> _completedPingSessions = {};
   static const int maxSessionsPerDevice = 50; // Limit memory usage
 
+  // Stream controller for ping session completion events
+  // Game play screen can subscribe to this to trigger condition checks
+  final StreamController<PingSession> _pingSessionCompletedController =
+      StreamController<PingSession>.broadcast();
+
+  /// Stream that emits when a ping session completes (success, timeout, or failure)
+  Stream<PingSession> get onPingSessionCompleted =>
+      _pingSessionCompletedController.stream;
+
   PacketTelemetryService([this._ref]);
 
   // ICMP Request/Reply matching
@@ -76,6 +85,7 @@ class PacketTelemetryService {
   void dispose() {
     _packetSubscription?.cancel();
     _packetSubscription = null;
+    _pingSessionCompletedController.close();
     _isInitialized = false;
     reset();
   }
@@ -484,6 +494,9 @@ class PacketTelemetryService {
       // Store in completed sessions
       _storeCompletedSession(session.sourceDeviceId, completedSession);
 
+      // Notify listeners that a ping session has completed
+      _pingSessionCompletedController.add(completedSession);
+
       appLogger.d(
         '[PacketTelemetry] Ping completed: ${responseTime.inMilliseconds}ms '
         '(ARP: ${arpTime?.inMilliseconds ?? 0}ms, ICMP: ${icmpTime.inMilliseconds}ms)',
@@ -504,6 +517,10 @@ class PacketTelemetryService {
       );
 
       _storeCompletedSession(session.sourceDeviceId, completedSession);
+
+      // Notify listeners that a ping session has completed (with timeout)
+      _pingSessionCompletedController.add(completedSession);
+
       appLogger.d('[PacketTelemetry] Ping session timed out');
     }
   }
