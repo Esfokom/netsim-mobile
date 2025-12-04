@@ -101,6 +101,47 @@ class PacketTelemetryService {
   Map<String, List<PingSession>> get allCompletedPingSessions =>
       Map.unmodifiable(_completedPingSessions);
 
+  /// Get all completed ping sessions across all devices as a flat list
+  List<PingSession> getAllCompletedSessionsFlat() {
+    final allSessions = <PingSession>[];
+    for (final sessions in _completedPingSessions.values) {
+      allSessions.addAll(sessions);
+    }
+    // Sort by start time descending (most recent first)
+    allSessions.sort((a, b) => b.startTime.compareTo(a.startTime));
+    return allSessions;
+  }
+
+  /// Find the latest completed ping session matching a source/destination IP pair
+  /// Returns null if no matching session is found
+  PingSession? findLatestSessionByIps(String sourceIp, String destIp) {
+    final allSessions = getAllCompletedSessionsFlat();
+
+    for (final session in allSessions) {
+      if (session.sourceIp == sourceIp && session.targetIp == destIp) {
+        appLogger.d(
+          '[PacketTelemetry] Found latest session for $sourceIp -> $destIp: '
+          '${session.id} (status: ${session.status.displayName})',
+        );
+        return session;
+      }
+    }
+
+    appLogger.d(
+      '[PacketTelemetry] No completed session found for $sourceIp -> $destIp',
+    );
+    return null;
+  }
+
+  /// Find all completed ping sessions matching a source/destination IP pair
+  List<PingSession> findSessionsByIps(String sourceIp, String destIp) {
+    final allSessions = getAllCompletedSessionsFlat();
+
+    return allSessions.where((session) {
+      return session.sourceIp == sourceIp && session.targetIp == destIp;
+    }).toList();
+  }
+
   // ==================== Query Methods ====================
 
   /// Get statistics for a specific device

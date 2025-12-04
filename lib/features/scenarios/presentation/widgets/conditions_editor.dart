@@ -6,6 +6,8 @@ import 'package:netsim_mobile/features/scenarios/domain/entities/scenario_condit
 import 'package:netsim_mobile/features/scenarios/utils/property_verification_helper.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
 
 /// Editor for success conditions
 class ConditionsEditor extends ConsumerWidget {
@@ -155,10 +157,48 @@ class _ConditionCard extends ConsumerWidget {
   Widget _buildConditionDetails(ScenarioCondition condition) {
     switch (condition.type) {
       case ConditionType.ping:
+        // New session-based ping condition
+        if (condition.pingSessionCheckType != null) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DetailRow(
+                label: 'Check Type',
+                value: condition.pingSessionCheckType!.displayName,
+              ),
+              if (condition.pingSessionCheckType ==
+                  PingSessionCheckType.responseTime) ...[
+                _DetailRow(
+                  label: 'Operator',
+                  value: condition.responseTimeOperator?.displayName ?? 'N/A',
+                ),
+                _DetailRow(
+                  label: 'Threshold',
+                  value: '${condition.responseTimeThreshold ?? 0}ms',
+                ),
+              ],
+              _DetailRow(
+                label: 'Source',
+                value: _formatDeviceInterface(
+                  condition.sourceDeviceIdForSession,
+                  condition.sourceInterfaceForSession,
+                ),
+              ),
+              _DetailRow(
+                label: 'Destination',
+                value: _formatDeviceInterface(
+                  condition.destDeviceIdForSession,
+                  condition.destInterfaceForSession,
+                ),
+              ),
+            ],
+          );
+        }
+        // Legacy ping condition display
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _DetailRow(label: 'Type', value: 'Ping'),
+            _DetailRow(label: 'Type', value: 'Ping (Legacy)'),
             if (condition.protocolType != null)
               _DetailRow(
                 label: 'Protocol',
@@ -362,6 +402,15 @@ class _ConditionCard extends ConsumerWidget {
     }
   }
 
+  /// Format device and interface for display
+  String _formatDeviceInterface(String? deviceId, String? interfaceName) {
+    if (deviceId == null) return 'N/A';
+    if (interfaceName != null) {
+      return '$deviceId ($interfaceName)';
+    }
+    return deviceId;
+  }
+
   String _formatPingCheckType(PingCheckType type) {
     switch (type) {
       case PingCheckType.sent:
@@ -417,7 +466,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   ConditionType _selectedType = ConditionType.ping;
   final _descriptionController = TextEditingController();
 
-  // Ping fields
+  // Ping fields (legacy)
   String? _selectedSourceDeviceId;
   String? _selectedTargetDeviceIdForPing;
   final _targetAddressController = TextEditingController();
@@ -425,10 +474,19 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   PingCheckType _selectedPingCheckType = PingCheckType.finalReply;
   final _responseTimeController = TextEditingController(text: '100');
 
-  // ICMP-specific fields
+  // ICMP-specific fields (legacy)
   IcmpEventType _icmpEventType = IcmpEventType.sent;
   PingDeviceScope _icmpDeviceScope = PingDeviceScope.anyDevice;
   String? _icmpSpecificDeviceId;
+
+  // NEW: Ping session-based fields
+  bool _usePingSessionMode = true; // Default to new session-based mode
+  PingSessionCheckType _pingSessionCheckType = PingSessionCheckType.success;
+  ResponseTimeOperator _responseTimeOperator = ResponseTimeOperator.lessThan;
+  String? _sourceDeviceIdForSession;
+  String? _sourceInterfaceForSession;
+  String? _destDeviceIdForSession;
+  String? _destInterfaceForSession;
 
   // Property check fields
   String? _selectedTargetDeviceId;
@@ -579,306 +637,242 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
   }
 
   Widget _buildPingFields(List<CanvasDevice> devices) {
-    final isIcmp = _selectedProtocolType == PingProtocolType.icmp;
+    final canvasState = ref.watch(canvasProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Configure ping protocol check',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        // Mode selector: Session-based (new) vs Legacy
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.blue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Configure ping session verification',
+                  style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
+                ),
+              ),
+            ],
+          ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 16),
 
-        // Protocol selector
-        ShadSelectFormField<PingProtocolType>(
-          id: 'protocolType',
+        // Session Check Type selector
+        ShadSelectFormField<PingSessionCheckType>(
+          id: 'pingSessionCheckType',
           minWidth: double.infinity,
-          initialValue: _selectedProtocolType,
-          label: Text('Protocol Type'),
-          placeholder: Text('Select protocol'),
-          options: PingProtocolType.values.map((protocol) {
+          initialValue: _pingSessionCheckType,
+          label: const Text('Check Type'),
+          placeholder: const Text('Select what to verify'),
+          options: PingSessionCheckType.values.map((checkType) {
             return ShadOption(
-              value: protocol,
-              child: Text(_formatProtocolType(protocol)),
+              value: checkType,
+              child: Row(
+                children: [
+                  Icon(checkType.icon, size: 18),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(checkType.displayName),
+                        Text(
+                          checkType.description,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             );
           }).toList(),
-          selectedOptionBuilder: (context, value) =>
-              Text(_formatProtocolType(value)),
+          selectedOptionBuilder: (context, value) => Row(
+            children: [
+              Icon(value.icon, size: 16),
+              const SizedBox(width: 8),
+              Text(value.displayName),
+            ],
+          ),
           onChanged: (value) {
-            setState(() {
-              _selectedProtocolType = value!;
-              // Reset ICMP-specific fields when switching protocols
-              if (_selectedProtocolType != PingProtocolType.icmp) {
-                _icmpEventType = IcmpEventType.sent;
-                _icmpDeviceScope = PingDeviceScope.anyDevice;
-                _icmpSpecificDeviceId = null;
-              }
-            });
+            setState(() => _pingSessionCheckType = value!);
           },
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 16),
 
-        // ICMP-specific controls
-        if (isIcmp) ...[
-          // ICMP Event Type selector
-          ShadSelectFormField<IcmpEventType>(
-            id: 'icmpEventType',
-            minWidth: double.infinity,
-            initialValue: _icmpEventType,
-            label: Text('ICMP Event'),
-            placeholder: Text('Select event type'),
-            options: IcmpEventType.values.map((event) {
-              return ShadOption(
-                value: event,
-                child: Text(
-                  event == IcmpEventType.sent
-                      ? 'Packet Sent'
-                      : 'Packet Received',
+        // Response Time Operator and Threshold (only for responseTime check type)
+        if (_pingSessionCheckType == PingSessionCheckType.responseTime) ...[
+          Row(
+            children: [
+              Expanded(
+                child: ShadSelectFormField<ResponseTimeOperator>(
+                  id: 'responseTimeOperator',
+                  minWidth: double.infinity,
+                  initialValue: _responseTimeOperator,
+                  label: const Text('Operator'),
+                  options: ResponseTimeOperator.values.map((op) {
+                    return ShadOption(
+                      value: op,
+                      child: Text('${op.symbol} ${op.displayName}'),
+                    );
+                  }).toList(),
+                  selectedOptionBuilder: (context, value) =>
+                      Text('${value.symbol} ${value.displayName}'),
+                  onChanged: (value) {
+                    setState(() => _responseTimeOperator = value!);
+                  },
                 ),
-              );
-            }).toList(),
-            selectedOptionBuilder: (context, value) => Text(
-              value == IcmpEventType.sent ? 'Packet Sent' : 'Packet Received',
-            ),
-            onChanged: (value) {
-              setState(() {
-                _icmpEventType = value!;
-                // Update ping check type based on event
-                _selectedPingCheckType = value == IcmpEventType.sent
-                    ? PingCheckType.sent
-                    : PingCheckType.received;
-              });
-            },
-          ),
-          SizedBox(height: 12),
-
-          // Device Scope selector
-          ShadSelectFormField<PingDeviceScope>(
-            id: 'deviceScope',
-            minWidth: double.infinity,
-            initialValue: _icmpDeviceScope,
-            label: Text('Device Scope'),
-            placeholder: Text('Select scope'),
-            options: PingDeviceScope.values.map((scope) {
-              return ShadOption(
-                value: scope,
-                child: Text(
-                  scope == PingDeviceScope.anyDevice
-                      ? 'Any Device'
-                      : 'Specific Device',
-                ),
-              );
-            }).toList(),
-            selectedOptionBuilder: (context, value) => Text(
-              value == PingDeviceScope.anyDevice
-                  ? 'Any Device'
-                  : 'Specific Device',
-            ),
-            onChanged: (value) {
-              setState(() {
-                _icmpDeviceScope = value!;
-                if (_icmpDeviceScope == PingDeviceScope.anyDevice) {
-                  _icmpSpecificDeviceId = null;
-                }
-                // Update ping check type based on scope
-                _selectedPingCheckType =
-                    _icmpDeviceScope == PingDeviceScope.anyDevice
-                    ? (_icmpEventType == IcmpEventType.sent
-                          ? PingCheckType.sent
-                          : PingCheckType.receivedFromAny)
-                    : (_icmpEventType == IcmpEventType.sent
-                          ? PingCheckType.sent
-                          : PingCheckType.receivedFromSpecific);
-              });
-            },
-          ),
-          SizedBox(height: 12),
-
-          // Specific device selector (conditional)
-          if (_icmpDeviceScope == PingDeviceScope.specificDevice) ...[
-            ShadSelectFormField<String>(
-              id: 'icmpSpecificDevice',
-              minWidth: double.infinity,
-              key: ValueKey('icmp-specific-${_icmpSpecificDeviceId ?? "none"}'),
-              initialValue: _icmpSpecificDeviceId,
-              label: Text(
-                _icmpEventType == IcmpEventType.sent
-                    ? 'Target Device'
-                    : 'Source Device',
               ),
-              placeholder: Text('Select device'),
-              options: devices.map((device) {
-                return ShadOption(value: device.id, child: Text(device.name));
-              }).toList(),
-              selectedOptionBuilder: (context, value) {
-                final device = devices.firstWhere((d) => d.id == value);
-                return Text(device.name);
-              },
-              onChanged: (value) {
-                setState(() => _icmpSpecificDeviceId = value);
-              },
-            ),
-            SizedBox(height: 12),
-          ],
-
-          // Response time threshold (for received events)
-          if (_icmpEventType == IcmpEventType.received) ...[
-            ShadInputFormField(
-              controller: _responseTimeController,
-              label: Text('Response Time Threshold (ms)'),
-              description: Text('Alert if response time exceeds this value'),
-              placeholder: Text('e.g., 100'),
-              keyboardType: TextInputType.number,
-            ),
-            SizedBox(height: 12),
-          ],
-        ] else ...[
-          // Non-ICMP protocols (keep old check type selector for ARP)
-          ShadSelectFormField<PingCheckType>(
-            id: 'checkType',
-            minWidth: double.infinity,
-            initialValue: _selectedPingCheckType,
-            label: Text('Check Type'),
-            placeholder: Text('Select check type'),
-            options: PingCheckType.values.map((checkType) {
-              return ShadOption(
-                value: checkType,
-                child: Text(_formatPingCheckType(checkType)),
-              );
-            }).toList(),
-            selectedOptionBuilder: (context, value) =>
-                Text(_formatPingCheckType(value)),
-            onChanged: (value) {
-              setState(() => _selectedPingCheckType = value!);
-            },
+              const SizedBox(width: 12),
+              Expanded(
+                child: ShadInputFormField(
+                  controller: _responseTimeController,
+                  label: const Text('Threshold (ms)'),
+                  placeholder: const Text('e.g., 100'),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 16),
         ],
 
-        // Source device selector
-        ShadSelectFormField<String>(
-          id: 'sourceDevice',
-          minWidth: double.infinity,
-          key: ValueKey('ping-source-${_selectedSourceDeviceId ?? "none"}'),
-          initialValue: _selectedSourceDeviceId,
-          label: Text('Source Device'),
-          placeholder: Text('Select source device'),
-          options: devices.map((device) {
-            return ShadOption(
-              value: device.id,
-              child: SizedBox(
-                height: 48,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(device.type.icon, size: 16, color: device.type.color),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            device.name,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          Text(
-                            '${device.id} • ${device.type.displayName}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey.shade600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-          selectedOptionBuilder: (context, value) {
-            final device = devices.firstWhere((d) => d.id == value);
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(device.type.icon, size: 16, color: device.type.color),
-                const SizedBox(width: 8),
-                Text(device.name),
-              ],
-            );
-          },
-          onChanged: (value) {
-            setState(() => _selectedSourceDeviceId = value);
-          },
-        ),
-        SizedBox(height: 12),
-
-        // Target device selector (for device selection instead of manual IP)
-        ShadSelectFormField<String>(
-          id: 'targetDevice',
-          minWidth: double.infinity,
-          key: ValueKey(
-            'ping-target-${_selectedTargetDeviceIdForPing ?? "none"}',
+        // Source Device and Interface selector
+        Text(
+          'Source (Ping Initiator)',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
           ),
-          initialValue: _selectedTargetDeviceIdForPing,
-          label: Text('Target Device'),
-          placeholder: Text('Select target device'),
+        ),
+        const SizedBox(height: 8),
+        _buildDeviceInterfaceSelector(
+          devices: devices,
+          canvasState: canvasState,
+          selectedDeviceId: _sourceDeviceIdForSession,
+          selectedInterfaceName: _sourceInterfaceForSession,
+          deviceLabel: 'Source Device',
+          interfaceLabel: 'Source Interface',
+          onDeviceChanged: (deviceId) {
+            setState(() {
+              _sourceDeviceIdForSession = deviceId;
+              _sourceInterfaceForSession =
+                  null; // Reset interface on device change
+            });
+          },
+          onInterfaceChanged: (interfaceName) {
+            setState(() => _sourceInterfaceForSession = interfaceName);
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // Destination Device and Interface selector
+        Text(
+          'Destination (Ping Target)',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildDeviceInterfaceSelector(
+          devices: devices,
+          canvasState: canvasState,
+          selectedDeviceId: _destDeviceIdForSession,
+          selectedInterfaceName: _destInterfaceForSession,
+          deviceLabel: 'Destination Device',
+          interfaceLabel: 'Destination Interface',
+          onDeviceChanged: (deviceId) {
+            setState(() {
+              _destDeviceIdForSession = deviceId;
+              _destInterfaceForSession =
+                  null; // Reset interface on device change
+            });
+          },
+          onInterfaceChanged: (interfaceName) {
+            setState(() => _destInterfaceForSession = interfaceName);
+          },
+        ),
+      ],
+    );
+  }
+
+  /// Build a device and interface selector combo
+  Widget _buildDeviceInterfaceSelector({
+    required List<CanvasDevice> devices,
+    required CanvasState canvasState,
+    required String? selectedDeviceId,
+    required String? selectedInterfaceName,
+    required String deviceLabel,
+    required String interfaceLabel,
+    required void Function(String?) onDeviceChanged,
+    required void Function(String?) onInterfaceChanged,
+  }) {
+    // Get interfaces for selected device
+    List<String> availableInterfaces = [];
+    String? selectedInterfaceIp;
+
+    if (selectedDeviceId != null) {
+      final networkDevice = canvasState.networkDevices[selectedDeviceId];
+      if (networkDevice is EndDevice) {
+        availableInterfaces = networkDevice.interfaces
+            .map((i) => i.name)
+            .toList();
+        if (selectedInterfaceName != null) {
+          final iface = networkDevice.interfaces
+              .where((i) => i.name == selectedInterfaceName)
+              .firstOrNull;
+          selectedInterfaceIp = iface?.ipAddress;
+        }
+      } else if (networkDevice is RouterDevice) {
+        availableInterfaces = networkDevice.interfaces.keys.toList();
+        if (selectedInterfaceName != null) {
+          selectedInterfaceIp =
+              networkDevice.interfaces[selectedInterfaceName]?.ipAddress;
+        }
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Device selector
+        ShadSelectFormField<String>(
+          id: '${deviceLabel.replaceAll(' ', '_').toLowerCase()}',
+          minWidth: double.infinity,
+          key: ValueKey('$deviceLabel-${selectedDeviceId ?? "none"}'),
+          initialValue: selectedDeviceId,
+          label: Text(deviceLabel),
+          placeholder: Text('Select device'),
           options: devices.map((device) {
             return ShadOption(
               value: device.id,
-              child: SizedBox(
-                height: 48,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(device.type.icon, size: 16, color: device.type.color),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            device.name,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          Text(
-                            '${device.id} • ${device.type.displayName}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey.shade600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              child: Row(
+                children: [
+                  Icon(device.type.icon, size: 16, color: device.type.color),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(device.name)),
+                ],
               ),
             );
           }).toList(),
           selectedOptionBuilder: (context, value) {
             final device = devices.firstWhere((d) => d.id == value);
             return Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(device.type.icon, size: 16, color: device.type.color),
                 const SizedBox(width: 8),
@@ -886,20 +880,94 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
               ],
             );
           },
-          onChanged: (value) {
-            setState(() => _selectedTargetDeviceIdForPing = value);
-          },
+          onChanged: onDeviceChanged,
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 8),
 
-        // Response time threshold (for responseTime check type)
-        if (_selectedPingCheckType == PingCheckType.responseTime)
-          ShadInputFormField(
-            controller: _responseTimeController,
-            label: Text("Response Time Threshold (ms)"),
-            description: Text("Alert if response time exceeds this value"),
-            placeholder: Text("e.g., 100"),
-            keyboardType: TextInputType.number,
+        // Interface selector (only if device is selected and has interfaces)
+        if (selectedDeviceId != null && availableInterfaces.isNotEmpty)
+          ShadSelectFormField<String>(
+            id: '${interfaceLabel.replaceAll(' ', '_').toLowerCase()}',
+            minWidth: double.infinity,
+            key: ValueKey('$interfaceLabel-${selectedInterfaceName ?? "none"}'),
+            initialValue: selectedInterfaceName,
+            label: Text(interfaceLabel),
+            placeholder: Text('Select interface'),
+            options: availableInterfaces.map((ifaceName) {
+              // Get IP for this interface
+              String? ip;
+              final networkDevice =
+                  canvasState.networkDevices[selectedDeviceId];
+              if (networkDevice is EndDevice) {
+                final iface = networkDevice.interfaces
+                    .where((i) => i.name == ifaceName)
+                    .firstOrNull;
+                ip = iface?.ipAddress;
+              } else if (networkDevice is RouterDevice) {
+                ip = networkDevice.interfaces[ifaceName]?.ipAddress;
+              }
+
+              return ShadOption(
+                value: ifaceName,
+                child: Row(
+                  children: [
+                    Icon(Icons.settings_ethernet, size: 14),
+                    const SizedBox(width: 8),
+                    Text(ifaceName),
+                    if (ip != null && ip.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '($ip)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }).toList(),
+            selectedOptionBuilder: (context, value) {
+              return Row(
+                children: [
+                  Icon(Icons.settings_ethernet, size: 14),
+                  const SizedBox(width: 8),
+                  Text(value),
+                  if (selectedInterfaceIp != null &&
+                      selectedInterfaceIp.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '($selectedInterfaceIp)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+            onChanged: onInterfaceChanged,
+          )
+        else if (selectedDeviceId != null)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber, size: 16, color: Colors.orange),
+                const SizedBox(width: 8),
+                Text(
+                  'No interfaces found on this device',
+                  style: TextStyle(fontSize: 11, color: Colors.orange.shade700),
+                ),
+              ],
+            ),
           ),
       ],
     );
@@ -1714,12 +1782,21 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     _targetNetworkController.clear();
     _responseTimeController.text = '100';
 
-    // Reset ICMP-specific fields
+    // Reset ICMP-specific fields (legacy)
     _icmpEventType = IcmpEventType.sent;
     _icmpDeviceScope = PingDeviceScope.anyDevice;
     _icmpSpecificDeviceId = null;
     _selectedProtocolType = PingProtocolType.icmp;
     _selectedPingCheckType = PingCheckType.finalReply;
+
+    // Reset new ping session fields
+    _usePingSessionMode = true;
+    _pingSessionCheckType = PingSessionCheckType.success;
+    _responseTimeOperator = ResponseTimeOperator.lessThan;
+    _sourceDeviceIdForSession = null;
+    _sourceInterfaceForSession = null;
+    _destDeviceIdForSession = null;
+    _destInterfaceForSession = null;
 
     // Initialize expected value for link check boolean mode (default)
     if (_selectedType == ConditionType.linkCheck) {
@@ -1738,12 +1815,12 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
     ScenarioCondition condition;
 
     if (_selectedType == ConditionType.ping) {
-      // Ping check - need source device and target device
-      if (_selectedSourceDeviceId == null ||
-          _selectedTargetDeviceIdForPing == null) {
+      // New session-based ping condition
+      if (_sourceDeviceIdForSession == null ||
+          _destDeviceIdForSession == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please select source and target devices'),
+            content: Text('Please select source and destination devices'),
           ),
         );
         return;
@@ -1751,7 +1828,7 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
 
       // Parse response time threshold if applicable
       int? threshold;
-      if (_selectedPingCheckType == PingCheckType.responseTime) {
+      if (_pingSessionCheckType == PingSessionCheckType.responseTime) {
         threshold = int.tryParse(_responseTimeController.text);
         if (threshold == null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1767,14 +1844,17 @@ class _AddConditionDialogState extends ConsumerState<_AddConditionDialog> {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         description: _descriptionController.text,
         type: ConditionType.ping,
-        sourceDeviceID: _selectedSourceDeviceId,
-        targetDeviceIdForPing: _selectedTargetDeviceIdForPing,
-        protocolType: _selectedProtocolType,
-        pingCheckType: _selectedPingCheckType,
+        // New session-based fields
+        pingSessionCheckType: _pingSessionCheckType,
+        responseTimeOperator:
+            _pingSessionCheckType == PingSessionCheckType.responseTime
+            ? _responseTimeOperator
+            : null,
         responseTimeThreshold: threshold,
-        icmpEventType: _icmpEventType,
-        icmpDeviceScope: _icmpDeviceScope,
-        icmpSpecificDeviceId: _icmpSpecificDeviceId,
+        sourceDeviceIdForSession: _sourceDeviceIdForSession,
+        sourceInterfaceForSession: _sourceInterfaceForSession,
+        destDeviceIdForSession: _destDeviceIdForSession,
+        destInterfaceForSession: _destInterfaceForSession,
       );
     } else if (_selectedType == ConditionType.deviceProperty) {
       if (_selectedTargetDeviceId == null ||

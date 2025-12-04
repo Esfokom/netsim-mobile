@@ -6,7 +6,9 @@ import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/arp_c
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/routing_table_verifier.dart';
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/link_verifier.dart';
 import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/composite_verifier.dart';
+import 'package:netsim_mobile/features/scenarios/utils/condition_verifiers/ping_session_verifier.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
 import 'package:netsim_mobile/features/simulation/presentation/providers/packet_telemetry_provider.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
@@ -96,8 +98,12 @@ class ConditionVerificationService {
   // Private verification methods
 
   bool _verifyPing(ScenarioCondition condition, CanvasState canvasState) {
-    // Ping protocol check - verify ICMP/ARP packet events using packet telemetry
+    // Check if this is a new session-based ping condition
+    if (condition.pingSessionCheckType != null) {
+      return _verifyPingSession(condition, canvasState);
+    }
 
+    // Legacy: Ping protocol check - verify ICMP/ARP packet events using packet telemetry
     if (condition.sourceDeviceID == null ||
         condition.targetDeviceIdForPing == null) {
       appLogger.w(
@@ -133,6 +139,121 @@ class ConditionVerificationService {
           checkType,
         );
     }
+  }
+
+  /// Verify ping session-based condition (new system)
+  bool _verifyPingSession(
+    ScenarioCondition condition,
+    CanvasState canvasState,
+  ) {
+    final checkType = condition.pingSessionCheckType!;
+
+    appLogger.d(
+      '[ConditionVerification] Ping session check: type=${checkType.displayName}',
+    );
+
+    // Resolve source IP from device/interface selection
+    final sourceIp = _resolveIpFromDeviceInterface(
+      condition.sourceDeviceIdForSession,
+      condition.sourceInterfaceForSession,
+      canvasState,
+    );
+
+    if (sourceIp == null) {
+      appLogger.w(
+        '[ConditionVerification] Could not resolve source IP for ping session check',
+      );
+      return false;
+    }
+
+    // Resolve destination IP from device/interface selection
+    final destIp = _resolveIpFromDeviceInterface(
+      condition.destDeviceIdForSession,
+      condition.destInterfaceForSession,
+      canvasState,
+    );
+
+    if (destIp == null) {
+      appLogger.w(
+        '[ConditionVerification] Could not resolve destination IP for ping session check',
+      );
+      return false;
+    }
+
+    appLogger.d(
+      '[ConditionVerification] Resolved IPs: source=$sourceIp, dest=$destIp',
+    );
+
+    // Get the latest matching ping session from telemetry
+    final telemetry = _ref.read(packetTelemetryServiceProvider);
+    final session = telemetry.findLatestSessionByIps(sourceIp, destIp);
+
+    if (session == null) {
+      appLogger.d(
+        '[ConditionVerification] No matching ping session found for $sourceIp -> $destIp',
+      );
+      return false;
+    }
+
+    // Use the ping session verifier to check the condition
+    return PingSessionVerifier.verify(
+      session: session,
+      checkType: checkType,
+      responseTimeOperator: condition.responseTimeOperator,
+      responseTimeThresholdMs: condition.responseTimeThreshold,
+    );
+  }
+
+  /// Resolve IP address from device ID and interface name
+  String? _resolveIpFromDeviceInterface(
+    String? deviceId,
+    String? interfaceName,
+    CanvasState canvasState,
+  ) {
+    if (deviceId == null) return null;
+
+    final networkDevice = canvasState.networkDevices[deviceId];
+    if (networkDevice == null) {
+      appLogger.w('[ConditionVerification] Device not found: $deviceId');
+      return null;
+    }
+
+    // Handle EndDevice
+    if (networkDevice is EndDevice) {
+      if (interfaceName != null) {
+        // Find specific interface
+        final iface = networkDevice.interfaces.firstWhere(
+          (i) => i.name == interfaceName,
+          orElse: () => networkDevice.interfaces.first,
+        );
+        return iface.ipAddress;
+      } else {
+        // Use first interface with an IP
+        for (final iface in networkDevice.interfaces) {
+          if (iface.ipAddress != null && iface.ipAddress!.isNotEmpty) {
+            return iface.ipAddress;
+          }
+        }
+      }
+    }
+
+    // Handle RouterDevice
+    if (networkDevice is RouterDevice) {
+      if (interfaceName != null) {
+        // Find specific interface
+        final iface = networkDevice.interfaces[interfaceName];
+        return iface?.ipAddress;
+      } else {
+        // Use first interface with an IP
+        for (final iface in networkDevice.interfaces.values) {
+          if (iface.ipAddress.isNotEmpty) {
+            return iface.ipAddress;
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
   bool _verifyIcmpCondition(

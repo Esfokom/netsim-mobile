@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show Icons, IconData;
 
 /// Types of conditions that can be checked
 enum ConditionType {
@@ -17,7 +18,7 @@ enum PingProtocolType {
   arp, // ARP Request/Reply
 }
 
-/// Ping check types
+/// Ping check types (legacy - kept for backwards compatibility)
 enum PingCheckType {
   sent, // Check if a packet was sent
   received, // Check if any packet was received
@@ -25,6 +26,21 @@ enum PingCheckType {
   receivedFromSpecific, // Check if packet received from specific source
   responseTime, // Check response time threshold
   finalReply, // Check if final ICMP reply was received
+}
+
+/// Ping session check types (new session-based verification)
+enum PingSessionCheckType {
+  responseTime, // Check response time with operator (greater/less than)
+  timeout, // Check if ping session timed out
+  hasArp, // Check if ping session has ARP events
+  hasIcmp, // Check if ping session has ICMP events
+  success, // Check if ping was successful (last event is ICMP echo reply from dest to source)
+}
+
+/// Response time comparison operator
+enum ResponseTimeOperator {
+  greaterThan, // Response time > threshold
+  lessThan, // Response time < threshold
 }
 
 /// ICMP event types for condition checks
@@ -162,19 +178,31 @@ class ScenarioCondition {
   final String description;
   final ConditionType type;
 
-  // Ping-specific fields (NEW: enhanced protocol checks)
+  // Ping-specific fields (legacy - kept for backwards compatibility)
   final String? sourceDeviceID;
   final String? targetAddress;
   final PingProtocolType? protocolType; // ICMP or ARP
-  final PingCheckType? pingCheckType; // Type of check to perform
+  final PingCheckType? pingCheckType; // Type of check to perform (legacy)
   final String? targetDeviceIdForPing; // Target device ID for device selection
   final int?
   responseTimeThreshold; // Milliseconds threshold for response time checks
 
-  // ICMP-specific fields
+  // ICMP-specific fields (legacy)
   final IcmpEventType? icmpEventType; // Sent or Received event
   final PingDeviceScope? icmpDeviceScope; // Any device or specific device
   final String? icmpSpecificDeviceId; // Specific device ID for scope
+
+  // NEW: Ping session-based verification fields
+  final PingSessionCheckType?
+  pingSessionCheckType; // New session-based check type
+  final ResponseTimeOperator?
+  responseTimeOperator; // Greater/less than for response time
+  final String? sourceDeviceIdForSession; // Source device for ping session
+  final String?
+  sourceInterfaceForSession; // Source interface name (to derive IP)
+  final String? destDeviceIdForSession; // Destination device for ping session
+  final String?
+  destInterfaceForSession; // Destination interface name (to derive IP)
 
   // Property check-specific fields
   final String? targetDeviceID;
@@ -212,6 +240,13 @@ class ScenarioCondition {
     this.icmpEventType,
     this.icmpDeviceScope,
     this.icmpSpecificDeviceId,
+    // NEW: Ping session fields
+    this.pingSessionCheckType,
+    this.responseTimeOperator,
+    this.sourceDeviceIdForSession,
+    this.sourceInterfaceForSession,
+    this.destDeviceIdForSession,
+    this.destInterfaceForSession,
     this.targetDeviceID,
     this.property,
     this.propertyDataType,
@@ -240,6 +275,13 @@ class ScenarioCondition {
     IcmpEventType? icmpEventType,
     PingDeviceScope? icmpDeviceScope,
     String? icmpSpecificDeviceId,
+    // NEW: Ping session fields
+    PingSessionCheckType? pingSessionCheckType,
+    ResponseTimeOperator? responseTimeOperator,
+    String? sourceDeviceIdForSession,
+    String? sourceInterfaceForSession,
+    String? destDeviceIdForSession,
+    String? destInterfaceForSession,
     String? targetDeviceID,
     String? property,
     PropertyDataType? propertyDataType,
@@ -269,6 +311,17 @@ class ScenarioCondition {
       icmpEventType: icmpEventType ?? this.icmpEventType,
       icmpDeviceScope: icmpDeviceScope ?? this.icmpDeviceScope,
       icmpSpecificDeviceId: icmpSpecificDeviceId ?? this.icmpSpecificDeviceId,
+      // NEW: Ping session fields
+      pingSessionCheckType: pingSessionCheckType ?? this.pingSessionCheckType,
+      responseTimeOperator: responseTimeOperator ?? this.responseTimeOperator,
+      sourceDeviceIdForSession:
+          sourceDeviceIdForSession ?? this.sourceDeviceIdForSession,
+      sourceInterfaceForSession:
+          sourceInterfaceForSession ?? this.sourceInterfaceForSession,
+      destDeviceIdForSession:
+          destDeviceIdForSession ?? this.destDeviceIdForSession,
+      destInterfaceForSession:
+          destInterfaceForSession ?? this.destInterfaceForSession,
       targetDeviceID: targetDeviceID ?? this.targetDeviceID,
       property: property ?? this.property,
       propertyDataType: propertyDataType ?? this.propertyDataType,
@@ -309,6 +362,19 @@ class ScenarioCondition {
         'icmpDeviceScope': icmpDeviceScope!.name.toUpperCase(),
       if (icmpSpecificDeviceId != null)
         'icmpSpecificDeviceId': icmpSpecificDeviceId,
+      // NEW: Ping session fields serialization
+      if (pingSessionCheckType != null)
+        'pingSessionCheckType': pingSessionCheckType!.name.toUpperCase(),
+      if (responseTimeOperator != null)
+        'responseTimeOperator': responseTimeOperator!.name.toUpperCase(),
+      if (sourceDeviceIdForSession != null)
+        'sourceDeviceIdForSession': sourceDeviceIdForSession,
+      if (sourceInterfaceForSession != null)
+        'sourceInterfaceForSession': sourceInterfaceForSession,
+      if (destDeviceIdForSession != null)
+        'destDeviceIdForSession': destDeviceIdForSession,
+      if (destInterfaceForSession != null)
+        'destInterfaceForSession': destInterfaceForSession,
       if (targetDeviceID != null) 'targetDeviceID': targetDeviceID,
       if (property != null) 'property': property,
       if (propertyDataType != null)
@@ -458,6 +524,28 @@ class ScenarioCondition {
       linkCheckMode = LinkCheckMode.linkCount;
     }
 
+    // Parse ping session check type
+    PingSessionCheckType? pingSessionCheckType;
+    if (json['pingSessionCheckType'] != null) {
+      final checkTypeStr = json['pingSessionCheckType']
+          .toString()
+          .toLowerCase();
+      pingSessionCheckType = PingSessionCheckType.values.firstWhere(
+        (e) => e.name.toLowerCase() == checkTypeStr,
+        orElse: () => PingSessionCheckType.success,
+      );
+    }
+
+    // Parse response time operator
+    ResponseTimeOperator? responseTimeOperator;
+    if (json['responseTimeOperator'] != null) {
+      final operatorStr = json['responseTimeOperator'].toString().toLowerCase();
+      responseTimeOperator = ResponseTimeOperator.values.firstWhere(
+        (e) => e.name.toLowerCase() == operatorStr,
+        orElse: () => ResponseTimeOperator.lessThan,
+      );
+    }
+
     return ScenarioCondition(
       id: json['id'] as String,
       description: json['description'] as String,
@@ -471,6 +559,13 @@ class ScenarioCondition {
       icmpEventType: icmpEventType,
       icmpDeviceScope: icmpDeviceScope,
       icmpSpecificDeviceId: json['icmpSpecificDeviceId'] as String?,
+      // NEW: Ping session fields
+      pingSessionCheckType: pingSessionCheckType,
+      responseTimeOperator: responseTimeOperator,
+      sourceDeviceIdForSession: json['sourceDeviceIdForSession'] as String?,
+      sourceInterfaceForSession: json['sourceInterfaceForSession'] as String?,
+      destDeviceIdForSession: json['destDeviceIdForSession'] as String?,
+      destInterfaceForSession: json['destInterfaceForSession'] as String?,
       targetDeviceID: json['targetDeviceID'] as String?,
       property: json['property'] as String?,
       propertyDataType: propertyDataType,
@@ -573,6 +668,73 @@ extension PropertyOperatorExtension on PropertyOperator {
       case PropertyOperator.greaterThan:
         return '>';
       case PropertyOperator.lessThan:
+        return '<';
+    }
+  }
+}
+
+extension PingSessionCheckTypeExtension on PingSessionCheckType {
+  String get displayName {
+    switch (this) {
+      case PingSessionCheckType.responseTime:
+        return 'Response Time';
+      case PingSessionCheckType.timeout:
+        return 'Timeout';
+      case PingSessionCheckType.hasArp:
+        return 'Has ARP';
+      case PingSessionCheckType.hasIcmp:
+        return 'Has ICMP';
+      case PingSessionCheckType.success:
+        return 'Success';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case PingSessionCheckType.responseTime:
+        return 'Check if response time is greater or less than threshold';
+      case PingSessionCheckType.timeout:
+        return 'Check if ping session timed out';
+      case PingSessionCheckType.hasArp:
+        return 'Check if session includes ARP resolution';
+      case PingSessionCheckType.hasIcmp:
+        return 'Check if session includes ICMP packets';
+      case PingSessionCheckType.success:
+        return 'Check if ping was successful (received ICMP echo reply)';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case PingSessionCheckType.responseTime:
+        return Icons.timer;
+      case PingSessionCheckType.timeout:
+        return Icons.timer_off;
+      case PingSessionCheckType.hasArp:
+        return Icons.swap_horiz;
+      case PingSessionCheckType.hasIcmp:
+        return Icons.network_ping;
+      case PingSessionCheckType.success:
+        return Icons.check_circle;
+    }
+  }
+}
+
+extension ResponseTimeOperatorExtension on ResponseTimeOperator {
+  String get displayName {
+    switch (this) {
+      case ResponseTimeOperator.greaterThan:
+        return 'Greater Than';
+      case ResponseTimeOperator.lessThan:
+        return 'Less Than';
+    }
+  }
+
+  String get symbol {
+    switch (this) {
+      case ResponseTimeOperator.greaterThan:
+        return '>';
+      case ResponseTimeOperator.lessThan:
         return '<';
     }
   }
