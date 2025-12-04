@@ -1,16 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/device_packet_stats.dart';
+import 'package:netsim_mobile/features/simulation/domain/entities/ping_session.dart';
 import 'package:netsim_mobile/features/simulation/domain/services/packet_telemetry_service.dart';
 import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
 
 /// Provider for the packet telemetry service
 final packetTelemetryServiceProvider = Provider<PacketTelemetryService>((ref) {
-  final service = PacketTelemetryService();
+  final service = PacketTelemetryService(ref);
   final engine = ref.watch(simulationEngineProvider);
 
   // Initialize with simulation engine
   service.initialize(engine);
+
+  // Link the telemetry service to the engine (fixes circular dependency)
+  engine.setTelemetryService(service);
 
   // Cleanup on dispose
   ref.onDispose(() {
@@ -48,6 +52,25 @@ final devicePacketStatsProvider = StreamProvider.family<DevicePacketStats, Strin
     yield stats;
   }
 });
+
+/// Provider for completed ping sessions for a device (reactive via StreamProvider)
+final devicePingSessionsProvider =
+    StreamProvider.family<List<PingSession>, String>((ref, deviceId) async* {
+      final telemetry = ref.watch(packetTelemetryServiceProvider);
+      final engine = ref.watch(simulationEngineProvider);
+
+      appLogger.i(
+        '[PacketTelemetry Provider] Watching ping sessions for device: $deviceId',
+      );
+
+      // Emit initial state
+      yield telemetry.getCompletedPingSessions(deviceId);
+
+      // Listen to packet stream and emit session updates
+      await for (final _ in engine.packetStream) {
+        yield telemetry.getCompletedPingSessions(deviceId);
+      }
+    });
 
 /// Provider to reset telemetry (useful for simulation reset)
 final resetTelemetryProvider = Provider<void Function()>((ref) {

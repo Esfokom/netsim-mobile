@@ -521,15 +521,42 @@ class CanvasNotifier extends Notifier<CanvasState> {
           continue;
         }
 
-        // Connect both ends
-        if (fromDevice is IConnectable) {
+        // Connect fromDevice end
+        if (fromDevice is SwitchDevice) {
+          // Switch needs port connected with link ID
+          final availablePorts = fromDevice.getAvailablePorts();
+          if (availablePorts.isNotEmpty) {
+            fromDevice.connectPort(availablePorts.first.portId, link.id);
+            appLogger.d(
+              '[Canvas] Switch ${link.fromDeviceId} port ${availablePorts.first.portId} connected to link ${link.id}',
+            );
+          } else {
+            appLogger.w(
+              '[Canvas] No available ports on switch ${link.fromDeviceId}',
+            );
+          }
+        } else if (fromDevice is IConnectable) {
           (fromDevice as IConnectable).connectCable(link.toDeviceId, 0);
           appLogger.d(
             '[Canvas] Connected ${link.fromDeviceId} -> ${link.toDeviceId}',
           );
         }
 
-        if (toDevice is IConnectable) {
+        // Connect toDevice end
+        if (toDevice is SwitchDevice) {
+          // Switch needs port connected with link ID
+          final availablePorts = toDevice.getAvailablePorts();
+          if (availablePorts.isNotEmpty) {
+            toDevice.connectPort(availablePorts.first.portId, link.id);
+            appLogger.d(
+              '[Canvas] Switch ${link.toDeviceId} port ${availablePorts.first.portId} connected to link ${link.id}',
+            );
+          } else {
+            appLogger.w(
+              '[Canvas] No available ports on switch ${link.toDeviceId}',
+            );
+          }
+        } else if (toDevice is IConnectable) {
           (toDevice as IConnectable).connectCable(link.fromDeviceId, 0);
           appLogger.d(
             '[Canvas] Connected ${link.toDeviceId} -> ${link.fromDeviceId}',

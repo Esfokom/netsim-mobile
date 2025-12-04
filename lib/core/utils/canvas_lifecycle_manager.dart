@@ -79,9 +79,20 @@ class CanvasLifecycleManager {
     try {
       // Delay provider modifications to avoid lifecycle conflicts
       Future(() {
-        canvasNotifier?.disposeAndClear();
-        scenarioNotifier?.resetToEmpty();
-        transformationNotifier?.clearController();
+        try {
+          canvasNotifier?.disposeAndClear();
+        } catch (e) {
+          appLogger.d('Canvas cleanup error (ignored): $e');
+        }
+
+        try {
+          scenarioNotifier?.resetToEmpty();
+        } catch (e) {
+          appLogger.d('Scenario cleanup error (ignored): $e');
+        }
+
+        // Note: We don't clear the transformation controller here as it can cause
+        // state updates on disposed widgets. It will be reset when rebuilt.
 
         appLogger.i('Canvas lifecycle safe cleanup completed successfully');
       });
