@@ -4,6 +4,8 @@ import 'package:netsim_mobile/core/utils/app_logger.dart';
 import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
     show DeviceType;
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
+import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet_telemetry.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/device_packet_stats.dart';
@@ -261,6 +263,121 @@ class PacketTelemetryService {
     return deviceId;
   }
 
+  /// Get device name from IP address by searching all network devices
+  /// Returns the device name if found, or null if no device has this IP
+  String? _getDeviceNameFromIp(String? ipAddress) {
+    if (ipAddress == null || ipAddress.isEmpty) return null;
+
+    final canvasState = _ref?.read(canvasProvider);
+    if (canvasState == null) return null;
+
+    // Search through all network devices to find one with matching IP
+    for (final entry in canvasState.networkDevices.entries) {
+      final networkDevice = entry.value;
+      String? foundName;
+
+      // Handle EndDevice (List<NetworkInterface>)
+      if (networkDevice is EndDevice) {
+        for (final iface in networkDevice.interfaces) {
+          if (iface.ipAddress == ipAddress) {
+            foundName = networkDevice.hostname;
+            break;
+          }
+        }
+      }
+      // Handle RouterDevice (Map<String, RouterInterface>)
+      else if (networkDevice is RouterDevice) {
+        for (final iface in networkDevice.interfaces.values) {
+          if (iface.ipAddress == ipAddress) {
+            foundName = networkDevice.name;
+            break;
+          }
+        }
+      }
+
+      if (foundName != null) {
+        // Also try to get the canvas device name if available
+        final canvasDevice = canvasState.devices
+            .where((d) => d.id == entry.key)
+            .firstOrNull;
+        return canvasDevice?.name ?? foundName;
+      }
+    }
+
+    return null;
+  }
+
+  /// Get device ID from IP address by searching all network devices
+  /// Returns the device ID if found, or null if no device has this IP
+  String? _getDeviceIdFromIp(String? ipAddress) {
+    if (ipAddress == null || ipAddress.isEmpty) return null;
+
+    final canvasState = _ref?.read(canvasProvider);
+    if (canvasState == null) return null;
+
+    // Search through all network devices to find one with matching IP
+    for (final entry in canvasState.networkDevices.entries) {
+      final networkDevice = entry.value;
+
+      // Handle EndDevice (List<NetworkInterface>)
+      if (networkDevice is EndDevice) {
+        for (final iface in networkDevice.interfaces) {
+          if (iface.ipAddress == ipAddress) {
+            return entry.key; // Return the device ID
+          }
+        }
+      }
+      // Handle RouterDevice (Map<String, RouterInterface>)
+      else if (networkDevice is RouterDevice) {
+        for (final iface in networkDevice.interfaces.values) {
+          if (iface.ipAddress == ipAddress) {
+            return entry.key; // Return the device ID
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Resolve device name, trying deviceId first, then IP address
+  /// This ensures we always get a meaningful name when possible
+  String _resolveDeviceName(String? deviceId, String? ipAddress) {
+    // First try to get name from device ID if it's valid
+    if (deviceId != null && deviceId != 'unknown' && deviceId.isNotEmpty) {
+      final name = _getDeviceName(deviceId);
+      if (name != deviceId) {
+        return name; // Found a valid name
+      }
+    }
+
+    // Try to get name from IP address
+    final nameFromIp = _getDeviceNameFromIp(ipAddress);
+    if (nameFromIp != null) {
+      return nameFromIp;
+    }
+
+    // Fallback to deviceId or 'Unknown'
+    return deviceId ?? 'Unknown';
+  }
+
+  /// Resolve device ID, trying deviceId first, then IP address
+  String _resolveDeviceId(String? deviceId, String? ipAddress) {
+    // First check if deviceId is valid
+    if (deviceId != null && deviceId != 'unknown' && deviceId.isNotEmpty) {
+      return deviceId;
+    }
+
+    // Try to get ID from IP address
+    final idFromIp = _getDeviceIdFromIp(ipAddress);
+    if (idFromIp != null) {
+      return idFromIp;
+    }
+
+    // Fallback
+    return deviceId ?? 'unknown';
+  }
+
   /// Add a packet event to the active ping session
   void _addEventToPingSession(
     String sourceIp,
@@ -320,7 +437,7 @@ class PacketTelemetryService {
         icmpTime: icmpTime,
         status: PingSessionStatus.success,
         targetDeviceId: receiverDeviceId,
-        targetDeviceName: _getDeviceName(receiverDeviceId),
+        targetDeviceName: _resolveDeviceName(receiverDeviceId, destIp),
       );
 
       // Store in completed sessions
@@ -328,7 +445,7 @@ class PacketTelemetryService {
 
       appLogger.d(
         '[PacketTelemetry] Ping completed: ${responseTime.inMilliseconds}ms '
-        '(ARP: ${arpTime?.inMilliseconds ?? 0}ms, ICMP: ${icmpTime?.inMilliseconds ?? 0}ms)',
+        '(ARP: ${arpTime?.inMilliseconds ?? 0}ms, ICMP: ${icmpTime.inMilliseconds}ms)',
       );
     }
   }
@@ -479,13 +596,27 @@ class PacketTelemetryService {
 
     // Add event to active ping session if this packet is related
     if (packet.sourceIp != null && packet.destIp != null) {
+      // Resolve device IDs and names - use IP address as fallback for unknown targets
+      final resolvedToDeviceId = _resolveDeviceId(
+        event.targetDeviceId,
+        packet.destIp,
+      );
+      final resolvedToDeviceName = _resolveDeviceName(
+        event.targetDeviceId,
+        packet.destIp,
+      );
+      final resolvedFromDeviceName = _resolveDeviceName(
+        sourceId,
+        packet.sourceIp,
+      );
+
       final packetEvent = PingPacketEvent(
         id: packet.id,
         packetType: packet.type,
         fromDeviceId: sourceId,
-        fromDeviceName: _getDeviceName(sourceId),
-        toDeviceId: event.targetDeviceId ?? 'unknown',
-        toDeviceName: _getDeviceName(event.targetDeviceId ?? 'unknown'),
+        fromDeviceName: resolvedFromDeviceName,
+        toDeviceId: resolvedToDeviceId,
+        toDeviceName: resolvedToDeviceName,
         fromIp: packet.sourceIp,
         toIp: packet.destIp,
         timestamp: packet.timestamp,
@@ -536,13 +667,24 @@ class PacketTelemetryService {
         );
       }
 
+      // Resolve device IDs and names - use IP address as fallback
+      final resolvedFromDeviceId = _resolveDeviceId(
+        event.sourceDeviceId,
+        packet.sourceIp,
+      );
+      final resolvedFromDeviceName = _resolveDeviceName(
+        event.sourceDeviceId,
+        packet.sourceIp,
+      );
+      final resolvedToDeviceName = _resolveDeviceName(targetId, packet.destIp);
+
       final packetEvent = PingPacketEvent(
         id: '${packet.id}_delivered',
         packetType: packet.type,
-        fromDeviceId: event.sourceDeviceId ?? 'unknown',
-        fromDeviceName: _getDeviceName(event.sourceDeviceId ?? 'unknown'),
+        fromDeviceId: resolvedFromDeviceId,
+        fromDeviceName: resolvedFromDeviceName,
         toDeviceId: targetId,
-        toDeviceName: _getDeviceName(targetId),
+        toDeviceName: resolvedToDeviceName,
         fromIp: packet.sourceIp,
         toIp: packet.destIp,
         timestamp: DateTime.now(),
