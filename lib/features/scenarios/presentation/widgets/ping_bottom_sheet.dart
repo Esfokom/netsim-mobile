@@ -333,6 +333,10 @@ class _CompactPingBottomSheetState
     final canvasNotifier = ref.read(canvasProvider.notifier);
     final engine = ref.read(simulationEngineProvider);
 
+    // Ensure telemetry service is initialized before ping
+    // This triggers provider initialization and links it to the engine
+    ref.read(packetTelemetryServiceProvider);
+
     if (selectedSourceId == null || selectedSourceIp == null) return;
 
     final targetIp = isCustomDestIp

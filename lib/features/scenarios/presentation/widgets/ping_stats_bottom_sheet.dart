@@ -5,6 +5,7 @@ import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_prov
 import 'package:netsim_mobile/features/simulation/domain/entities/device_packet_stats.dart'
     show DevicePacketStats;
 import 'package:netsim_mobile/features/simulation/presentation/providers/packet_telemetry_provider.dart';
+import 'package:netsim_mobile/features/simulation/presentation/screens/ping_events_history_screen.dart';
 
 /// Bottom sheet for viewing ping statistics for a selected device
 class PingStatsBottomSheet extends ConsumerStatefulWidget {
@@ -304,9 +305,41 @@ class _PingStatsBottomSheetState extends ConsumerState<PingStatsBottomSheet> {
               ],
             ),
           ],
+
+          // View Event History Button
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _navigateToEventHistory(context),
+              icon: const Icon(Icons.timeline),
+              label: const Text('View Detailed Event History'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  void _navigateToEventHistory(BuildContext context) {
+    final canvasState = ref.read(canvasProvider);
+    final device = canvasState.devices
+        .where((d) => d.id == selectedDeviceId)
+        .firstOrNull;
+
+    if (device != null && selectedDeviceId != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PingEventsHistoryScreen(
+            deviceId: selectedDeviceId!,
+            deviceName: device.name,
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildEmptyState() {
