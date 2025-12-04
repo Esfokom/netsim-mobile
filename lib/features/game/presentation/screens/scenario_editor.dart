@@ -358,9 +358,8 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
             ),
           ),
 
-        // Conditional bottom panel
-        if (_showBottomPanel &&
-            _currentPanelType == BottomPanelType.deviceProperties)
+        // Conditional bottom panel (allow all simulation mode panels)
+        if (_showBottomPanel && _currentPanelType != null)
           Positioned(bottom: 0, left: 0, right: 0, child: _buildCurrentPanel()),
 
         // Bottom action bar (hidden when panel is open)
