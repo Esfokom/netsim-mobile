@@ -19,6 +19,7 @@ import 'package:netsim_mobile/features/scenarios/presentation/widgets/ping_stats
 import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/game/presentation/providers/game_condition_checker.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/mode_header_widget.dart';
+import 'package:netsim_mobile/features/game/presentation/widgets/compact_bottom_action_bar.dart';
 import 'package:netsim_mobile/core/utils/canvas_lifecycle_manager.dart';
 import 'package:netsim_mobile/core/utils/controller_validator.dart';
 
@@ -47,9 +48,8 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
   ScenarioNotifier? _scenarioNotifier;
   CanvasTransformationNotifier? _transformationNotifier;
 
-  // FAB and panel state
+  // Panel state
   bool _showBottomPanel = false;
-  bool _showSpeedDial = false;
   BottomPanelType? _currentPanelType;
 
   @override
@@ -93,11 +93,6 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
         // Close any open panels when mode changes
         if (_showBottomPanel) {
           _closePanel();
-        }
-        if (_showSpeedDial) {
-          setState(() {
-            _showSpeedDial = false;
-          });
         }
       }
     });
@@ -146,8 +141,8 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
         if (_showBottomPanel && _currentPanelType != null)
           Positioned(bottom: 0, left: 0, right: 0, child: _buildCurrentPanel()),
 
-        // FAB (hidden when panel is open)
-        if (!_showBottomPanel) _buildFloatingActionButton(),
+        // Bottom action bar (hidden when panel is open)
+        if (!_showBottomPanel) _buildBottomActionBar(),
       ],
     );
   }
@@ -368,8 +363,8 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
             _currentPanelType == BottomPanelType.deviceProperties)
           Positioned(bottom: 0, left: 0, right: 0, child: _buildCurrentPanel()),
 
-        // FAB (hidden when panel is open)
-        if (!_showBottomPanel) _buildFloatingActionButton(),
+        // Bottom action bar (hidden when panel is open)
+        if (!_showBottomPanel) _buildBottomActionBar(),
       ],
     );
   }
@@ -644,150 +639,87 @@ class _ScenarioEditorState extends ConsumerState<ScenarioEditor> {
     );
   }
 
-  // ============ FAB AND PANEL MANAGEMENT ============
+  // ============ BOTTOM ACTION BAR ============
 
-  Widget _buildFloatingActionButton() {
-    return Positioned(
-      right: 16,
-      bottom: 16,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Speed dial options (shown when FAB is tapped)
-          if (_showSpeedDial) ...[
-            _buildSpeedDialOptions(),
-            const SizedBox(height: 12),
-          ],
-          // Main FAB
-          FloatingActionButton(
-            onPressed: () {
-              setState(() {
-                _showSpeedDial = !_showSpeedDial;
-              });
-            },
-            child: AnimatedRotation(
-              turns: _showSpeedDial ? 0.125 : 0, // 45 degrees when open
-              duration: const Duration(milliseconds: 200),
-              child: Icon(_showSpeedDial ? Icons.close : Icons.menu),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpeedDialOptions() {
+  Widget _buildBottomActionBar() {
     final scenarioState = ref.watch(scenarioProvider);
+    final isSimulationMode = scenarioState.mode == ScenarioMode.simulation;
 
-    if (scenarioState.mode == ScenarioMode.simulation) {
-      // Simulation mode: Device properties and Ping Test
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _buildSpeedDialOption(
-            icon: Icons.settings,
-            label: 'Device Properties',
-            onTap: () => _openPanel(BottomPanelType.deviceProperties),
-          ),
-          const SizedBox(height: 12),
-          _buildSpeedDialOption(
-            icon: Icons.network_ping,
-            label: 'Ping Test',
-            onTap: () => _openPanel(BottomPanelType.pingTest),
-          ),
-          const SizedBox(height: 12),
-          _buildSpeedDialOption(
-            icon: Icons.analytics_outlined,
-            label: 'Ping Stats',
-            onTap: () => _openPanel(BottomPanelType.pingStats),
-          ),
-        ],
-      );
-    } else {
-      // Edit mode: All options including Ping Test
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _buildSpeedDialOption(
-            icon: Icons.add_circle,
-            label: 'Add Device',
-            onTap: () => _openPanel(BottomPanelType.addDevice),
-          ),
-          const SizedBox(height: 12),
-          _buildSpeedDialOption(
-            icon: Icons.settings,
-            label: 'Device Properties',
-            onTap: () => _openPanel(BottomPanelType.deviceProperties),
-          ),
-          const SizedBox(height: 12),
-          _buildSpeedDialOption(
-            icon: Icons.edit_note,
-            label: 'Scenario Properties',
-            onTap: () => _openPanel(BottomPanelType.scenarioProperties),
-          ),
-          const SizedBox(height: 12),
-          _buildSpeedDialOption(
-            icon: Icons.flag,
-            label: 'Conditions',
-            onTap: () => _openPanel(BottomPanelType.conditionsEditor),
-          ),
-          const SizedBox(height: 12),
-          _buildSpeedDialOption(
-            icon: Icons.network_ping,
-            label: 'Ping Test',
-            onTap: () => _openPanel(BottomPanelType.pingTest),
-          ),
-          const SizedBox(height: 12),
-          _buildSpeedDialOption(
-            icon: Icons.analytics_outlined,
-            label: 'Ping Stats',
-            onTap: () => _openPanel(BottomPanelType.pingStats),
-          ),
-        ],
-      );
-    }
+    final List<ActionBarItem> items = isSimulationMode
+        ? _getSimulationModeActions()
+        : _getEditModeActions();
+
+    return CompactBottomActionBar(items: items);
   }
 
-  Widget _buildSpeedDialOption({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Label
-        Material(
-          elevation: 4,
-          borderRadius: BorderRadius.circular(8),
-          color: Theme.of(context).colorScheme.surface,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Icon button
-        FloatingActionButton.small(
-          onPressed: onTap,
-          heroTag: label,
-          child: Icon(icon),
-        ),
-      ],
-    );
+  List<ActionBarItem> _getSimulationModeActions() {
+    return [
+      ActionBarItem(
+        icon: Icons.settings,
+        label: 'Device Properties',
+        shortLabel: 'Props',
+        onTap: () => _openPanel(BottomPanelType.deviceProperties),
+      ),
+      ActionBarItem(
+        icon: Icons.network_ping,
+        label: 'Ping Test',
+        shortLabel: 'Ping',
+        onTap: () => _openPanel(BottomPanelType.pingTest),
+      ),
+      ActionBarItem(
+        icon: Icons.analytics_outlined,
+        label: 'Ping Stats',
+        shortLabel: 'Stats',
+        onTap: () => _openPanel(BottomPanelType.pingStats),
+      ),
+    ];
+  }
+
+  List<ActionBarItem> _getEditModeActions() {
+    return [
+      ActionBarItem(
+        icon: Icons.add_circle,
+        label: 'Add Device',
+        shortLabel: 'Add',
+        onTap: () => _openPanel(BottomPanelType.addDevice),
+      ),
+      ActionBarItem(
+        icon: Icons.settings,
+        label: 'Device Properties',
+        shortLabel: 'Props',
+        onTap: () => _openPanel(BottomPanelType.deviceProperties),
+      ),
+      ActionBarItem(
+        icon: Icons.edit_note,
+        label: 'Scenario Properties',
+        shortLabel: 'Scene',
+        onTap: () => _openPanel(BottomPanelType.scenarioProperties),
+      ),
+      ActionBarItem(
+        icon: Icons.flag,
+        label: 'Conditions',
+        shortLabel: 'Conds',
+        onTap: () => _openPanel(BottomPanelType.conditionsEditor),
+      ),
+      ActionBarItem(
+        icon: Icons.network_ping,
+        label: 'Ping Test',
+        shortLabel: 'Ping',
+        onTap: () => _openPanel(BottomPanelType.pingTest),
+      ),
+      ActionBarItem(
+        icon: Icons.analytics_outlined,
+        label: 'Ping Stats',
+        shortLabel: 'Stats',
+        onTap: () => _openPanel(BottomPanelType.pingStats),
+      ),
+    ];
   }
 
   void _openPanel(BottomPanelType type) {
     setState(() {
       _currentPanelType = type;
       _showBottomPanel = true;
-      _showSpeedDial = false; // Close speed dial
     });
   }
 

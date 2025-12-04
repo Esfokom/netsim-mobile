@@ -13,9 +13,13 @@ import 'package:netsim_mobile/features/game/presentation/providers/game_conditio
 import 'package:netsim_mobile/features/game/presentation/widgets/game_timer.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/success_screen.dart';
 import 'package:netsim_mobile/features/game/presentation/widgets/game_objectives_list.dart';
+import 'package:netsim_mobile/features/game/presentation/widgets/compact_bottom_action_bar.dart';
 import 'package:netsim_mobile/core/utils/canvas_lifecycle_manager.dart';
 import 'package:netsim_mobile/core/utils/controller_validator.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
+
+/// Panel types for game play screen
+enum GamePanelType { deviceProperties, pingTest, pingStats }
 
 class GamePlayScreen extends ConsumerStatefulWidget {
   final NetworkScenario scenario;
@@ -31,10 +35,9 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   int _elapsedSeconds = 0;
   bool _isGameCompleted = false;
   bool _isPaused = false;
-  bool _showPropertiesPanel = false;
-  bool _showPingPanel = false;
-  bool _showPingStatsPanel = false;
-  bool _showSpeedDial = false;
+
+  // Panel state
+  GamePanelType? _currentPanel;
 
   @override
   void initState() {
@@ -202,6 +205,8 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   }
 
   Widget _buildGameUI(TransformationController? transformationController) {
+    final hasOpenPanel = _currentPanel != null;
+
     return Stack(
       children: [
         // Compact game header with controls
@@ -218,28 +223,62 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
             ),
           ),
 
-        // Bottom panel with device properties (conditionally shown)
-        if (_showPropertiesPanel)
-          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomPanel()),
+        // Current panel (conditionally shown)
+        if (_currentPanel != null)
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildCurrentPanel()),
 
-        // Ping test panel (conditionally shown)
-        if (_showPingPanel)
-          Positioned(bottom: 0, left: 0, right: 0, child: _buildPingPanel()),
-
-        // Ping stats panel (conditionally shown)
-        if (_showPingStatsPanel)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildPingStatsPanel(),
-          ),
-
-        // Floating Action Button with Speed Dial
-        if (!_showPropertiesPanel && !_showPingPanel && !_showPingStatsPanel)
-          _buildFloatingActionButton(),
+        // Bottom action bar (hidden when panel is open)
+        if (!hasOpenPanel) _buildBottomActionBar(),
       ],
     );
+  }
+
+  Widget _buildBottomActionBar() {
+    return CompactBottomActionBar(
+      items: [
+        ActionBarItem(
+          icon: Icons.settings,
+          label: 'Device Properties',
+          shortLabel: 'Props',
+          onTap: () => _openPanel(GamePanelType.deviceProperties),
+        ),
+        ActionBarItem(
+          icon: Icons.network_ping,
+          label: 'Ping Test',
+          shortLabel: 'Ping',
+          onTap: () => _openPanel(GamePanelType.pingTest),
+        ),
+        ActionBarItem(
+          icon: Icons.analytics_outlined,
+          label: 'Ping Stats',
+          shortLabel: 'Stats',
+          onTap: () => _openPanel(GamePanelType.pingStats),
+        ),
+      ],
+    );
+  }
+
+  void _openPanel(GamePanelType type) {
+    setState(() {
+      _currentPanel = type;
+    });
+  }
+
+  void _closePanel() {
+    setState(() {
+      _currentPanel = null;
+    });
+  }
+
+  Widget _buildCurrentPanel() {
+    switch (_currentPanel!) {
+      case GamePanelType.deviceProperties:
+        return _buildBottomPanel();
+      case GamePanelType.pingTest:
+        return _buildPingPanel();
+      case GamePanelType.pingStats:
+        return _buildPingStatsPanel();
+    }
   }
 
   Widget _buildGameHeader() {
@@ -407,11 +446,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () {
-                    setState(() {
-                      _showPropertiesPanel = false;
-                    });
-                  },
+                  onPressed: _closePanel,
                   tooltip: 'Close',
                 ),
               ],
@@ -470,11 +505,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () {
-                    setState(() {
-                      _showPingPanel = false;
-                    });
-                  },
+                  onPressed: _closePanel,
                   tooltip: 'Close',
                 ),
               ],
@@ -533,11 +564,7 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () {
-                    setState(() {
-                      _showPingStatsPanel = false;
-                    });
-                  },
+                  onPressed: _closePanel,
                   tooltip: 'Close',
                 ),
               ],
@@ -547,106 +574,6 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
           const Expanded(child: PingStatsBottomSheet()),
         ],
       ),
-    );
-  }
-
-  Widget _buildFloatingActionButton() {
-    return Positioned(
-      right: 16,
-      bottom: 16,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Speed dial options (shown when FAB is tapped)
-          if (_showSpeedDial) ...[
-            _buildSpeedDialOption(
-              icon: Icons.settings,
-              label: 'Device Properties',
-              onTap: () {
-                setState(() {
-                  _showSpeedDial = false;
-                  _showPropertiesPanel = true;
-                  _showPingPanel = false;
-                  _showPingStatsPanel = false;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildSpeedDialOption(
-              icon: Icons.network_ping,
-              label: 'Ping Test',
-              onTap: () {
-                setState(() {
-                  _showSpeedDial = false;
-                  _showPropertiesPanel = false;
-                  _showPingPanel = true;
-                  _showPingStatsPanel = false;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildSpeedDialOption(
-              icon: Icons.analytics_outlined,
-              label: 'Ping Stats',
-              onTap: () {
-                setState(() {
-                  _showSpeedDial = false;
-                  _showPropertiesPanel = false;
-                  _showPingPanel = false;
-                  _showPingStatsPanel = true;
-                });
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
-          // Main FAB
-          FloatingActionButton(
-            onPressed: () {
-              setState(() {
-                _showSpeedDial = !_showSpeedDial;
-              });
-            },
-            child: AnimatedRotation(
-              turns: _showSpeedDial ? 0.125 : 0, // 45 degrees when open
-              duration: const Duration(milliseconds: 200),
-              child: Icon(_showSpeedDial ? Icons.close : Icons.menu),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpeedDialOption({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Label
-        Material(
-          elevation: 4,
-          borderRadius: BorderRadius.circular(8),
-          color: Theme.of(context).colorScheme.surface,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Icon button
-        FloatingActionButton.small(
-          onPressed: onTap,
-          heroTag: label,
-          child: Icon(icon),
-        ),
-      ],
     );
   }
 
