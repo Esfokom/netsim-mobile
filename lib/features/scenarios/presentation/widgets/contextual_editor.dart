@@ -19,6 +19,7 @@ import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dar
 import 'package:netsim_mobile/core/utils/ip_validator.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/alert_notification_stack.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/widgets/alert_history_dialog.dart';
+import 'package:netsim_mobile/features/simulation/presentation/providers/packet_telemetry_provider.dart';
 import 'package:netsim_mobile/features/scenarios/presentation/providers/alert_notification_provider.dart';
 
 /// Contextual editor that shows scenario metadata or device properties
@@ -1206,6 +1207,8 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     } else if (property.id.toLowerCase().contains('ip') &&
         (property.label.contains('Address') || property.label.contains('IP'))) {
       _showIpConfigurationDialog(device, networkDevice, canvasNotifier);
+    } else if (property.id == 'pingTimeoutMs') {
+      _showPingTimeoutDialog(device, networkDevice, property, canvasNotifier);
     } else {
       // Generic property editor
       showDialog(
@@ -2521,6 +2524,137 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
                           SnackBar(
                             content: Text('Hostname updated to "$newHostname"'),
                             backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showPingTimeoutDialog(
+    CanvasDevice device,
+    network.NetworkDevice networkDevice,
+    DeviceProperty property,
+    CanvasNotifier canvasNotifier,
+  ) {
+    // Check if device is an EndDevice
+    if (networkDevice is! EndDevice) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This device type does not support ping timeout configuration',
+          ),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final endDevice = networkDevice;
+    final controller = TextEditingController(
+      text: endDevice.pingTimeoutMs.toString(),
+    );
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Edit Ping Timeout'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Set the timeout threshold for ping requests (1000-30000 ms)',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'If no reply is received within this time, the ping will be marked as "High Ping"',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: 'Timeout (milliseconds)',
+                    border: const OutlineInputBorder(),
+                    errorText: errorText,
+                    hintText: '5000',
+                    suffixText: 'ms',
+                  ),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      // Validate timeout value
+                      if (value.trim().isEmpty) {
+                        errorText = 'Timeout cannot be empty';
+                      } else {
+                        final timeout = int.tryParse(value.trim());
+                        if (timeout == null) {
+                          errorText = 'Must be a valid number';
+                        } else if (timeout < 1000) {
+                          errorText = 'Minimum timeout is 1000ms (1 second)';
+                        } else if (timeout > 30000) {
+                          errorText = 'Maximum timeout is 30000ms (30 seconds)';
+                        } else {
+                          errorText = null;
+                        }
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    errorText == null && controller.text.trim().isNotEmpty
+                    ? () {
+                        final newTimeout = int.parse(controller.text.trim());
+
+                        // Update property value
+                        property.value = newTimeout.toDouble();
+
+                        // Update the actual device ping timeout
+                        endDevice.pingTimeoutMs = newTimeout;
+
+                        // Update the telemetry service with the new timeout
+                        final telemetryService = ref.read(
+                          packetTelemetryServiceProvider,
+                        );
+                        telemetryService.setPingTimeout(
+                          device.id,
+                          Duration(milliseconds: newTimeout),
+                        );
+
+                        // Update the networkDevice in the provider's map
+                        canvasNotifier.setNetworkDevice(device.id, endDevice);
+
+                        // Force refresh
+                        canvasNotifier.refreshDevice(device.id);
+
+                        Navigator.pop(ctx);
+                        setState(() {});
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Ping timeout updated to ${newTimeout}ms',
+                            ),
                             duration: const Duration(seconds: 2),
                           ),
                         );

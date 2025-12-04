@@ -230,6 +230,61 @@ class IntegerProperty extends DeviceProperty<int> {
   }
 }
 
+/// Number property (double/float with optional min, max, and step)
+class NumberProperty extends DeviceProperty<double> {
+  final double? min;
+  final double? max;
+  final double? step;
+
+  NumberProperty({
+    required super.id,
+    required super.label,
+    required super.value,
+    super.isReadOnly,
+    this.min,
+    this.max,
+    this.step,
+  });
+
+  @override
+  Widget buildDisplayWidget() {
+    return ListTile(
+      title: Text(label),
+      subtitle: Text(value.toStringAsFixed(0)),
+      dense: true,
+    );
+  }
+
+  @override
+  Widget? buildEditWidget(Function(double) onChanged) {
+    if (isReadOnly) return null;
+    return TextField(
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: min != null && max != null
+            ? '${min!.toStringAsFixed(0)} - ${max!.toStringAsFixed(0)}'
+            : null,
+      ),
+      controller: TextEditingController(text: value.toStringAsFixed(0)),
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      onChanged: (val) {
+        final doubleVal = double.tryParse(val);
+        if (doubleVal != null) {
+          // Apply min/max constraints
+          var constrainedValue = doubleVal;
+          if (min != null && constrainedValue < min!) {
+            constrainedValue = min!;
+          }
+          if (max != null && constrainedValue > max!) {
+            constrainedValue = max!;
+          }
+          onChanged(constrainedValue);
+        }
+      },
+    );
+  }
+}
+
 /// Packet statistics property (read-only, for telemetry data)
 class PacketStatisticsProperty extends DeviceProperty<Map<String, dynamic>> {
   PacketStatisticsProperty({

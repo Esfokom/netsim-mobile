@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:netsim_mobile/core/utils/app_logger.dart';
+import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart'
+    show DeviceType;
+import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet_telemetry.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/device_packet_stats.dart';
@@ -7,11 +11,14 @@ import 'package:netsim_mobile/features/simulation/domain/services/simulation_eng
 
 /// Service to track packet events and compute statistics
 class PacketTelemetryService {
+  final Ref? _ref;
   StreamSubscription<PacketEvent>? _packetSubscription;
 
   // Storage
   final Map<String, PacketTelemetry> _packetHistory = {};
   final Map<String, DevicePacketStats> _deviceStats = {};
+
+  PacketTelemetryService([this._ref]);
 
   // ICMP Request/Reply matching
   final Map<String, DateTime> _pendingIcmpRequests =
@@ -69,6 +76,15 @@ class PacketTelemetryService {
     return _deviceStats.putIfAbsent(
       deviceId,
       () => DevicePacketStats(deviceId: deviceId),
+    );
+  }
+
+  /// Set ping timeout threshold for a specific device
+  void setPingTimeout(String deviceId, Duration timeout) {
+    final stats = getDeviceStats(deviceId);
+    stats.pingTimeout = timeout;
+    appLogger.i(
+      '[PacketTelemetry] Set ping timeout for device $deviceId: ${timeout.inMilliseconds}ms',
     );
   }
 
@@ -148,6 +164,47 @@ class PacketTelemetryService {
     return null;
   }
 
+  /// Register ping session start (called when ping() is initiated, before ARP/ICMP)
+  /// This tracks the full ping time including ARP resolution
+  ///
+  /// [sourceDeviceId] - The device initiating the ping
+  /// [sourceIp] - The source IP address
+  /// [destIp] - The destination IP address
+  /// [timeoutMs] - Optional timeout in milliseconds (uses device's pingTimeoutMs)
+  void registerPingSessionStart(
+    String sourceDeviceId,
+    String sourceIp,
+    String destIp, {
+    int? timeoutMs,
+  }) {
+    final stats = getDeviceStats(sourceDeviceId);
+    final now = DateTime.now();
+
+    // Sync device's ping timeout with telemetry stats if provided
+    if (timeoutMs != null) {
+      stats.pingTimeout = Duration(milliseconds: timeoutMs);
+      appLogger.d(
+        '[PacketTelemetry] Synced ping timeout for $sourceDeviceId: ${timeoutMs}ms',
+      );
+    }
+
+    // Track last ping time for this device (full session start)
+    stats.lastPingTime = now;
+    stats.lastPingResponseTime = null; // Reset response time
+    stats.lastPingTimedOut = false; // Reset timeout flag
+
+    // Register pending request with session start time
+    final key = '$sourceIp:$destIp';
+    _pendingIcmpRequests[key] = now;
+
+    appLogger.i(
+      '[PacketTelemetry] Ping session started from $sourceDeviceId ($sourceIp -> $destIp)\n'
+      'Timeout threshold: ${stats.pingTimeout.inMilliseconds}ms\n'
+      'Registered pending key: $key\n'
+      'All pending requests: ${_pendingIcmpRequests.keys.toList()}',
+    );
+  }
+
   // ==================== Private Methods ====================
 
   void _onPacketEvent(PacketEvent event) {
@@ -215,20 +272,34 @@ class PacketTelemetryService {
       case PacketType.icmpEchoRequest:
         stats.icmpEchoRequestSent++;
 
-        // Track last ping time for this device
-        stats.lastPingTime = packet.timestamp;
-        stats.lastPingResponseTime = null; // Reset response time
-        stats.lastPingTimedOut = false; // Reset timeout flag
+        // Only set last ping time if not already set (by registerPingSessionStart)
+        // This preserves the full session start time including ARP
+        if (stats.lastPingTime == null ||
+            stats.lastPingTime!.isBefore(
+              packet.timestamp.subtract(const Duration(seconds: 1)),
+            )) {
+          stats.lastPingTime = packet.timestamp;
+          stats.lastPingResponseTime = null;
+          stats.lastPingTimedOut = false;
+        }
 
         appLogger.i(
           '[PacketTelemetry] ICMP Echo Request sent from $sourceId: '
           'Total requests sent: ${stats.icmpEchoRequestSent}',
         );
-        // Register pending request for response time tracking
+        // Register pending request for response time tracking if not already registered
         if (packet.sourceIp != null && packet.destIp != null) {
           final key = '${packet.sourceIp}:${packet.destIp}';
-          _pendingIcmpRequests[key] = packet.timestamp;
-          appLogger.d('[PacketTelemetry] Registered pending request: $key');
+          if (!_pendingIcmpRequests.containsKey(key)) {
+            _pendingIcmpRequests[key] = packet.timestamp;
+            appLogger.d(
+              '[PacketTelemetry] Registered pending ICMP request: $key',
+            );
+          } else {
+            appLogger.d(
+              '[PacketTelemetry] Pending request already exists for: $key (ping session started earlier)',
+            );
+          }
         }
         break;
       case PacketType.icmpEchoReply:
@@ -296,8 +367,37 @@ class PacketTelemetryService {
           '[PacketTelemetry] ICMP Echo Reply received by $targetId: '
           'Total replies received: ${stats.icmpEchoReplyReceived}',
         );
-        // Match with pending request for response time
-        _matchIcmpReply(packet, targetId);
+
+        // IMPORTANT: Only match replies at PING-CAPABLE DEVICES (PC/Server/Router),
+        // not intermediate forwarding devices (switches)
+        // This prevents the reply from being matched multiple times as it traverses the network
+        final canvasState = _ref?.read(canvasProvider);
+        if (canvasState != null) {
+          final canvasDevice = canvasState.devices
+              .where((d) => d.id == targetId)
+              .firstOrNull;
+
+          // Check if it's a ping-capable device (can initiate pings) using DeviceType enum
+          // Switches only forward packets, they don't initiate pings
+          final isPingCapableDevice =
+              canvasDevice?.type == DeviceType.computer ||
+              canvasDevice?.type == DeviceType.server ||
+              canvasDevice?.type == DeviceType.router;
+
+          if (isPingCapableDevice) {
+            appLogger.d(
+              '[PacketTelemetry] Matching reply at PING-CAPABLE device: $targetId (${canvasDevice?.type})',
+            );
+            _matchIcmpReply(packet, targetId);
+          } else {
+            appLogger.d(
+              '[PacketTelemetry] Skipping match at forwarding device (${canvasDevice?.type}): $targetId',
+            );
+          }
+        } else {
+          // Fallback: match if we can't determine device type
+          _matchIcmpReply(packet, targetId);
+        }
         break;
       case PacketType.arpRequest:
         stats.arpRequestReceived++;
@@ -348,10 +448,23 @@ class PacketTelemetryService {
 
   void _matchIcmpReply(Packet replyPacket, String receiverId) {
     // Match reply with pending request
-    if (replyPacket.sourceIp == null || replyPacket.destIp == null) return;
+    if (replyPacket.sourceIp == null || replyPacket.destIp == null) {
+      appLogger.d(
+        '[PacketTelemetry] Cannot match ICMP reply: missing IP addresses',
+      );
+      return;
+    }
 
     // Key is reversed for reply: destIp sent request, sourceIp is replying
     final key = '${replyPacket.destIp}:${replyPacket.sourceIp}';
+
+    // DEBUG: Show all pending requests
+    appLogger.d(
+      '[PacketTelemetry] Looking for key: $key\n'
+      'Pending requests: ${_pendingIcmpRequests.keys.toList()}\n'
+      'Reply packet: sourceIp=${replyPacket.sourceIp}, destIp=${replyPacket.destIp}',
+    );
+
     final requestTime = _pendingIcmpRequests.remove(key);
 
     if (requestTime != null) {
@@ -361,9 +474,14 @@ class PacketTelemetryService {
       final stats = getDeviceStats(receiverId);
       stats.icmpResponseTimes.add(responseTime);
 
-      // Update last ping response time
+      // Update last ping response time and CLEAR timeout flag
       stats.lastPingResponseTime = responseTime;
       stats.lastPingTimedOut = false;
+
+      appLogger.i(
+        '[PacketTelemetry] Matched ICMP reply for device $receiverId: '
+        '${responseTime.inMilliseconds}ms (from ${replyPacket.sourceIp})',
+      );
 
       // Find and update the original request telemetry
       for (final telemetry in _packetHistory.values) {
@@ -380,6 +498,11 @@ class PacketTelemetryService {
 
       appLogger.d(
         '[PacketTelemetry] Matched ICMP reply: ${responseTime.inMilliseconds}ms',
+      );
+    } else {
+      appLogger.w(
+        '[PacketTelemetry] ICMP reply received but no matching request found '
+        'for key: $key (from ${replyPacket.sourceIp} to ${replyPacket.destIp})',
       );
     }
   }
@@ -420,17 +543,25 @@ class PacketTelemetryService {
     });
 
     // Mark devices with timed-out last pings
+    // IMPORTANT: Only mark as timeout if reply was truly NOT received
     for (final stats in _deviceStats.values) {
       if (stats.lastPingTime != null &&
           stats.lastPingResponseTime == null &&
           !stats.lastPingTimedOut) {
         final timeSincePing = now.difference(stats.lastPingTime!);
-        if (timeSincePing >= DevicePacketStats.pingTimeout) {
-          stats.lastPingTimedOut = true;
-          appLogger.w(
-            '[PacketTelemetry] Device ${stats.deviceId} last ping timed out '
-            '(${timeSincePing.inMilliseconds}ms)',
-          );
+
+        // Only mark as timeout if we've exceeded device's threshold AND
+        // the ping is still pending (not matched yet)
+        if (timeSincePing >= stats.pingTimeout) {
+          // Double-check: If reply was received, lastPingResponseTime should be set
+          // This check prevents race conditions where reply comes during cleanup
+          if (stats.lastPingResponseTime == null) {
+            stats.lastPingTimedOut = true;
+            appLogger.w(
+              '[PacketTelemetry] Device ${stats.deviceId} last ping timed out '
+              '(${timeSincePing.inMilliseconds}ms > ${stats.pingTimeout.inMilliseconds}ms) - no reply received',
+            );
+          }
         }
       }
     }

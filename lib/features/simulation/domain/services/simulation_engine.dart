@@ -6,6 +6,8 @@ import 'package:netsim_mobile/features/devices/domain/entities/end_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/switch_device.dart';
 import 'package:netsim_mobile/features/devices/domain/entities/router_device.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
+import 'package:netsim_mobile/features/simulation/domain/services/packet_telemetry_service.dart';
+import 'package:netsim_mobile/features/simulation/presentation/providers/packet_telemetry_provider.dart';
 
 enum PacketEventType { sent, delivered, dropped, forwarded }
 
@@ -34,6 +36,18 @@ class SimulationEngine {
   SimulationEngine(this.ref);
 
   Stream<PacketEvent> get packetStream => _packetStreamController.stream;
+
+  /// Access to telemetry service for tracking ping sessions
+  /// This is accessed via provider to avoid circular dependencies
+  PacketTelemetryService? get telemetryService {
+    try {
+      // Import will be added at the top
+      return ref.read(packetTelemetryServiceProvider);
+    } catch (e) {
+      appLogger.w('[Simulation] Could not access telemetry service: $e');
+      return null;
+    }
+  }
 
   /// Send a packet from a source device
   void sendPacket(Packet packet, String fromDeviceId) {

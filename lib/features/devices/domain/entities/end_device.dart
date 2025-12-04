@@ -67,6 +67,9 @@ class EndDevice extends NetworkDevice
   // Pending pings waiting for ARP resolution
   final Map<String, int> _pendingPings = {}; // targetIp -> sequence number
 
+  // Ping timeout configuration (in milliseconds)
+  int pingTimeoutMs;
+
   EndDevice({
     required super.deviceId,
     required super.position,
@@ -85,6 +88,7 @@ class EndDevice extends NetworkDevice
     List<NetworkInterface>? interfaces,
     RoutingTable? routingTable,
     ArpCache? arpCacheStructured,
+    this.pingTimeoutMs = 5000, // Default 5 seconds
   }) : _isPoweredOn = isPoweredOn,
        _linkState = linkState,
        currentDnsServers = currentDnsServers ?? [],
@@ -500,6 +504,14 @@ class EndDevice extends NetworkDevice
       value: currentDefaultGateway ?? 'Not assigned',
       isReadOnly: !canEditIpAddress || ipConfigMode == 'DHCP',
     ),
+    NumberProperty(
+      id: 'pingTimeoutMs',
+      label: 'Ping Timeout (ms)',
+      value: pingTimeoutMs.toDouble(),
+      min: 1000,
+      max: 30000,
+      step: 1000,
+    ),
   ];
 
   @override
@@ -698,6 +710,21 @@ class EndDevice extends NetworkDevice
     appLogger.i(
       '[EndDevice] Initiating ping to $targetIp from $hostname ($currentIpAddress)',
     );
+
+    // IMPORTANT: Register ping session start NOW (before ARP or ICMP)
+    // This tracks the full ping time including ARP resolution
+    if (engine.telemetryService != null) {
+      engine.telemetryService!.registerPingSessionStart(
+        deviceId,
+        currentIpAddress!,
+        targetIp,
+        timeoutMs: pingTimeoutMs, // Use device's configured timeout
+      );
+    } else {
+      appLogger.w(
+        '[EndDevice] Telemetry service not available, ping session tracking disabled',
+      );
+    }
 
     // Step 2: Routing table lookup (longest prefix match)
     final route = routingTable.longestPrefixMatch(targetIp);

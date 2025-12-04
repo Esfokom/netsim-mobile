@@ -791,6 +791,14 @@ class RouterDevice extends NetworkDevice
       '[Router $name] Initiating ping from ${sourceInterface.name} (${sourceInterface.ipAddress}) to $targetIp',
     );
 
+    // Register ping session start for telemetry (before any ARP/ICMP)
+    engine.telemetryService?.registerPingSessionStart(
+      deviceId,
+      sourceInterface.ipAddress,
+      targetIp,
+      timeoutMs: 5000, // Router default timeout: 5 seconds
+    );
+
     // Look up route to target
     final route = _routingTable.longestPrefixMatch(targetIp);
     if (route == null) {

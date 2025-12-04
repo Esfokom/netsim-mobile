@@ -6,7 +6,7 @@ import 'package:netsim_mobile/features/simulation/domain/services/simulation_eng
 
 /// Provider for the packet telemetry service
 final packetTelemetryServiceProvider = Provider<PacketTelemetryService>((ref) {
-  final service = PacketTelemetryService();
+  final service = PacketTelemetryService(ref);
   final engine = ref.watch(simulationEngineProvider);
 
   // Initialize with simulation engine

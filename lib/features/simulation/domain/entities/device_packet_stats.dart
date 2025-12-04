@@ -13,9 +13,9 @@ class DevicePacketStats {
   DateTime? lastPingTime; // When the last ping was sent
   Duration? lastPingResponseTime; // Response time for the last ping
   bool lastPingTimedOut = false; // Whether the last ping timed out
-  static const Duration pingTimeout = Duration(
+  Duration pingTimeout = const Duration(
     seconds: 5,
-  ); // Default timeout threshold
+  ); // Configurable timeout threshold (default 5s)
 
   // ARP Statistics
   int arpRequestSent = 0;
@@ -58,7 +58,7 @@ class DevicePacketStats {
     if (lastPingTime == null) return 'No pings sent';
 
     if (lastPingTimedOut) {
-      return 'High Ping (>5000ms)';
+      return 'High Ping (>${pingTimeout.inMilliseconds}ms)';
     }
 
     if (lastPingResponseTime != null) {
@@ -71,7 +71,7 @@ class DevicePacketStats {
       return 'Waiting... (${timeSincePing.inMilliseconds}ms)';
     }
 
-    return 'Timeout';
+    return 'Timeout (no response)';
   }
 
   /// Whether the last ping is still pending (waiting for response)
