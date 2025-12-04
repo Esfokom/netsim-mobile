@@ -173,6 +173,10 @@ class _CanvasDeviceWidgetState extends ConsumerState<CanvasDeviceWidget> {
                   if (!canvasState.isLinkingMode) {
                     dragStartPosition = widget.device.position;
                     canvasNotifier.selectDevice(widget.device.id);
+                    // Sync selection with scenario provider
+                    ref
+                        .read(scenarioProvider.notifier)
+                        .selectDevice(widget.device.id);
                   }
                 },
                 onPanUpdate: (details) {

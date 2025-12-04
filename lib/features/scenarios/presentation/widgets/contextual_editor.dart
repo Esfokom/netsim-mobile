@@ -52,6 +52,33 @@ class _ContextualEditorState extends ConsumerState<ContextualEditor> {
     final scenarioState = ref.watch(scenarioProvider);
     final canvasState = ref.watch(canvasProvider);
 
+    // Sync: if canvas has a selected device but scenario doesn't know about it
+    final canvasSelectedDevice = canvasState.devices
+        .where((d) => d.isSelected)
+        .firstOrNull;
+    if (canvasSelectedDevice != null &&
+        scenarioState.selectedDeviceId != canvasSelectedDevice.id) {
+      // Canvas has a different device selected than scenario provider knows about
+      // Sync scenario provider to match canvas
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref
+            .read(scenarioProvider.notifier)
+            .selectDevice(canvasSelectedDevice.id);
+      });
+    } else if (canvasSelectedDevice == null &&
+        scenarioState.selectedDeviceId != null) {
+      // Canvas has no selection but scenario thinks something is selected
+      // Check if the device actually exists and is selected
+      final scenarioDevice = canvasState.devices
+          .where((d) => d.id == scenarioState.selectedDeviceId)
+          .firstOrNull;
+      if (scenarioDevice == null || !scenarioDevice.isSelected) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(scenarioProvider.notifier).selectDevice(null);
+        });
+      }
+    }
+
     // In simulation mode, only show device properties if device selected
     if (widget.simulationMode) {
       CanvasDevice? selectedDevice;

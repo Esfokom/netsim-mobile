@@ -6,6 +6,7 @@ import 'package:netsim_mobile/features/canvas/data/models/canvas_device.dart';
 import 'package:netsim_mobile/features/canvas/presentation/providers/canvas_provider.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/canvas_device_widget.dart';
 import 'package:netsim_mobile/features/canvas/presentation/widgets/links_painter.dart';
+import 'package:netsim_mobile/features/scenarios/presentation/providers/scenario_provider.dart';
 import 'package:netsim_mobile/features/simulation/domain/services/simulation_engine.dart';
 import 'package:netsim_mobile/features/simulation/domain/entities/packet.dart';
 
@@ -352,6 +353,8 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas>
             // Deselect all devices when tapping empty space
             if (!canvasState.isLinkingMode) {
               canvasNotifier.deselectAllDevices();
+              // Also clear selection in scenario provider
+              ref.read(scenarioProvider.notifier).selectDevice(null);
             }
           },
           child: Container(
