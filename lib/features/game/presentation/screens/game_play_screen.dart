@@ -39,28 +39,55 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   // Panel state
   GamePanelType? _currentPanel;
 
+  // Saved notifier references for safe disposal
+  GameConditionChecker? _conditionNotifier;
+  CanvasNotifier? _canvasNotifier;
+  ScenarioNotifier? _scenarioNotifier;
+
   @override
   void initState() {
     super.initState();
+
+    // Save notifier references for safe disposal
+    _conditionNotifier = ref.read(gameConditionCheckerProvider.notifier);
+    _canvasNotifier = ref.read(canvasProvider.notifier);
+    _scenarioNotifier = ref.read(scenarioProvider.notifier);
+
     _initializeGame();
   }
 
   @override
   void dispose() {
     _gameTimer?.cancel();
-    // Clean up game state when leaving
-    _cleanupGameState();
+    // Clean up game state when leaving using saved references
+    _cleanupGameStateSafely();
     super.dispose();
   }
 
+  void _cleanupGameStateSafely() {
+    try {
+      // Clear condition check results
+      _conditionNotifier?.clearResults();
+      // Clear network devices cache to force re-initialization next time
+      _canvasNotifier?.clearNetworkDevicesCache();
+      // Exit simulation mode
+      _scenarioNotifier?.exitSimulationMode();
+      appLogger.d('[GamePlayScreen] Game state cleaned up');
+    } catch (e) {
+      appLogger.w('[GamePlayScreen] Error during cleanup (ignored): $e');
+    }
+  }
+
   void _cleanupGameState() {
-    // Clear condition check results
-    ref.read(gameConditionCheckerProvider.notifier).clearResults();
-    // Clear network devices cache to force re-initialization next time
-    ref.read(canvasProvider.notifier).clearNetworkDevicesCache();
-    // Exit simulation mode
-    ref.read(scenarioProvider.notifier).exitSimulationMode();
-    appLogger.d('[GamePlayScreen] Game state cleaned up');
+    // For non-dispose cleanup (e.g., when navigating away via button)
+    try {
+      ref.read(gameConditionCheckerProvider.notifier).clearResults();
+      ref.read(canvasProvider.notifier).clearNetworkDevicesCache();
+      ref.read(scenarioProvider.notifier).exitSimulationMode();
+      appLogger.d('[GamePlayScreen] Game state cleaned up');
+    } catch (e) {
+      appLogger.w('[GamePlayScreen] Error during cleanup: $e');
+    }
   }
 
   void _replayGame() {

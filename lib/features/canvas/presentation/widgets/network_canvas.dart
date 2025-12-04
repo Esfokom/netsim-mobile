@@ -111,11 +111,9 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas>
     _packetSubscription?.cancel();
     _ticker.dispose();
 
-    // Clear the controller from the provider after dispose completes
-    // Use Future to delay the modification as recommended by Riverpod
-    Future(() {
-      _transformationNotifier?.clearController();
-    });
+    // Note: We don't clear the controller from the provider here as it causes
+    // state updates on disposed widgets. The provider will be reset when the
+    // widget is rebuilt.
 
     _transformationController.dispose();
     super.dispose();
