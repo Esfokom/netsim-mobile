@@ -319,10 +319,12 @@ class _NetworkCanvasState extends ConsumerState<NetworkCanvas>
         final translation = matrix.getTranslation();
 
         // Calculate the actual position on the canvas
+        // The feedback widget is 80x80 and feedbackOffset is (-40, -40)
+        // So the touch point is at the center of the feedback
+        // We need to position the device so its center is at the touch point
         final adjustedPosition = Offset(
-          (localPosition.dx - translation.x) / scale -
-              40, // -40 to center the device
-          (localPosition.dy - translation.y) / scale - 40,
+          (localPosition.dx - translation.x) / scale,
+          (localPosition.dy - translation.y) / scale,
         );
 
         // Constrain position to canvas bounds
