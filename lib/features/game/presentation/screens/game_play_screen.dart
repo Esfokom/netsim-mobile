@@ -65,17 +65,20 @@ class _GamePlayScreenState extends ConsumerState<GamePlayScreen> {
   }
 
   void _cleanupGameStateSafely() {
-    try {
-      // Clear condition check results
-      _conditionNotifier?.clearResults();
-      // Clear network devices cache to force re-initialization next time
-      _canvasNotifier?.clearNetworkDevicesCache();
-      // Exit simulation mode
-      _scenarioNotifier?.exitSimulationMode();
-      appLogger.d('[GamePlayScreen] Game state cleaned up');
-    } catch (e) {
-      appLogger.w('[GamePlayScreen] Error during cleanup (ignored): $e');
-    }
+    // Delay cleanup to avoid modifying providers during widget lifecycle
+    Future(() {
+      try {
+        // Clear condition check results
+        _conditionNotifier?.clearResults();
+        // Clear network devices cache to force re-initialization next time
+        _canvasNotifier?.clearNetworkDevicesCache();
+        // Exit simulation mode
+        _scenarioNotifier?.exitSimulationMode();
+        appLogger.d('[GamePlayScreen] Game state cleaned up');
+      } catch (e) {
+        appLogger.w('[GamePlayScreen] Error during cleanup (ignored): $e');
+      }
+    });
   }
 
   void _cleanupGameState() {
