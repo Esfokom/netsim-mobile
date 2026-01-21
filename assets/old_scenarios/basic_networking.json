@@ -1,0 +1,29 @@
+{
+  "name": "Basic Networking",
+  "difficulty": "easy",
+  "timeLimit": 600,
+  "score": 65,
+  "devices": [
+    {
+      "id": "1",
+      "type": "router",
+      "position": { "x": 0, "y": 0 },
+      "parameters": {
+        "pingInterval": 30,
+        "latencyThreshold": 100,
+        "failureProbability": 0.1,
+        "trafficLoad": 10
+      },
+      "status": {
+        "online": true,
+        "latency": 20,
+        "lastChecked": "2025-10-07T14:39:23.000Z"
+      }
+    }
+  ],
+  "metadata": {
+    "createdBy": "admin",
+    "createdAt": "2025-10-07T14:39:23.000Z",
+    "description": "Introductory networking scenario."
+  }
+}

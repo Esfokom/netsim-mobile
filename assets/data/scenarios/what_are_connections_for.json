@@ -1,0 +1,164 @@
+{
+  "scenarioID": "1762788274723",
+  "title": "What are connections for?",
+  "description": "In this scenario, you need to make sure there's an active connection between both devices and both devices are online",
+  "difficulty": "easy",
+  "initialDeviceStates": [
+    {
+      "id": "1762866294191",
+      "name": "Server 1",
+      "type": "server",
+      "position": {
+        "x": 1007.7872565053472,
+        "y": 948.6383463541695
+      },
+      "status": "offline"
+    },
+    {
+      "id": "1762866298652",
+      "name": "Computer 1",
+      "type": "computer",
+      "position": {
+        "x": 778.4643398386804,
+        "y": 954.9716796875028
+      },
+      "status": "offline"
+    }
+  ],
+  "initialLinks": [],
+  "playerSettings": {
+    "availableTools": [
+      "ping",
+      "ipconfig",
+      "nslookup"
+    ],
+    "editableDevices": []
+  },
+  "successConditions": [
+    {
+      "id": "1762866649264",
+      "description": "Switch on PC",
+      "type": "PROPERTYCHECK",
+      "targetDeviceID": "1762866298652",
+      "property": "Power",
+      "propertyDataType": "STRING",
+      "operator": "EQUALS",
+      "expectedValue": "ON"
+    },
+    {
+      "id": "1762866689599",
+      "description": "Switch on Server",
+      "type": "PROPERTYCHECK",
+      "targetDeviceID": "1762866294191",
+      "property": "Power",
+      "propertyDataType": "STRING",
+      "operator": "EQUALS",
+      "expectedValue": "ON"
+    },
+    {
+      "id": "1762866711602",
+      "description": "Devices must be connected",
+      "type": "CONNECTIVITY",
+      "protocol": "LINK",
+      "sourceDeviceID": "1762866298652",
+      "targetDeviceID": "1762866294191"
+    }
+  ],
+  "deviceRules": {
+    "1762788283288": [
+      {
+        "id": "1762789000680",
+        "type": "ALLOW",
+        "actionType": "POWERON"
+      },
+      {
+        "id": "1762789013310",
+        "type": "ALLOW",
+        "actionType": "POWEROFF"
+      }
+    ],
+    "1762863995795": [
+      {
+        "id": "1762864176438",
+        "type": "ALLOW",
+        "actionType": "CREATELINK"
+      },
+      {
+        "id": "1762865621477",
+        "type": "DENY",
+        "actionType": "REMOVELINK"
+      }
+    ],
+    "1762864008939": [
+      {
+        "id": "1762864189285",
+        "type": "ALLOW",
+        "actionType": "CREATELINK"
+      },
+      {
+        "id": "1762866203236",
+        "type": "DENY",
+        "actionType": "REMOVELINK"
+      }
+    ],
+    "1762866107009": [
+      {
+        "id": "1762866187987",
+        "type": "DENY",
+        "actionType": "REMOVELINK"
+      }
+    ],
+    "1762866294191": [
+      {
+        "id": "1762866370109",
+        "type": "DENY",
+        "actionType": "EDITPROPERTY",
+        "propertyId": "currentIp"
+      },
+      {
+        "id": "1762866381790",
+        "type": "DENY",
+        "actionType": "CHANGEPOSITION"
+      },
+      {
+        "id": "1762866436803",
+        "type": "ALLOW",
+        "actionType": "POWEROFF"
+      },
+      {
+        "id": "1762866815045",
+        "type": "ALLOW",
+        "actionType": "POWERON"
+      },
+      {
+        "id": "1762866826212",
+        "type": "DENY",
+        "actionType": "DELETE"
+      }
+    ],
+    "1762866298652": [
+      {
+        "id": "1762866395762",
+        "type": "ALLOW",
+        "actionType": "CREATELINK"
+      },
+      {
+        "id": "1762866403446",
+        "type": "ALLOW",
+        "actionType": "POWERON"
+      },
+      {
+        "id": "1762866777882",
+        "type": "DENY",
+        "actionType": "DELETE"
+      },
+      {
+        "id": "1762866786833",
+        "type": "DENY",
+        "actionType": "CHANGEPOSITION"
+      }
+    ]
+  },
+  "createdAt": "2025-11-10T15:24:34.723985",
+  "lastModified": "2025-11-11T13:13:56.075012"
+}

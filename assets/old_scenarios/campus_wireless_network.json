@@ -1,0 +1,62 @@
+{
+  "name": "Campus Wireless Network",
+  "difficulty": "medium",
+  "timeLimit": 900,
+  "score": 80,
+  "devices": [
+    {
+      "id": "6",
+      "type": "pc",
+      "position": { "x": 8, "y": 10 },
+      "parameters": {
+        "pingInterval": 25,
+        "latencyThreshold": 90,
+        "failureProbability": 0.08,
+        "trafficLoad": 40
+      },
+      "status": {
+        "online": true,
+        "latency": 25,
+        "lastChecked": "2025-10-10T14:39:23.000Z"
+      }
+    },
+    {
+      "id": "7",
+      "type": "other",
+      "position": { "x": 12, "y": 18 },
+      "parameters": {
+        "pingInterval": 20,
+        "latencyThreshold": 70,
+        "failureProbability": 0.12,
+        "trafficLoad": 55
+      },
+      "status": {
+        "online": true,
+        "latency": 30,
+        "lastChecked": "2025-10-10T14:39:23.000Z"
+      }
+    },
+    {
+      "id": "8",
+      "type": "switch",
+      "position": { "x": 0, "y": 0 },
+      "parameters": {
+        "pingInterval": 30,
+        "latencyThreshold": 100,
+        "failureProbability": 0.1,
+        "trafficLoad": 10
+      },
+      "status": {
+        "online": true,
+        "latency": 20,
+        "lastChecked": "2025-10-10T14:39:23.000Z"
+      }
+    }
+  ],
+  "metadata": {
+    "createdBy": "network_admin",
+    "createdAt": "2025-10-10T14:39:23.000Z",
+    "description": "Scenario simulating a wireless network environment across campus buildings."
+  }
+}
+

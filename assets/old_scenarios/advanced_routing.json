@@ -1,0 +1,44 @@
+{
+  "name": "Advanced Routing",
+  "difficulty": "hard",
+  "timeLimit": 1200,
+  "score": 70,
+  "devices": [{
+    "id": "2",
+    "type": "switch",
+    "position": { "x": 10, "y": 20 },
+    "parameters": {
+      "pingInterval": 15,
+      "latencyThreshold": 50,
+      "failureProbability": 0.2,
+      "trafficLoad": 70
+    },
+    "status": {
+      "online": false,
+      "latency": 200,
+      "lastChecked": "2025-10-07T14:39:23.000Z"
+    }
+  },
+    {
+      "id": "3",
+      "type": "server",
+      "position": { "x": 5, "y": 15 },
+      "parameters": {
+        "pingInterval": 20,
+        "latencyThreshold": 80,
+        "failureProbability": 0.05,
+        "trafficLoad": 30
+      },
+      "status": {
+        "online": true,
+        "latency": 40,
+        "lastChecked": "2025-10-07T14:39:23.000Z"
+      }
+    }
+  ],
+  "metadata": {
+    "createdBy": "trainer",
+    "createdAt": "2025-10-07T14:39:23.000Z",
+    "description": "Challenging routing exercise with failures."
+  }
+}

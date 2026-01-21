@@ -1,0 +1,98 @@
+{
+  "scenarioID": "1764846723433",
+  "title": "First Ping",
+  "description": "Learn the basics of network communication! Configure Computer 1 to successfully ping Computer 2 through the switch.",
+  "difficulty": "easy",
+  "initialDeviceStates": [
+    {
+      "id": "1764846797713",
+      "name": "Computer 1",
+      "type": "computer",
+      "position": {
+        "x": 853.3333333333333,
+        "y": 920.6728515625
+      },
+      "status": "online"
+    },
+    {
+      "id": "1764846799423",
+      "name": "Switch 1",
+      "type": "switch_",
+      "position": {
+        "x": 973.6588541666666,
+        "y": 926.6451822916667
+      },
+      "status": "online"
+    },
+    {
+      "id": "1764846801002",
+      "name": "Computer 2",
+      "type": "computer",
+      "position": {
+        "x": 1089.9869791666665,
+        "y": 918.9752604166667
+      },
+      "status": "online"
+    }
+  ],
+  "initialLinks": [
+    {
+      "id": "1764846797713_1764846799423",
+      "fromDeviceId": "1764846797713",
+      "toDeviceId": "1764846799423",
+      "type": "ethernet"
+    },
+    {
+      "id": "1764846799423_1764846801002",
+      "fromDeviceId": "1764846799423",
+      "toDeviceId": "1764846801002",
+      "type": "ethernet"
+    }
+  ],
+  "playerSettings": {
+    "availableTools": [
+      "ping",
+      "ipconfig",
+      "nslookup"
+    ],
+    "editableDevices": []
+  },
+  "successConditions": [
+    {
+      "id": "1764847064122",
+      "description": "Ping from Computer 1 to Computer 2 must succeed",
+      "type": "PING",
+      "pingSessionCheckType": "SUCCESS",
+      "sourceDeviceIdForSession": "1764846797713",
+      "sourceInterfaceForSession": "eth0",
+      "destDeviceIdForSession": "1764846801002",
+      "destInterfaceForSession": "eth0"
+    }
+  ],
+  "deviceRules": {
+    "1764846797713": [
+      {
+        "id": "1764846899564",
+        "permission": "DENIED",
+        "actionType": "POWEROFF"
+      },
+      {
+        "id": "1764846907981",
+        "permission": "DENIED",
+        "actionType": "EDITPROPERTY"
+      },
+      {
+        "id": "1764846923066",
+        "permission": "DENIED",
+        "actionType": "DELETE"
+      },
+      {
+        "id": "1764846933232",
+        "permission": "DENIED",
+        "actionType": "POWERON"
+      }
+    ]
+  },
+  "createdAt": "2025-12-04T11:12:03.433957",
+  "lastModified": "2025-12-04T11:18:32.281402"
+}
